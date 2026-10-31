@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lyrics Riptide</title>
+<style>
+@font-face { font-family: "P3"; src: url("assets/fonts/NunitoSans-BlackItalic-latin.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("assets/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* 颜色只取 p3.css 的两套 token；浅背景时主句用 --ink，翻译用 --sea（tokens.css 的深海蓝） */
+:root, [data-theme="p3"] {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff; --sea: #0626c4; --red: #e3121b;
+}
+[data-theme="lavender"] {
+  --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff; --sea: #4b2f9e; --red: #ff3d6e;
+}
+:root { --main: var(--tx); --sub: var(--fill); --page: #000510; }
+[data-bg="light"] { --main: var(--ink); --sub: var(--sea); --page: #e8edf1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #000510; } }
+:root[data-bg="light"] { --page: #e8edf1; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--page); }
+body { user-select: none; -webkit-user-select: none; cursor: default; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  margin: -540px 0 0 -960px; overflow: hidden; transform-origin: 50% 50%; }
+#bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+[data-theme="lavender"] #bg { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+[data-bg="light"] #bg { display: none; }
+#stage { background: var(--page); }
+
+/* 歌词层：主句底边固定在 y=844，右缘固定在 x=1800（bg.png 右下的深海区） */
+#lyr { position: absolute; right: 120px; bottom: 236px; width: 0; height: 0;
+  transition: opacity .32s cubic-bezier(.22,.9,.24,1); }
+#lyr.paused { opacity: .42; }
+.blk { position: absolute; right: 0; bottom: 0; text-align: right; white-space: nowrap; }
+
+/* 每一行有自己的「水面」：.msk 的下沿。.in 从水面下浮上来，沉回去 */
+.msk { display: block; position: relative; overflow: hidden; padding: .1em .3em .22em; margin: -.1em -.3em -.22em; }
+.in { display: inline-block; will-change: transform; }
+
+.m { color: var(--main); }
+.m .msk + .msk { margin-top: calc(-.22em + 2px); }
+/* 中文 / 日文主句：P3 shell 的 .zh 调性，加重到 Bold、放大，字距收紧一点 */
+.cjk .m { font-family: "Noto Sans CJK SC", "Source Han Sans CN", sans-serif; font-weight: 700;
+  font-size: 58px; line-height: 1.22; letter-spacing: .06em; }
+.cjk[lang="ja"] .m { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; }
+/* 英文主句：P3R 展示字 */
+.lat .m { font-family: "P3", "Noto Sans CJK SC", sans-serif; font-style: italic; font-weight: 900;
+  font-size: 66px; line-height: 1.02; letter-spacing: -.005em; }
+
+/* 翻译：.zh 原样（Medium 500，.08em），用 --fill；挂在水线下方，右缘比主句缩进 .6em（错位），不参与主句布局 */
+.tr { position: absolute; top: 100%; right: .6em; margin-top: 30px; color: var(--sub);
+  font-family: "Noto Sans CJK SC", sans-serif; font-style: normal; font-weight: 500; font-size: 26px;
+  line-height: 1.3; letter-spacing: .08em; }
+.lat .tr { margin-top: 34px; }
+
+/* 每个字一个 .g：浪推过时只做 transform（抬起 + 前倾），字色平涂不变 */
+.g { display: inline-block; will-change: transform; }
+/* 拍点词：快歌里的单词短句整句平涂 --red（一首歌里只有一两处） */
+.blk.punch .m { color: var(--red); }
+/* 水线：就是主句最后一行 .msk 的下沿（字从这条线里浮出、沉回）。1.2px 平涂细线，常驻偏暗。
+   左侧多出约 1/3 块宽的「跑道」，遮罩淡入，像一股从左边远处来的长流；右侧多出 140px 给浪峰越界。
+   位置、宽度、遮罩由 wavePos() 写入 */
+.wvc { position: absolute; left: 0; top: 0; height: 24px; pointer-events: none; overflow: hidden; }
+.wvc .base { position: absolute; left: 0; top: 18px; height: 1.2px; background: var(--sub); opacity: .18; }
+[data-bg="light"] .wvc .base { opacity: .3; }
+/* 浪刃：一片固定形状的 SVG，长尾在左、前缘斜切在右；只做 translateX。
+   亮度沿浪形渐变（尾部透明 → 浪峰最亮），不发光、不模糊 */
+.blade { position: absolute; left: 0; top: 0; will-change: transform; transform: translateX(-9999px); }
+.blade .b-sub { stop-color: var(--sub); }
+.blade .b-main { stop-color: var(--main); }
+.blade .b-red { stop-color: var(--red); }
+/* 歌名下的歌手：BarlowC 标签字，中文歌手名回落到 Noto 500 */
+.tr.by { font-family: "BarlowC", "Noto Sans CJK SC", sans-serif; font-weight: 700; font-size: 24px;
+  letter-spacing: .2em; text-transform: uppercase; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <img id="bg" src="assets/bg.png" alt="" onerror="this.remove()">
+  <div id="lyr"></div>
+</div>
+<script>
+const Q = new URLSearchParams(location.search);
+const root = document.documentElement;
+if (Q.get('bg') === 'light') root.dataset.bg = 'light';
+root.dataset.theme = Q.get('theme') === 'lavender' ? 'lavender' : 'p3';
+const SLOW = Math.max(.05, +Q.get('slow') || 1);
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+
+/* 原创假歌，行级时间戳（照搬 v2/slab.html） */
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ============================================================
+   动效编排「浮出水面」
+   每一行文字下沿有一条看不见的水面（.msk 的 overflow 裁切）。
+   入场：文字从水面下 108% 处浮上来，out-expo，主句多行时自上而下错开，翻译最后浮出。
+   退场：先沉翻译，再自下而上沉主句，ease-in，比入场快一倍多。
+   交接：严格先出后进。旧行完全沉没后再隔 40ms，新行才开始浮出，
+        两行共用同一条水面，任何时刻水面上只有一行。
+   提前量：退场从下一行时间戳前 LEAD 开始，使新行恰好在时间戳附近露出。
+   快歌：k = 行间隔 / 1.5s，夹在 [.42, 1]；所有时长、错开、提前量都乘 k。
+   间奏：行后间隔 ≥ 6s 时，这一行停留 HOLD 后单独、缓慢地沉下（不急着腾位置），屏幕留空。
+   ============================================================ */
+const EZ = {
+  up:   'cubic-bezier(.16,1,.3,1)',      // 浮出：快起慢停
+  down: 'cubic-bezier(.6,0,.86,.4)',     // 沉下：慢起快走
+  calm: 'cubic-bezier(.45,0,.75,.45)',   // 间奏退场：更平的 ease-in
+};
+const T = { enter: 700, exit: 300, row: 70, trans: 100, exitRow: 28, calmExit: 620, lead: .14 };
+const INTERLUDE = 6, HOLD = 4.2;
+/* 沉没深度按像素量：从 .in 顶到水面（.msk 下沿，含 padding）的距离，再多沉 .35em，
+   盖住斜体/假名超出行框的笔画顶，保证沉到底时字形顶端在水面之下。 */
+const depth = el => {
+  const fs = parseFloat(getComputedStyle(el).fontSize) || 60;
+  return `translateY(${Math.ceil(el.parentNode.clientHeight - el.offsetTop + .35 * fs)}px)`;
+};
+
+const lyr = document.getElementById('lyr');
+const anims = new Set();
+let si = 0, song = SONGS[0], time = 0, paused = false, transOn = Q.get('trans') !== '0';
+let shown = null;        // {key, el}
+let index = -1;
+
+const isLat = s => !/[　-鿿＀-￯]/.test(s);
+const kOf = (s, i) => {
+  const L = s.lines, nt = i + 1 < L.length ? L[i + 1].t : s.end;
+  return Math.min(1, Math.max(.42, (nt - L[i].t) / 1.5));
+};
+
+function anim(el, kf, dur, ease, delay = 0, fill = 'both') {
+  const a = el.animate(kf, { duration: Math.max(1, dur * SLOW), delay: delay * SLOW, easing: ease, fill });
+  anims.add(a);
+  a.finished.then(() => anims.delete(a), () => anims.delete(a));
+  if (paused) a.pause();
+  return a;
+}
+const curY = el => { const m = new DOMMatrix(getComputedStyle(el).transform); return m.m42 + 'px'; };
+
+function row(text) {
+  const m = document.createElement('span'); m.className = 'msk';
+  const i = document.createElement('span'); i.className = 'in';
+  for (const ch of text) {
+    if (ch === ' ') { i.appendChild(document.createTextNode(' ')); continue; }
+    const g = document.createElement('span'); g.className = 'g'; g.textContent = ch; i.appendChild(g);
+  }
+  m.appendChild(i); return m;
+}
+
+/* item: {key, main:[rows], sub, lat, lang, by} */
+function build(item) {
+  const b = document.createElement('div');
+  b.className = 'blk ' + (item.lat ? 'lat' : 'cjk') + (item.punch ? ' punch' : '');
+  if (item.lang) b.lang = item.lang;
+  const m = document.createElement('div'); m.className = 'm';
+  item.main.forEach(t => m.appendChild(row(t)));
+  b.appendChild(m);
+  if (item.sub && (transOn || item.by)) addSub(b, item);
+  b._item = item;
+  lyr.appendChild(b);
+  addWave(b);
+  return b;
+}
+function addSub(b, item) {
+  const s = document.createElement('div'); s.className = 'tr' + (item.by ? ' by' : '');
+  s.appendChild(row(item.sub));
+  b.querySelector('.m').appendChild(s);
+  return s;
+}
+const mainIns = b => [...b.querySelectorAll('.m > .msk > .in')];
+const subIn = b => b.querySelector('.tr .in');
+
+/* ============================================================
+   「离岸流 RIPTIDE」
+   一股从左往右的水流，既是入场，也是停留时的波，也是退场。
+   水线：主句最后一行 .msk 的下沿（裁切边）就是水面，1.2px 细线常驻（opacity .18）。
+     水线向左多伸出约 1/3 块宽的「跑道」，遮罩淡入；右侧越过句尾 OVER = 120px（正好到舞台右缘）给浪峰冲出去。
+   入场（SURGE）：旧句完全沉没 + 40ms 后，一道浪刃从跑道最左端出发（浪峰在 x=0），
+     匀速冲过整句，越过右缘 OVER 后在那里顶住 120ms 再淡掉；
+     浪峰经过哪个字，那个字就从水面下浮起：translateY(水下) + translateX(-.22em) + skewX(-14°)
+     → 停在 skewX(-6°)：整句停留时是「被水流推着」的前倾姿态。
+     翻译沿浪的方向从左边 -.6em 处滑上来，晚于主句。
+   停留（CURRENT）：入场结束后，第二道浪刃从跑道左端出发，匀速走完整段水线，
+     用时 = 这一句剩余的屏上时长（浪峰到右缘时正好开始退场）；
+     浪峰到达时字抬起 A = 字号 × .1、前推 .05em、前倾 -9°，浪过后落下回摆，最后站直到 skewX(0) 并保持。
+     也就是说：浪还没过的字是斜的，浪过去的字是直的，一句歌词的进度就是「斜/直」的分界线。
+   退场（UNDERTOW）：同方向逐字向前、向下沉回水面下，ease-in，300ms × k；任何时刻水面上只有一行。
+   浪刃：L = 380px，长尾在左（透明 → 亮），浪峰在 .82L 处最亮，高出水线 BH = 9px，前缘 18px 斜切。
+   --red：① 快歌里的单词短句整句平涂红，连续的拍点只有第一句红；
+     ② 静默之后的第一句（歌名之后、间奏之后），入场浪刃是红色的，像发令，浪峰在右缘多顶 120ms。
+   快歌：k 夹在 [.42, 1]，所有时长乘 k；行间隔 < 1.2s 不出停留浪（字保持 -6° 直到退场）。
+   暂停：所有动画都在 anims 里，一起冻结；整层变暗的过渡也乘 ?slow。reduced-motion 只剩整块淡入淡出。
+   ============================================================ */
+const RIP = { L: 380, crest: .82, minEnter: 1.2, A: .1, push: .05, lean: -9, stand: -6, over: 120, hold: 120 };
+const SURGE = { sweep: 420, rise: 560, dx: -.22, skew: -14, trDx: -.6 };
+const WY = 18, WH = 24, BH = 9;   // 水线在容器内的 y、容器高、浪峰高出水线（px）
+const STAND = `skewX(${RIP.stand}deg)`;
+const SINK = { dur: 420, ease: 'cubic-bezier(.55,0,.8,.3)', dx: .12, skew: -10, trLag: 80 };   // 落回后沉下；翻译晚 trLag 跟着沉
+let gid = 0;
+function bladeSVG(L, h, tone) {
+  const ns = 'http://www.w3.org/2000/svg', id = 'bg' + (++gid);
+  const sv = document.createElementNS(ns, 'svg');
+  sv.setAttribute('class', 'blade'); sv.setAttribute('width', L); sv.setAttribute('height', WH);
+  sv.setAttribute('viewBox', `0 0 ${L} ${WH}`);
+  const c = RIP.crest * L, y = WY, cut = 18;
+  sv.innerHTML = `<defs><linearGradient id="${id}" x1="0" x2="${L}" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0" class="b-${tone}" stop-opacity="0"/><stop offset="${(RIP.crest * .55).toFixed(3)}" class="b-${tone}" stop-opacity=".3"/>
+    <stop offset="${RIP.crest}" class="b-${tone}" stop-opacity="1"/><stop offset="1" class="b-${tone}" stop-opacity=".8"/></linearGradient></defs>
+    <path fill="url(#${id})" d="M0 ${y} C${(c * .55).toFixed(1)} ${y} ${(c * .8).toFixed(1)} ${(y - h).toFixed(1)} ${c.toFixed(1)} ${(y - h).toFixed(1)}
+      L${(c + 10).toFixed(1)} ${(y - h).toFixed(1)} L${(c + 10 + cut).toFixed(1)} ${(y + 1.2).toFixed(1)} L0 ${(y + 1.2).toFixed(1)} Z"/>`;
+  return sv;
+}
+function addWave(b) {
+  const c = document.createElement('div'); c.className = 'wvc';
+  const base = document.createElement('div'); base.className = 'base'; c.appendChild(base);
+  b.appendChild(c);
+  wavePos(b);
+  if (document.fonts && document.fonts.status !== 'loaded')
+    document.fonts.ready.then(() => b.isConnected && wavePos(b));
+}
+/* 水线 = 主句最后一行 .msk 的下沿；左边伸出 run（≈ 1/3 宽）的跑道，右边越界 over */
+function wavePos(b) {
+  const c = b.querySelector('.wvc'); if (!c) return;
+  const ms = b.querySelectorAll('.m > .msk'), lm = ms[ms.length - 1];
+  const cut = lm.offsetTop + lm.offsetHeight;
+  const tr = b.querySelector('.tr');
+  const fs = parseFloat(getComputedStyle(b.querySelector('.m')).fontSize) || 58;
+  const w = Math.ceil(Math.max(b.offsetWidth, tr ? tr.offsetWidth + .6 * fs : 0));
+  const run = Math.round(w / 3), over = RIP.over, W = run + w + over;
+  const p0 = (run / W * 100).toFixed(2), p1 = ((run + w) / W * 100).toFixed(2);
+  const mk = `linear-gradient(90deg, transparent 0, #000 ${p0}%, #000 ${p1}%, transparent 100%)`;
+  Object.assign(c.style, { top: cut - WY + 'px', left: -(w - b.offsetWidth) - run + 'px', width: W + 'px',
+    maskImage: mk, webkitMaskImage: mk });
+  c.querySelector('.base').style.width = W + 'px';
+  c._w = w; c._run = run; c._W = W;
+}
+/* 字中心相对水线容器左缘的 x（舞台像素），与浪刃同一坐标系 */
+function glyphs(b) {
+  const c = b.querySelector('.wvc'), br = c.getBoundingClientRect(), sc = br.width / c.offsetWidth || 1;
+  const rows = [...b.querySelectorAll('.m > .msk')];
+  return [...b.querySelectorAll('.g')].map(g => {
+    const r = g.getBoundingClientRect();
+    return { g, x: (r.left + r.width / 2 - br.left) / sc, fs: parseFloat(getComputedStyle(g).fontSize) || 58,
+      row: g.closest('.tr') ? 9 : rows.indexOf(g.closest('.msk')) };
+  });
+}
+/* 一片浪刃：浪峰从 x0 匀速走到 x1，用时 T0；到头后顶住 hold，再 160ms 淡掉。返回浪峰到达 x 的时刻函数 */
+function sendBlade(b, tone, x0, x1, T0, delay, h = BH, hold = 0) {
+  const c = b.querySelector('.wvc'), L = RIP.L, cx = RIP.crest * L;
+  const sv = bladeSVG(L, h, tone); c.appendChild(sv);
+  const fade = 160, tot = T0 + hold + fade;
+  const a0 = `translateX(${(x0 - cx).toFixed(1)}px)`, a1 = `translateX(${(x1 - cx).toFixed(1)}px)`;
+  const a = anim(sv, [
+    { transform: a0, opacity: 1 },
+    { transform: a1, opacity: 1, offset: T0 / tot },
+    { transform: a1, opacity: 1, offset: (T0 + hold) / tot },
+    { transform: a1, opacity: 0 }], tot, 'linear', delay);
+  a.finished.then(() => sv.remove(), () => {});
+  return x => delay + Math.max(0, (x - x0) / (x1 - x0)) * T0;
+}
+const depthG = (g, fs) => Math.ceil(g.closest('.msk').clientHeight - g.offsetTop + .35 * fs);
+
+/* 停留浪：入场结束后才从跑道左端出发，room 毫秒走完整段水线
+   双语：翻译挂在主句正下方，按自己的 x 取浪峰到达时刻（= 头顶那个主句字的时刻），再晚 SINK.trLag，
+     抬得更轻（.6A）——像被上面的主句「带下去」；最后一个翻译字比主句最后一个字晚 trLag 沉底，不会单独留在水面上。
+   b._cw 记下这道浪的排期，翻译开关中途加进来的字也能按同一道浪沉掉；
+   b._sinks = 所有沉字动画，全部播完才算 _sunkDone（翻译增删时重新统计） */
+function current(b, delay, room) {
+  if (RM.matches || !b.isConnected || b._gone) return;
+  const c = b.querySelector('.wvc'), W = c._W, L = RIP.L;
+  /* 浪要提前走完，让最后一个字（含晚 trLag 的翻译）也来得及「顶起—落回—沉下」，再交给下一句 */
+  const D = Math.min(1400, .62 * L * Math.max(600, room) / W);
+  const T0 = Math.max(600, room - .7 * D - SINK.dur - SINK.trLag);
+  const at = sendBlade(b, 'sub', 0, W, T0, delay);
+  /* 时钟：一段空动画，currentTime 就是这道浪排期以来走过的时间（跟着暂停 / ?slow 走） */
+  const clock = anim(b, [{ opacity: 1 }, { opacity: 1 }], 1e7, 'linear', 0, 'none');
+  b._cw = { at, D, delay, clock };
+  b._sinks = [];
+  glyphs(b).forEach(o => sinkG(b, o, 0));
+  watchSunk(b);
+}
+/* 第二道浪 = 退场：浪峰到达时字被顶起、落回，然后沉进水面下并留在那里。now = 排期以来已过的时间 */
+const cwStart = (b, x, tr) => { const w = b._cw; return Math.max(w.delay, w.at(x) - .3 * w.D + (tr ? SINK.trLag : 0)); };
+function sinkG(b, { g, x, fs, row }, now) {
+  const { D } = b._cw, e = 'cubic-bezier(.37,0,.63,1)', tot = D + SINK.dur, f = D / tot;
+  const tr = row === 9, A = Math.max(1.6, fs * RIP.A * (tr ? .6 : 1)), px = fs * RIP.push;
+  const from = tr ? 'skewX(0deg)' : STAND;
+  b._sinks.push(anim(g, [
+    { transform: `translate(0px,0px) ${from}`, easing: e },
+    { transform: `translate(${px.toFixed(2)}px,${(-A).toFixed(2)}px) skewX(${RIP.lean}deg)`, offset: .3 * f, easing: e },
+    { transform: `translate(0px,${(A * .35).toFixed(2)}px) skewX(3deg)`, offset: .66 * f, easing: e },
+    { transform: 'translate(0px,0px) skewX(0deg)', offset: f, easing: SINK.ease },
+    { transform: `translate(${(SINK.dx * fs).toFixed(1)}px,${depthG(g, fs)}px) skewX(${SINK.skew}deg)` }],
+    tot, 'linear', Math.max(0, cwStart(b, x, tr) - now), 'forwards'));
+}
+/* 当前这一组沉字全部播完才置 _sunkDone；组被改过（翻译增删）就作废，由新的一轮统计 */
+function watchSunk(b) {
+  const list = b._sinks.slice(), tag = b._sinkTag = {};
+  Promise.all(list.map(a => a.finished)).then(() => {
+    if (b._sinkTag === tag) { b._sunkDone = true; b._cw.clock.cancel(); }
+  }, () => {});
+}
+const cwNow = b => b._cw ? (b._cw.clock.currentTime || 0) / SLOW : 0;
+
+/* 入场：一道浪刃从跑道最左端冲过整句、越过右缘，字随浪峰浮起。返回入场总时长（ms，未乘 SLOW） */
+function enter(b, k, delay, slow = 1, tone = 'main') {
+  if (RM.matches) { anim(b, [{ opacity: 0 }, { opacity: 1 }], 180, 'linear', delay); return 180; }
+  const c = b.querySelector('.wvc'), w = c._w || 1, W = c._W || w;
+  const S = SURGE.sweep * k * slow, R = SURGE.rise * Math.max(.5, k) * slow;
+  const hold = RIP.hold * (tone === 'red' ? 2 : 1) * Math.max(.5, k);
+  const at = sendBlade(b, tone, 0, W, S * W / w, delay, BH * 1.2, hold);
+  const mfs = parseFloat(getComputedStyle(b.querySelector('.m')).fontSize) || 58;
+  let end = 0;
+  glyphs(b).forEach(({ g, x, fs, row }) => {
+    const y = depthG(g, fs), tr = row === 9;
+    const st = tr ? T.trans * k : row * T.row * k, d = Math.max(delay, at(x)) + st, dur = tr ? R * .9 : R;
+    const from = tr ? `translate(${(SURGE.trDx * mfs).toFixed(1)}px,${y}px) skewX(${SURGE.skew}deg)`
+                    : `translate(${(SURGE.dx * fs).toFixed(1)}px,${y}px) skewX(${SURGE.skew}deg)`;
+    anim(g, [{ transform: from }, { transform: tr ? 'translate(0px,0px) skewX(0deg)' : `translate(0px,0px) ${STAND}` }],
+      dur, EZ.up, d);
+    end = Math.max(end, d + dur);
+  });
+  const base = c.querySelector('.base');
+  anim(base, [{ opacity: 0 }, { opacity: getComputedStyle(base).opacity }], R, 'ease-out', delay);
+  return Math.max(end, delay + S * W / w + hold) - delay;
+}
+function exit(b, dur, ease) {
+  b._gone = true;
+  if (b._cw) b._cw.clock.cancel();   // 停掉第二道浪的时钟；已沉的字从沉底姿态接着往下走，不会弹回
+  let last;
+  const done = () => b.remove();
+  if (RM.matches) { last = anim(b, [{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], 140, 'linear'); }
+  else {
+    const c = b.querySelector('.wvc');
+    if (c) anim(c, [{ opacity: getComputedStyle(c).opacity }, { opacity: 0 }], dur * .7, 'linear');
+    const gs = glyphs(b), x0 = Math.min(...gs.map(o => o.x)), x1 = Math.max(x0 + 1, ...gs.map(o => o.x));
+    const each = dur * .58, spread = dur - each;
+    gs.forEach(({ g, x, fs }) => {
+      const from = getComputedStyle(g).transform;
+      g.getAnimations().forEach(a => a.cancel());
+      const a = anim(g, [{ transform: from === 'none' ? 'none' : from },
+        { transform: `translate(${(.2 * fs).toFixed(1)}px,${depthG(g, fs)}px) skewX(-12deg)` }], each, ease, (x - x0) / (x1 - x0) * spread);
+      if (!last || x >= x1 - .5) last = a;
+    });
+  }
+  if (last) last.finished.then(done, done); else done();
+}
+
+/* 拍点：快歌里的单词短句 */
+function isPunch(i) {
+  const L = song.lines; if (i < 0) return false;
+  const l = L[i], nt = i + 1 < L.length ? L[i + 1].t : song.end;
+  const bare = l.text.replace(/[\s？?！!、。,.]/g, '');
+  return nt - l.t < 1.6 && !l.text.includes('|') && (isLat(l.text) ? !/\s/.test(l.text.trim()) : bare.length <= 5);
+}
+/* 在 time 时刻应该显示什么 */
+function desired(t) {
+  const L = song.lines;
+  for (let i = L.length - 1; i >= 0; i--) {
+    if (t >= L[i].t - T.lead * kOf(song, i)) {
+      const nt = i + 1 < L.length ? L[i + 1].t : song.end;
+      if (nt - L[i].t >= INTERLUDE && t >= L[i].t + HOLD) return { key: 'gap' + i, i, none: true };
+      if (i === L.length - 1 && t >= song.end - .9) return { key: 'gap' + i, i, none: true };
+      const l = L[i];
+      /* 连续的拍点只有第一句红 */
+      const punch = isPunch(i) && !isPunch(i - 1);
+      return { key: 'L' + i, i, lat: isLat(l.text), lang: song.lang, main: l.text.split('|').map(s => s.trim()), sub: l.trans, punch };
+    }
+  }
+  return { key: 'title', i: -1, lat: isLat(song.title), lang: song.lang, main: [song.title], sub: song.artist, by: true };
+}
+
+/* mode: 'auto' | 'seek' | 'song' | 'instant' */
+function show(item, mode) {
+  index = item.i;
+  const old = shown && shown.el;
+  const k = item.none ? 1 : mode === 'seek' ? .6 : item.i >= 0 ? kOf(song, item.i) : 1;
+  let delay = 0;
+  if (old) {
+    if (mode === 'instant') old.remove();
+    else if (item.none) exit(old, T.calmExit, EZ.calm);
+    else {
+      /* 已被第二道浪沉掉的句子：直接移走，新句只隔 40ms */
+      const ed = old._sunkDone ? 1 : mode === 'song' ? 260 : T.exit * k;
+      exit(old, ed, EZ.down);
+      delay = (old._sunkDone ? 0 : ed) + 40;   // 旧句最后一个字沉到底 + 40ms，新句的浪刃才出发
+    }
+  }
+  const after = !shown || shown.key === 'title' || shown.key.startsWith('gap');
+  if (item.none) { shown = { key: item.key, el: null }; return; }
+  const b = build(item);
+  shown = { key: item.key, el: b };
+  /* 静默之后的第一句：入场浪刃用 --red，像发令；其余用 --main */
+  const tone = item.i >= 0 && after && mode !== 'seek' ? 'red' : 'main';
+  let inDur = 0;
+  if (mode !== 'instant') inDur = enter(b, k, delay, item.key === 'title' ? 1.15 : 1, tone) || 0;
+  else if (!RM.matches) b.querySelectorAll('.m .g').forEach(g => { if (!g.closest('.tr')) g.style.transform = STAND; });
+  /* 停留浪排期：可见时长 = 到下一次退场（或间奏淡出）为止 */
+  const L = song.lines, i = item.i;
+  const t0 = i >= 0 ? L[i].t : 0, nt = i + 1 < L.length ? L[i + 1].t : (i >= 0 ? song.end : L[0].t);
+  const vis = Math.min(nt - t0, i >= 0 && nt - t0 >= INTERLUDE ? HOLD : Infinity, i === L.length - 1 ? song.end - .9 - t0 : Infinity);
+  if (nt - t0 >= RIP.minEnter) {
+    const d0 = mode === 'instant' ? 0 : delay + inDur;
+    const room = (t0 + vis - time) * 1000 - d0 - T.exit * k;
+    current(b, d0, room);
+  }
+}
+
+function setSong(n, at, mode) {
+  si = (n + SONGS.length) % SONGS.length; song = SONGS[si]; time = at || 0;
+  const item = desired(time);
+  show(item, mode);
+}
+
+function seek(dir) {
+  const L = song.lines;
+  let j = index + dir;
+  if (shown && shown.key.startsWith('gap') && dir > 0) j = index + 1;
+  if (shown && shown.key.startsWith('gap') && dir < 0) j = index;
+  if (j >= L.length) { setSong(si + 1, 0, 'song'); return; }
+  time = j < 0 ? 0 : L[j].t;
+  const item = desired(time);
+  if (item.key !== (shown && shown.key)) show(item, 'seek');
+}
+
+/* ---------- 时钟 ---------- */
+let last = performance.now();
+function tick(now) {
+  requestAnimationFrame(tick);
+  try {
+    const dt = Math.min(.25, (now - last) / 1000) / SLOW; last = now;
+    if (paused) return;
+    time += dt;
+    if (time >= song.end) { setSong(si + 1, 0, 'song'); return; }
+    const item = desired(time);
+    if (!shown || item.key !== shown.key) show(item, 'auto');
+  } catch (e) { console.error(e); }
+}
+
+lyr.style.transitionDuration = (.32 * SLOW) + 's';
+function setPaused(p) {
+  paused = p;
+  anims.forEach(a => p ? a.pause() : a.play());
+  lyr.classList.toggle('paused', p);
+}
+/* 翻译开关：水线是主句的裁切边，不随翻译移动，只按新宽度重算跑道 */
+/* 第二道浪进行中不重算水线：浪刃挂在 .wvc 里、at(x) 也按旧坐标算，重算会让浪刃跳位、翻译字对不上浪峰 */
+function toggleTrans() {
+  transOn = !transOn;
+  const b = shown && shown.el;
+  if (!b || b._gone || b._item.by || !b._item.sub) return;
+  const old = b.querySelector('.tr'), cw = b._cw;
+  const relayout = () => { if (!cw && b.isConnected) wavePos(b); };
+  if (!transOn && old) {
+    /* 翻译的沉字不再算进 _sunkDone；只看沉字动画（入场动画 fill both 也是 finished，不能拿来判断） */
+    let sunk = b._sunkDone;
+    if (cw) {
+      const mine = b._sinks.filter(a => old.contains(a.effect.target));
+      sunk = sunk || (mine.length > 0 && mine.every(a => a.playState === 'finished'));
+      b._sinks = b._sinks.filter(a => !mine.includes(a));
+      if (!b._sunkDone) watchSunk(b);
+    }
+    /* 已经沉掉（或整句已沉）：水面上看不见了，直接拿掉，不要从旧状态再演一遍 */
+    if (RM.matches || sunk) { old.remove(); relayout(); return; }
+    const el = old.querySelector('.in');
+    const from = curY(el); el.getAnimations().forEach(a => a.cancel());
+    anim(el, [{ transform: `translateY(${from})` }, { transform: depth(el) }], 240, EZ.down)
+      .finished.then(() => { old.remove(); relayout(); }, () => {});
+  } else if (transOn && !old) {
+    /* 整句已沉 / 正在沉：不给它补一条孤零零浮上来的翻译，下一句再带上 */
+    if (b._sunkDone) return;
+    const s = addSub(b, b._item);
+    relayout();
+    if (RM.matches) return;
+    const el = s.querySelector('.in'), fs = parseFloat(getComputedStyle(b.querySelector('.m')).fontSize) || 58;
+    if (cw) {
+      /* 浪已经（或快要）到翻译头顶：来不及浮上来再被带下去，放弃 */
+      const now = cwNow(b), tg = glyphs(b).filter(o => o.row === 9);
+      if (Math.min(...tg.map(o => cwStart(b, o.x, true))) - now < TR_ROOM) { s.remove(); return; }
+      tg.forEach(o => sinkG(b, o, now));
+      watchSunk(b);
+    }
+    anim(el, [{ transform: `translateX(${(SURGE.trDx * fs).toFixed(1)}px) ${depth(el)}` }, { transform: 'none' }], 560, EZ.up);
+  }
+}
+const TR_ROOM = 560;   // 补上的翻译要先完整浮上来（560ms），浪才能把它带下去
+
+const CMD = {
+  pause: () => setPaused(!paused),
+  trans: toggleTrans,
+  song: () => setSong(si + 1, 0, 'song'),
+  lineNext: () => seek(1),
+  linePrev: () => seek(-1),
+  theme: () => { root.dataset.theme = root.dataset.theme === 'lavender' ? 'p3' : 'lavender'; },
+  bg: () => { if (root.dataset.bg === 'light') delete root.dataset.bg; else root.dataset.bg = 'light'; },
+};
+const KEYS = { ' ': 'pause', t: 'trans', n: 'song', ArrowRight: 'lineNext', ArrowLeft: 'linePrev', l: 'theme', b: 'bg' };
+addEventListener('keydown', e => {
+  const c = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (c) { e.preventDefault(); CMD[c](); }
+});
+addEventListener('message', e => { const c = e.data && e.data.cmd; if (CMD[c]) CMD[c](); });
+
+Object.defineProperty(window, '__lyr', { get: () => ({ time, index, paused, song: si, key: shown && shown.key }) });
+
+/* ---------- 舞台缩放 ---------- */
+const stage = document.getElementById('stage');
+function fit() { stage.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; }
+addEventListener('resize', fit); fit();
+
+/* ---------- 开场 ---------- */
+const t0 = +Q.get('t'), s0 = +Q.get('song') || 0;
+if (t0 > 0) setSong(s0, t0, 'instant'); else setSong(s0, 0, 'song');
+requestAnimationFrame(n => { last = n; tick(n); });
+</script>
+</body>
+</html>

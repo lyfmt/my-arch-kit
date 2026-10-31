@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lyrics Swell</title>
+<style>
+@font-face { font-family: "P3"; src: url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* 颜色只取 p3.css 的两套 token；浅背景时主句用 --ink，翻译用 --sea（tokens.css 的深海蓝） */
+:root, [data-theme="p3"] {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff; --sea: #0626c4;
+}
+[data-theme="lavender"] {
+  --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff; --sea: #4b2f9e;
+}
+:root { --main: var(--tx); --sub: var(--fill); --page: #000510; }
+[data-bg="light"] { --main: var(--ink); --sub: var(--sea); --page: #e8edf1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #000510; } }
+:root[data-bg="light"] { --page: #e8edf1; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--page); }
+body { user-select: none; -webkit-user-select: none; cursor: default; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  margin: -540px 0 0 -960px; overflow: hidden; transform-origin: 50% 50%; }
+#bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+[data-theme="lavender"] #bg { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+[data-bg="light"] #bg { display: none; }
+#stage { background: var(--page); }
+
+/* 歌词层：主句底边固定在 y=844，右缘固定在 x=1800（bg.png 右下的深海区） */
+#lyr { position: absolute; right: 120px; bottom: 236px; width: 0; height: 0;
+  transition: opacity .32s cubic-bezier(.22,.9,.24,1); }
+#lyr.paused { opacity: .42; }
+.blk { position: absolute; right: 0; bottom: 0; text-align: right; white-space: nowrap; }
+
+/* 每一行有自己的「水面」：.msk 的下沿。.in 从水面下浮上来，沉回去 */
+.msk { display: block; position: relative; overflow: hidden; padding: .1em .3em .22em; margin: -.1em -.3em -.22em; }
+.in { display: inline-block; will-change: transform; }
+
+.m { color: var(--main); }
+.m .msk + .msk { margin-top: calc(-.22em + 2px); }
+/* 中文 / 日文主句：P3 shell 的 .zh 调性，加重到 Bold、放大，字距收紧一点 */
+.cjk .m { font-family: "Noto Sans CJK SC", "Source Han Sans CN", sans-serif; font-weight: 700;
+  font-size: 58px; line-height: 1.22; letter-spacing: .06em; }
+.cjk[lang="ja"] .m { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; }
+/* 英文主句：P3R 展示字 */
+.lat .m { font-family: "P3", "Noto Sans CJK SC", sans-serif; font-style: italic; font-weight: 900;
+  font-size: 66px; line-height: 1.02; letter-spacing: -.005em; }
+
+/* 翻译：.zh 原样（Medium 500，.08em），用 --fill；挂在主句下方，不参与主句布局 */
+.tr { position: absolute; top: 100%; right: 0; margin-top: 14px; color: var(--sub);
+  font-family: "Noto Sans CJK SC", sans-serif; font-style: normal; font-weight: 500; font-size: 26px;
+  line-height: 1.3; letter-spacing: .08em; }
+.lat .tr { margin-top: 18px; }
+/* 歌名下的歌手：BarlowC 标签字，中文歌手名回落到 Noto 500 */
+.tr.by { font-family: "BarlowC", "Noto Sans CJK SC", sans-serif; font-weight: 700; font-size: 24px;
+  letter-spacing: .2em; text-transform: uppercase; margin-top: 16px; }
+
+/* ---------- 涌浪：歌词最下一行下方的一道细水波，从字的右端起、往左掠过一次（固定时长，与行长无关） ----------
+   .wv   本行的「水面」（同 .msk，overflow 裁切），宽度 = 歌词块宽；沉下时把波线一起吞掉
+   .sw   波段窗口：只占行宽的一部分，两端用 mask 淡出；整体 translateX 横穿
+   .amp  振幅包络：两层同相正弦（.lv.lo 低振幅 / .lv.hi 满振幅，线宽都是 2px）交叉淡入淡出，
+         像涌浪隆起又平复；不缩放，线宽不变
+   .ph   波形本身：平涂 token 色 + 正弦 mask（repeat-x），translateX 循环 = 波在走
+   全部只动 transform / opacity，合成层完成，不重绘 */
+.wv { position: absolute; right: 0; top: 0; height: 18px; overflow: hidden;
+  transition: top .5s cubic-bezier(.22,.9,.24,1); }
+.wv > .in { display: block; position: relative; width: 100%; height: 100%; }
+.sw { position: absolute; left: 0; top: 0; height: 100%; opacity: 0; will-change: transform, opacity;
+  -webkit-mask-image: linear-gradient(90deg, transparent, rgba(0,0,0,.3) 22%, #000 50%, rgba(0,0,0,.3) 78%, transparent);
+          mask-image: linear-gradient(90deg, transparent, rgba(0,0,0,.3) 22%, #000 50%, rgba(0,0,0,.3) 78%, transparent); }
+.amp { position: absolute; inset: 0; overflow: hidden; }
+.lv { position: absolute; inset: 0; will-change: opacity; }
+.ph { position: absolute; left: 0; top: 0; height: 100%; background: var(--sub); opacity: 1; will-change: transform;
+  -webkit-mask: var(--sine) 0 50% / var(--wl) 100% repeat-x;
+          mask: var(--sine) 0 50% / var(--wl) 100% repeat-x; }
+[data-bg="light"] .ph { opacity: .8; }
+:root { --wl: 52px;
+  --sine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 18' preserveAspectRatio='none'%3E%3Cpath d='M0 9 C8.7 4.6 17.3 4.6 26 9 S43.3 13.4 52 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --sine-lo: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 18' preserveAspectRatio='none'%3E%3Cpath d='M0 9 C8.7 7.6 17.3 7.6 26 9 S43.3 10.4 52 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
+.lo .ph { -webkit-mask-image: var(--sine-lo); mask-image: var(--sine-lo); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <img id="bg" src="../../../../p5-reference/p3-miku/bg.png" alt="">
+  <div id="lyr"></div>
+</div>
+<script>
+const Q = new URLSearchParams(location.search);
+const root = document.documentElement;
+if (Q.get('bg') === 'light') root.dataset.bg = 'light';
+root.dataset.theme = Q.get('theme') === 'lavender' ? 'lavender' : 'p3';
+const SLOW = Math.max(.05, +Q.get('slow') || 1);
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+
+/* 原创假歌，行级时间戳（照搬 v2/slab.html） */
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ============================================================
+   动效编排「浮出水面」
+   每一行文字下沿有一条看不见的水面（.msk 的 overflow 裁切）。
+   入场：文字从水面下 108% 处浮上来，out-expo，主句多行时自上而下错开，翻译最后浮出。
+   退场：先沉翻译，再自下而上沉主句，ease-in，比入场快一倍多。
+   交接：严格先出后进。旧行完全沉没后再隔 40ms，新行才开始浮出，
+        两行共用同一条水面，任何时刻水面上只有一行。
+   提前量：退场从下一行时间戳前 LEAD 开始，使新行恰好在时间戳附近露出。
+   快歌：k = 行间隔 / 1.5s，夹在 [.42, 1]；所有时长、错开、提前量都乘 k。
+   间奏：行后间隔 ≥ 6s 时，这一行停留 HOLD 后单独、缓慢地沉下（不急着腾位置），屏幕留空。
+   ============================================================ */
+const EZ = {
+  up:   'cubic-bezier(.16,1,.3,1)',      // 浮出：快起慢停
+  down: 'cubic-bezier(.6,0,.86,.4)',     // 沉下：慢起快走
+  calm: 'cubic-bezier(.45,0,.75,.45)',   // 间奏退场：更平的 ease-in
+};
+const T = { enter: 700, exit: 300, row: 70, trans: 100, exitRow: 28, calmExit: 620, lead: .14 };
+const INTERLUDE = 6, HOLD = 4.2;
+/* 涌浪：一条歌词可见期间掠过约一次。可见期太短（快歌碎句）就不出波，免得画面碎 */
+const W = { dur: 3400, min: 2000, tail: .8, wl: 52, period: 1500, lenK: .42, lenMin: 220, lenMax: 480,
+  ez: 'cubic-bezier(.42,0,.48,1)' };
+/* 沉没深度按像素量：从 .in 顶到水面（.msk 下沿，含 padding）的距离，再多沉 .35em，
+   盖住斜体/假名超出行框的笔画顶，保证沉到底时字形顶端在水面之下。 */
+const depth = el => {
+  const fs = parseFloat(getComputedStyle(el).fontSize) || 60;
+  return `translateY(${Math.ceil(el.parentNode.clientHeight - el.offsetTop + .35 * fs)}px)`;
+};
+
+const lyr = document.getElementById('lyr');
+const anims = new Set();
+let si = 0, song = SONGS[0], time = 0, paused = false, transOn = Q.get('trans') !== '0';
+let shown = null;        // {key, el}
+let index = -1;
+
+const isLat = s => !/[　-鿿＀-￯]/.test(s);
+const kOf = (s, i) => {
+  const L = s.lines, nt = i + 1 < L.length ? L[i + 1].t : s.end;
+  return Math.min(1, Math.max(.42, (nt - L[i].t) / 1.5));
+};
+
+function anim(el, kf, dur, ease, delay = 0, iterations = 1) {
+  const a = el.animate(kf, { duration: Math.max(1, dur * SLOW), delay: delay * SLOW, easing: ease, fill: 'both', iterations });
+  anims.add(a);
+  a.finished.then(() => anims.delete(a), () => anims.delete(a));
+  if (paused) a.pause();
+  return a;
+}
+const curY = el => { const m = new DOMMatrix(getComputedStyle(el).transform); return m.m42 + 'px'; };
+
+function row(text) {
+  const m = document.createElement('span'); m.className = 'msk';
+  const i = document.createElement('span'); i.className = 'in'; i.textContent = text;
+  m.appendChild(i); return m;
+}
+
+/* item: {key, main:[rows], sub, lat, lang, by} */
+function build(item) {
+  const b = document.createElement('div');
+  b.className = 'blk ' + (item.lat ? 'lat' : 'cjk');
+  if (item.lang) b.lang = item.lang;
+  const m = document.createElement('div'); m.className = 'm';
+  item.main.forEach(t => m.appendChild(row(t)));
+  b.appendChild(m);
+  if (item.sub && (transOn || item.by)) addSub(b, item);
+  b._item = item;
+  lyr.appendChild(b);
+  if (!RM.matches && !item.by) addWave(b);
+  return b;
+}
+function addWave(b) {
+  const m = document.createElement('div'); m.className = 'wv';
+  m.innerHTML = '<div class="in"><div class="sw"><div class="amp"><div class="lv lo"><div class="ph"></div></div><div class="lv hi"><div class="ph"></div></div></div></div></div>';
+  b.appendChild(m);
+  placeWave(b, true);
+}
+/* 波线挂在最下一行文字下方：有翻译时在翻译下，没有时在主句下 */
+function placeWave(b, init) {
+  const w = b.querySelector('.wv'); if (!w) return;
+  const tr = [...b.querySelectorAll('.tr')].filter(t => !t._gone).pop();
+  const y = tr ? tr.offsetTop + tr.offsetHeight + 10 : b.offsetHeight + 12;
+  if (init) w.style.transition = 'none';
+  w.style.top = y + 'px';
+  if (init) { w.offsetHeight; w.style.transition = ''; }
+  if (init) {
+    const fw = Math.max(b.offsetWidth, tr ? tr.offsetWidth : 0);
+    w.style.width = fw + 'px'; b._fw = fw;
+  }
+}
+/* 让涌浪横穿一次。visMs 为本行在屏上的时长（ms，歌曲时间），delay 为浮出后开始的时刻。
+   时长固定 W.dur，与行长解耦：长行在涌浪过去后就静止，不会读成本行的进度条。
+   只有不足 W.dur 的短行才把涌浪压短（下限 W.min），否则 3 秒左右的普通行会没有波。
+   方向从字的右端往左，终点不落在行尾。剩余时间连 W.min 的 W.tail（之后已淡出）都不够时不起浪。 */
+function swell(b, visMs, delay) {
+  const w = b.querySelector('.wv'); if (!w) return;
+  const room = visMs - delay;
+  if (room < 900) return;
+  /* 从左往右，时长 = 这一句在屏上的时长：涌浪和这一句一起走完 */
+  const dur = room;
+  const fw = b._fw, len = Math.round(Math.min(W.lenMax, Math.max(W.lenMin, fw * W.lenK)));
+  const sw = w.querySelector('.sw'), lo = w.querySelector('.lo'), hi = w.querySelector('.hi');
+  sw.style.width = len + 'px';
+  w.querySelectorAll('.ph').forEach(ph => ph.style.width = (len + W.wl) + 'px');
+  anim(sw, [
+    { transform: `translateX(${-len * .3}px)`, opacity: 0 },
+    { opacity: 1, offset: .06 }, { opacity: 1, offset: .94 },
+    { transform: `translateX(${fw - len * .7}px)`, opacity: 0 }], dur, 'linear', delay);
+  /* 振幅包络：低 → 满（.42）→ 略回落（.7）→ 低，靠两层交叉淡化，线宽始终 2px */
+  const env = [0, 1, 1, 0], offs = [0, .15, .85, 1];
+  anim(hi, env.map((v, n) => ({ opacity: v, offset: offs[n] })), dur, 'ease-in-out', delay);
+  anim(lo, env.map((v, n) => ({ opacity: 1 - v, offset: offs[n] })), dur, 'ease-in-out', delay);
+  /* 波形循环前移：波峰朝涌浪前进方向（向左）走，比窗口略快，看起来是水在推 */
+  w.querySelectorAll('.ph').forEach(ph =>
+    anim(ph, [{ transform: `translateX(${-W.wl}px)` }, { transform: 'none' }], W.period, 'linear', 0,
+      Math.ceil((delay + dur) / W.period)));
+}
+const kill = b => { b.getAnimations({ subtree: true }).forEach(a => a.cancel()); b.remove(); };
+function addSub(b, item) {
+  const s = document.createElement('div'); s.className = 'tr' + (item.by ? ' by' : '');
+  s.appendChild(row(item.sub));
+  b.querySelector('.m').appendChild(s);
+  return s;
+}
+const mainIns = b => [...b.querySelectorAll('.m > .msk > .in')];
+const subIn = b => b.querySelector('.tr .in');
+
+function enter(b, k, delay, slow = 1) {
+  if (RM.matches) { anim(b, [{ opacity: 0 }, { opacity: 1 }], 180, 'linear', delay); return; }
+  const rows = mainIns(b), d = T.enter * Math.max(.5, k) * slow;
+  rows.forEach((el, n) => anim(el, [{ transform: depth(el) }, { transform: 'none' }], d, EZ.up, delay + n * T.row * k));
+  const s = subIn(b);
+  if (s) anim(s, [{ transform: depth(s) }, { transform: 'none' }], d * .9, EZ.up,
+    delay + (rows.length - 1) * T.row * k + T.trans * k);
+}
+function exit(b, dur, ease) {
+  b._gone = true;
+  let last;
+  const done = () => kill(b);
+  if (RM.matches) { last = anim(b, [{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], 140, 'linear'); }
+  else {
+    const els = [b.querySelector('.wv > .in'), subIn(b), ...mainIns(b).reverse()].filter(Boolean);
+    els.forEach((el, n) => {
+      const from = curY(el);
+      el.getAnimations().forEach(a => a.cancel());
+      last = anim(el, [{ transform: `translateY(${from})` }, { transform: depth(el) }], dur, ease, n * T.exitRow * Math.min(1, dur / T.exit));
+    });
+  }
+  if (last) last.finished.then(done, done); else done();
+}
+
+/* 在 time 时刻应该显示什么 */
+function desired(t) {
+  const L = song.lines;
+  for (let i = L.length - 1; i >= 0; i--) {
+    if (t >= L[i].t - T.lead * kOf(song, i)) {
+      const nt = i + 1 < L.length ? L[i + 1].t : song.end;
+      if (nt - L[i].t >= INTERLUDE && t >= L[i].t + HOLD) return { key: 'gap' + i, i, none: true };
+      if (i === L.length - 1 && t >= song.end - .9) return { key: 'gap' + i, i, none: true };
+      const l = L[i];
+      return { key: 'L' + i, i, lat: isLat(l.text), lang: song.lang, main: l.text.split('|').map(s => s.trim()), sub: l.trans };
+    }
+  }
+  return { key: 'title', i: -1, lat: isLat(song.title), lang: song.lang, main: [song.title], sub: song.artist, by: true };
+}
+
+/* mode: 'auto' | 'seek' | 'song' | 'instant' */
+function show(item, mode) {
+  index = item.i;
+  const old = shown && shown.el;
+  const k = item.none ? 1 : mode === 'seek' ? .6 : item.i >= 0 ? kOf(song, item.i) : 1;
+  let delay = 0;
+  if (old) {
+    if (mode === 'instant') kill(old);
+    else if (item.none) exit(old, T.calmExit, EZ.calm);
+    else {
+      const ed = mode === 'song' ? 260 : T.exit * k;
+      exit(old, ed, EZ.down);
+      delay = ed + 40;
+    }
+  }
+  if (item.none) { shown = { key: item.key, el: null }; return; }
+  const b = build(item);
+  shown = { key: item.key, el: b };
+  if (mode !== 'instant') enter(b, k, delay, item.key === 'title' ? 1.15 : 1);
+  /* 本行还会在屏上待多久（歌曲秒）：到下一行时间戳 / 间奏 HOLD / 曲终 */
+  const L = song.lines, i = item.i;
+  let until = i < 0 ? (L[0] ? L[0].t : song.end) : i + 1 < L.length ? L[i + 1].t : song.end - .9;
+  if (i >= 0 && until - L[i].t >= INTERLUDE) until = L[i].t + HOLD;
+  const vis = (until - time) * 1000 - delay;
+  swell(b, vis, delay + (mode === 'instant' ? 0 : T.enter * Math.max(.5, k) * .35));
+}
+
+function setSong(n, at, mode) {
+  si = (n + SONGS.length) % SONGS.length; song = SONGS[si]; time = at || 0;
+  const item = desired(time);
+  show(item, mode);
+}
+
+function seek(dir) {
+  const L = song.lines;
+  let j = index + dir;
+  if (shown && shown.key.startsWith('gap') && dir > 0) j = index + 1;
+  if (shown && shown.key.startsWith('gap') && dir < 0) j = index;
+  if (j >= L.length) { setSong(si + 1, 0, 'song'); return; }
+  time = j < 0 ? 0 : L[j].t;
+  const item = desired(time);
+  if (item.key !== (shown && shown.key)) show(item, 'seek');
+}
+
+/* ---------- 时钟 ---------- */
+let last = performance.now();
+function tick(now) {
+  requestAnimationFrame(tick);
+  try {
+    const dt = Math.min(.25, (now - last) / 1000) / SLOW; last = now;
+    if (paused) return;
+    time += dt;
+    if (time >= song.end) { setSong(si + 1, 0, 'song'); return; }
+    const item = desired(time);
+    if (!shown || item.key !== shown.key) show(item, 'auto');
+  } catch (e) { console.error(e); }
+}
+
+function setPaused(p) {
+  paused = p;
+  anims.forEach(a => p ? a.pause() : a.play());
+  lyr.classList.toggle('paused', p);
+}
+function toggleTrans() {
+  transOn = !transOn;
+  const b = shown && shown.el;
+  if (!b || b._item.by || !b._item.sub) return;
+  const old = b.querySelector('.tr');
+  if (!transOn && old) {
+    const el = old.querySelector('.in');
+    const from = curY(el); el.getAnimations().forEach(a => a.cancel());
+    if (RM.matches) { old.remove(); placeWave(b); return; }
+    old._gone = true; placeWave(b);
+    anim(el, [{ transform: `translateY(${from})` }, { transform: depth(el) }], 240, EZ.down).finished.then(() => old.remove(), () => {});
+  } else if (transOn && !old) {
+    const s = addSub(b, b._item);
+    placeWave(b);
+    if (!RM.matches) { const el = s.querySelector('.in'); anim(el, [{ transform: depth(el) }, { transform: 'none' }], 560, EZ.up); }
+  }
+}
+
+const CMD = {
+  pause: () => setPaused(!paused),
+  trans: toggleTrans,
+  song: () => setSong(si + 1, 0, 'song'),
+  lineNext: () => seek(1),
+  linePrev: () => seek(-1),
+  theme: () => { root.dataset.theme = root.dataset.theme === 'lavender' ? 'p3' : 'lavender'; },
+  bg: () => { if (root.dataset.bg === 'light') delete root.dataset.bg; else root.dataset.bg = 'light'; },
+};
+const KEYS = { ' ': 'pause', t: 'trans', n: 'song', ArrowRight: 'lineNext', ArrowLeft: 'linePrev', l: 'theme', b: 'bg' };
+addEventListener('keydown', e => {
+  const c = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (c) { e.preventDefault(); CMD[c](); }
+});
+addEventListener('message', e => { const c = e.data && e.data.cmd; if (CMD[c]) CMD[c](); });
+
+Object.defineProperty(window, '__lyr', { get: () => ({ time, index, paused, song: si, key: shown && shown.key }) });
+
+/* ---------- 舞台缩放 ---------- */
+const stage = document.getElementById('stage');
+function fit() { stage.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; }
+addEventListener('resize', fit); fit();
+
+/* ---------- 开场 ---------- */
+const t0 = +Q.get('t'), s0 = +Q.get('song') || 0;
+if (t0 > 0) setSong(s0, t0, 'instant'); else setSong(s0, 0, 'song');
+requestAnimationFrame(n => { last = n; tick(n); });
+</script>
+</body>
+</html>

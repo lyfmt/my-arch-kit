@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P3 Lyrics Wedge</title>
+<style>
+@font-face { font-family: "P3"; src: url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+
+:root {
+  --ink: #04103c; --tx: #ecfcff; --red: #e3121b; --shard: #fff;
+  --e-out: cubic-bezier(.16,1,.3,1); --e-snap: cubic-bezier(.3,1.35,.4,1); --e-io: cubic-bezier(.65,0,.35,1);
+  --d-fast: 160ms; --d-med: 320ms; --d-slow: 600ms;
+  --k: 1; --z: 1;               /* k: 快歌倍率 .6；z: 延迟开关（减弱动效/瞬切时为 0） */
+  --clip: inset(-12px -16px -18px -12px);
+}
+:root[data-theme="lavender"] { --ink: #1b0f33; --red: #ff3d6e; --tx: #f6f0ff; }
+:root.instant { --d-fast: 1ms; --d-med: 1ms; --d-slow: 1ms; --z: 0; }
+@media (prefers-reduced-motion: reduce) {
+  :root { --d-fast: 1ms; --d-med: 1ms; --d-slow: 1ms; --z: 0; }
+}
+
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: #0a1230 url("../../../../p5-reference/p3-miku/bg.png") center / cover no-repeat; }
+html.light body { background: #e7ecf3; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px;
+  overflow: hidden; pointer-events: none; transform-origin: 50% 50%; }
+#blk { position: absolute; inset: 0; --wd: calc(var(--d-med) * var(--k)); --we: var(--e-snap);
+  transition: opacity var(--d-fast) linear; }
+#blk.paused { opacity: .5; transition: opacity var(--d-slow) var(--e-io); }
+#blk.idle { opacity: .7; transition: opacity var(--d-slow) var(--e-io); }
+
+/* 红碎片：楔形下层，晚 50ms 跟随 */
+#spos { position: absolute; left: 0; top: 0; width: 180px; height: 120px;
+  transition: transform calc(var(--d-med) * 1.25 * var(--k)) var(--e-snap) calc(50ms * var(--k) * var(--z)); }
+#sh { position: absolute; inset: 0; background: var(--red); clip-path: polygon(0 88%, 100% 0, 88% 34%);
+  transform-origin: 80% 55%;
+  transition: transform calc(var(--d-med) * var(--k)) var(--e-snap) calc(50ms * var(--k) * var(--z)); }
+#sh.hide { transform: translate(20px, 20px) scale(0);
+  transition: transform calc(var(--d-med) * var(--k)) var(--e-out) calc(50ms * var(--k) * var(--z)); }
+#blk.paused #sh, #blk.idle #sh { transform: translate(20px, 20px) scale(0);
+  transition: transform var(--d-med) var(--e-out); }
+#blk:not(.paused):not(.idle) #sh:not(.hide) { transition-duration: var(--d-med); }
+
+/* 白楔：左帽 + 可缩放中段 + 右帽 */
+#wpos { position: absolute; left: 160px; top: 0; transition: transform var(--wd) var(--we); }
+#wedge { transform-origin: 0 0; }
+#wedge.hit { animation: hit calc(var(--d-med) * 1.1875 * var(--k)) var(--e-snap); }
+@keyframes hit { 40% { transform: scale(1.05, 1.12); } }
+#wy { position: relative; height: 96px; transform-origin: 0 0; transition: transform var(--wd) var(--we); }
+#wy i { position: absolute; top: 0; height: 96px; display: block; background: var(--shard); }
+#wy .lc { left: 0; width: 48px; clip-path: polygon(0 34px, 100% 0, 100% 100%, 12px 90px);
+  transition: opacity calc(var(--d-fast) * .75) linear; }
+#wy .mid { left: 47px; width: 100px; transform-origin: 0 0; transform: scaleX(0); transition: transform var(--wd) var(--we); }
+#wy .rc { left: 0; width: 40px; clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  transform: translateX(48px); transition: transform var(--wd) var(--we), opacity calc(var(--d-fast) * .75) linear; }
+#wedge.gone .lc, #wedge.gone .rc { opacity: 0;
+  transition: transform var(--wd) var(--we), opacity calc(var(--d-fast) * .75) linear calc(var(--d-med) * .875 * var(--k)); }
+
+/* 歌词 */
+#layer { position: absolute; inset: 0; }
+.ln { position: absolute; left: 200px; top: 812px; transform-origin: 0 0; translate: 0 0;
+  transition: transform calc(var(--d-med) * var(--k)) var(--e-snap), opacity calc(var(--d-fast) * var(--k)) linear; }
+.ln > span { position: absolute; left: 0; top: 0; white-space: nowrap; line-height: 1; clip-path: var(--clip);
+  font-family: "Noto Sans CJK SC", "Noto Sans CJK JP", sans-serif;
+  transition: opacity calc(var(--d-fast) * var(--k)) linear calc(60ms * var(--k) * var(--z)); }
+/* .a = 槽 2 外观（按 2 倍尺寸绘制，s2 时 scale .5 → 28px）；.b = 槽 1 外观。两份叠放交叉淡化 */
+.ln .a { font-size: 56px; font-weight: 500; letter-spacing: .08em; color: var(--tx);
+  text-shadow: 0 6px 0 rgba(2,16,70,.35); -webkit-text-stroke: 2px rgba(4,16,60,.45); paint-order: stroke fill; }
+.ln .b { font-weight: 900; letter-spacing: .02em; color: var(--ink); }
+.ln.s1 { transform: translate(0, var(--oy, 0px)); }
+.ln.s2 { transform: translate(0, 96px) scale(.5); opacity: .72; }
+.ln.s2 .b { opacity: 0; }
+.ln.s1 .a { opacity: 0; }
+.ln.in2 .a { animation: p3-in calc(var(--d-slow) * var(--k)) var(--e-out) calc(var(--dl, 0ms) * var(--k) * var(--z)) backwards; }
+.ln.in1 .b { animation: p3-in calc(var(--d-slow) * var(--k)) var(--e-out) calc(var(--dl, 0ms) * var(--k) * var(--z)) backwards; }
+.ln.out { transform: translate(0, calc(var(--oy, 0px) - 28px)); opacity: 0;
+  transition: transform calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out), opacity calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out); }
+.ln.s2.out { transform: translate(0, 96px) scale(.5); }
+.ln.out > span { clip-path: inset(-12px -16px -18px 100%); transition: clip-path calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out); }
+.ln.drop { translate: 0 16px; opacity: 0;
+  transition: translate calc(var(--d-fast) * var(--k)) var(--e-out), opacity calc(var(--d-fast) * var(--k)) linear; }
+
+/* 槽 2 单体（译文 / 歌手）与标题 */
+.x { position: absolute; left: 200px; white-space: nowrap; line-height: 1; clip-path: var(--clip); translate: 0 0; }
+.sub { top: 908px; font: 500 28px/1 "Noto Sans CJK SC", "Noto Sans CJK JP", sans-serif; letter-spacing: .08em; color: var(--tx);
+  text-shadow: 0 3px 0 rgba(2,16,70,.35); -webkit-text-stroke: 1px rgba(4,16,60,.45); paint-order: stroke fill; }
+.ttl { top: 804px; font: italic 900 64px/1 "P3", "Noto Sans CJK SC", sans-serif; letter-spacing: .02em; color: var(--ink); }
+.ttl .cj, .mt .cj { font-family: "Noto Sans CJK SC", "Noto Sans CJK JP", sans-serif; font-style: normal; }
+.x.p3 { animation: p3-in calc(var(--d-slow) * var(--k)) var(--e-out) calc(var(--dl, 0ms) * var(--k) * var(--z)) backwards; }
+.x.pull { animation: pull calc(var(--d-med) * var(--k)) var(--e-out) calc(var(--dl, 0ms) * var(--k) * var(--z)) backwards; }
+.x.out { translate: 0 -28px; opacity: 0; clip-path: inset(-12px -16px -18px 100%);
+  transition: translate calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out), opacity calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out),
+    clip-path calc(var(--d-fast) * 1.375 * var(--k)) var(--e-out); }
+.x.retract { translate: 0 -14px; clip-path: inset(-12px -16px 100% -12px);
+  transition: translate var(--d-fast) var(--e-io), clip-path var(--d-fast) var(--e-io); }
+.x.wipe, .ln.wipe > span { clip-path: inset(-12px 100% -18px -12px); transition: clip-path calc(var(--d-fast) * 1.5) var(--e-io); }
+
+@keyframes p3-in { from { opacity: 0; translate: 56px 0; clip-path: inset(-12px -16px -18px 100%); } }
+@keyframes pull { from { translate: 0 -14px; clip-path: inset(-12px -16px 100% -12px); } }
+
+#meas { position: absolute; left: -9999px; top: 0; visibility: hidden; white-space: nowrap; line-height: 1; }
+#meas.mb { font-family: "Noto Sans CJK SC", "Noto Sans CJK JP", sans-serif; font-weight: 900; letter-spacing: .02em; }
+#meas.mt { font: italic 900 64px/1 "P3", "Noto Sans CJK SC", sans-serif; letter-spacing: .02em; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="blk">
+  <div id="spos"><div id="sh" class="hide"></div></div>
+  <div id="wpos"><div id="wedge" class="gone"><div id="wy"><i class="lc"></i><i class="mid"></i><i class="rc"></i></div></div></div>
+  <div id="layer"></div>
+</div></div>
+<div id="meas"></div>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const root = document.documentElement, stage = $('#stage'), blk = $('#blk'), layer = $('#layer'), meas = $('#meas');
+const spos = $('#spos'), sh = $('#sh'), wpos = $('#wpos'), wedge = $('#wedge'), wy = $('#wy');
+const mid = wy.querySelector('.mid'), rc = wy.querySelector('.rc');
+const Q = new URLSearchParams(location.search);
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+
+/* ---------- 原创假歌（行级时间戳，ms） ---------- */
+const SONGS = [
+  { title: '夜航信号', artist: '林间回声', lang: 'zh-CN', lines: [
+    [2200, '把灯熄掉'], [5200, '城市在窗外慢慢变成海'],
+    [8600, '我听见远处的电台还在呼唤一个早就没人回答的名字'],
+    [12400, '嘿'], [13600, '别回头'],
+    [16400, '风把所有没寄出的信都吹成了天上细碎的星星一样的光点散落在你看不见的地方'],
+    [20800, '我们是夜航的信号'],            /* 后接 ≥8s 间奏 */
+    [32800, '穿过雾'], [35400, '穿过所有沉默的楼'],
+    [39000, '直到天亮以前都别放手'], [43200, '把灯熄掉'] ], dur: 48000 },
+  { title: '青い残響 Echo', artist: 'Mira Kanade', lang: 'ja', lines: [
+    [1800, '静かな駅で', '在安静的车站'], [4600, '君の声だけが まだ響いてる', '只有你的声音还在回响'],
+    [8200, 'ラララ', ''], [10000, '指先で なぞった 夏の終わりの空を覚えてる', '还记得指尖描过的夏末天空'],
+    [14200, '消えないで', '别消失'],     /* 后接 ≥8s 间奏 */
+    [24600, '青く 青く', '湛蓝 湛蓝'], [27400, '残響になって 明日へ届け', '化作回响 传到明天'],
+    [31600, 'さよならは言わない', '不说再见'] ], dur: 36000 },
+  { title: 'Midnight Arcade', artist: 'NEON TIDE', lang: 'en', lines: [
+    [3400, 'Coins in my pocket', '口袋里的硬币'], [6000, 'Lights on the ceiling turn to rain', '天花板的灯化成了雨'],
+    [9400, 'Go', '冲'], [9750, 'Run', '跑'], [10100, 'Now', '就现在'],
+    [11400, 'We were the high score nobody could ever beat before the morning came around', '我们是天亮前没人能打破的最高分'],
+    [15800, 'Player two', '二号玩家'],      /* 后接 ≥8s 间奏 */
+    [26000, 'Insert your heart', '投进你的心'], [28600, 'One more life, one more night', '再一条命 再一个夜晚'],
+    [32400, 'Game over, never over', '游戏结束 却从未结束'] ], dur: 37000 },
+];
+const NOLYRICS = { title: 'Intermission 間奏', artist: 'Studio Loop', lang: 'ja', lines: [], dur: 1e12 };
+
+/* ---------- 工具 ---------- */
+const instant = () => root.classList.contains('instant') || RM.matches;
+const K = () => +getComputedStyle(root).getPropertyValue('--k') || 1;
+const ms = x => instant() ? 0 : x * K();
+const later = (fn, x) => setTimeout(fn, ms(x));
+const rm = (el, x) => el && later(() => el.remove(), x);
+const CJK = /([⺀-鿿豈-﫿＀-￯　-〿]+)/;
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const titleHTML = s => s.split(CJK).map((p, i) => i % 2 ? `<span class="cj">${esc(p)}</span>` : esc(p)).join('');
+
+function fitStage() { stage.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; }
+
+function measure(cls, size, text, html) {
+  meas.className = cls; meas.style.fontSize = size ? size + 'px' : '';
+  if (html) meas.innerHTML = html; else meas.textContent = text;
+  return meas.getBoundingClientRect().width;
+}
+const fitCache = new Map();
+function fit(text) {
+  if (fitCache.has(text)) return fitCache.get(text);
+  let f = null;
+  for (const s of [56, 52, 48, 44]) {
+    const w = measure('mb', s, text);
+    if (w <= 1280) { f = { size: s, w, wrap: false }; break; }
+  }
+  if (!f) {
+    const chars = [...text], half = chars.length / 2;
+    let k = -1, best = 1e9;
+    chars.forEach((c, i) => {
+      if (i > 0 && i < chars.length - 1 && /[\s，。、！？,.!?;；：:…—・]/.test(c)) {
+        const d = Math.abs(i + 1 - half); if (d < best) { best = d; k = i + 1; }
+      }
+    });
+    if (k < 0) k = Math.ceil(half);
+    const l1 = chars.slice(0, k).join('').trim(), l2 = chars.slice(k).join('').trim();
+    f = { size: 44, wrap: true, l1, l2, w: Math.max(measure('mb', 44, l1), measure('mb', 44, l2)) };
+  }
+  fitCache.set(text, f); return f;
+}
+
+/* ---------- 楔形 ---------- */
+let wExtra = 0;
+function setWedge(W, extra) {
+  wExtra = extra;
+  const top = 794 - extra;
+  mid.style.transform = `scaleX(${W > 88 ? (W - 86) / 100 : 0})`;
+  rc.style.transform = `translateX(${Math.max(48, W - 40)}px)`;
+  wpos.style.transform = `translate(0, ${top}px)`;
+  wy.style.transform = `scaleY(${(96 + extra) / 96})`;
+  spos.style.transform = `translate(116px, ${top - 40}px)`;
+}
+function wedgeMotion(d, e) {
+  if (d) { blk.style.setProperty('--wd', d); blk.style.setProperty('--we', e); }
+  else { blk.style.removeProperty('--wd'); blk.style.removeProperty('--we'); }
+}
+function hit() {
+  if (instant()) return;
+  wedge.classList.remove('hit'); void wedge.offsetWidth; wedge.classList.add('hit');
+}
+wedge.addEventListener('animationend', () => wedge.classList.remove('hit'));
+
+/* ---------- 元素 ---------- */
+function mkLine(i, cls, dl) {
+  const L = S.song.lines[i], f = fit(L[1]);
+  const el = document.createElement('div');
+  el.className = 'ln ' + cls; el._i = i; el.lang = S.song.lang;
+  if (dl != null) el.style.setProperty('--dl', dl + 'ms');
+  const a = document.createElement('span'), b = document.createElement('span');
+  a.className = 'a'; b.className = 'b';
+  a.textContent = L[1]; a.style.fontSize = b.style.fontSize = f.size + 'px';
+  if (f.wrap) {
+    b.append(f.l1, document.createElement('br'), f.l2); b.style.lineHeight = '1.1';
+    el.style.setProperty('--oy', '-48px');
+  } else b.textContent = L[1];
+  el.append(a, b); layer.append(el); return el;
+}
+function mkX(cls, dl, text, html) {
+  const el = document.createElement('div');
+  el.className = 'x ' + cls;
+  if (dl != null) el.style.setProperty('--dl', dl + 'ms');
+  if (html) el.innerHTML = html; else el.textContent = text || ' ';  /* 空译文保留槽 2 高度 */
+  layer.append(el); return el;
+}
+function out(el) {
+  if (!el) return;
+  el.classList.remove('in1', 'in2', 'p3', 'pull'); el.classList.add('out'); rm(el, 300);
+}
+
+/* ---------- 状态 ---------- */
+const S = { si: 0, song: SONGS[0], t: 0, phase: 'boot', idx: -1, paused: false, trans: Q.get('trans') !== '0',
+  cur: null, tr: null, nxt: null, ttl: null, art: null, stub: false, idleT: 0, med: 3000 };
+const hasTr = () => S.song.lines.some(l => l.length > 2);
+const bil = () => S.trans && hasTr();
+const gapAfter = i => i + 1 < S.song.lines.length ? S.song.lines[i + 1][0] - S.song.lines[i][0] : 0;
+
+function median(song) {
+  const d = [];
+  for (let i = 0; i + 1 < song.lines.length; i++) { const g = song.lines[i + 1][0] - song.lines[i][0]; if (g < 8000) d.push(g); }
+  d.sort((a, b) => a - b);
+  return d.length ? d[d.length >> 1] : 3000;
+}
+
+/* 进入第 i 行 */
+function show(i) {
+  const lines = S.song.lines, L = lines[i];
+  const fast = i > 0 && S.idx === i - 1 && L[0] - lines[i - 1][0] < 400;
+  root.style.setProperty('--k', fast ? .6 : 1);
+  wedgeMotion();
+  const f = fit(L[1]);
+  out(S.ttl); out(S.art); S.ttl = S.art = null;
+  out(S.tr); S.tr = null;
+  if (S.nxt && S.nxt._i === i) {            /* 槽 2 → 槽 1 */
+    out(S.cur); S.cur = S.nxt; S.nxt = null;
+    S.cur.classList.remove('s2', 'in2'); S.cur.classList.add('s1');
+  } else {                                   /* 新句 p3-in（双语 / 标题后 / 跳转） */
+    out(S.cur); out(S.nxt); S.nxt = null;
+    S.cur = mkLine(i, 's1 in1', 60);
+  }
+  if (bil()) S.tr = mkX('sub pull', 140, L[2]);
+  else if (i + 1 < lines.length) S.nxt = mkLine(i + 1, 's2 in2', 140);
+  setWedge(Math.max(220, f.w + 112), f.wrap ? 48 : 0);
+  sh.classList.remove('hide');
+  if (!fast) hit();
+  S.idx = i; S.stub = false;
+}
+
+/* 长间奏：收为 88px 残桩 */
+function toStub() {
+  S.stub = true;
+  out(S.cur); out(S.tr); S.cur = S.tr = null;
+  if (!S.nxt) S.nxt = mkLine(S.idx + 1, 's2 in2', 0);
+  root.style.setProperty('--k', 1);
+  wedgeMotion('400ms', 'var(--e-out)');
+  setWedge(88, 0);
+}
+
+/* 换歌 */
+let switchT = 0;
+function changeSong(si) {
+  if (S.phase === 'switch') return;
+  S.phase = 'switch'; clearTimeout(S.idleT); blk.classList.remove('idle');
+  root.style.setProperty('--k', 1);
+  [...layer.children].forEach(el => { el.classList.remove('in1', 'in2', 'p3', 'pull'); el.classList.add('wipe'); });
+  wedgeMotion('280ms', 'var(--e-io)');
+  setWedge(88, wExtra);
+  wedge.classList.add('gone'); sh.classList.add('hide');
+  switchT = later(() => startCard(si), 300);
+}
+function startCard(si, song) {
+  layer.innerHTML = '';
+  S.si = si; S.song = song || SONGS[si]; S.med = median(S.song);
+  S.cur = S.tr = S.nxt = null; S.idx = -1; S.stub = false;
+  S.ttl = mkX('ttl p3', 140, '', titleHTML(S.song.title));
+  S.art = mkX('sub p3', 180, S.song.artist);
+  const tw = measure('mt', 0, '', titleHTML(S.song.title));
+  wedge.classList.remove('gone');
+  wedgeMotion('420ms', 'var(--e-snap)');
+  setWedge(Math.max(220, tw + 112), 8);
+  sh.classList.remove('hide');               /* #sh 自带 50ms 延迟 → 350ms 弹出 */
+  const lines = S.song.lines;
+  if (!lines.length) {
+    S.phase = 'card'; S.t = 0;
+    S.idleT = later(() => { if (S.phase === 'card') blk.classList.add('idle'); }, 4000);
+    return;
+  }
+  const first = lines[0][0];
+  const dwell = Math.max(900, Math.min(1800, first - 200));
+  S.t = first > 3000 ? 0 : first - dwell;   /* 前奏 >3s 时卡片停到首句 */
+  S.phase = 'lines';
+}
+
+/* ---------- 时钟 ---------- */
+let last = performance.now();
+function step(dt) {
+  if (S.phase !== 'lines' || S.paused) return;
+  S.t += dt;
+  const lines = S.song.lines;
+  if (S.t >= S.song.dur) { changeSong((S.si + 1) % SONGS.length); return; }
+  let i = -1;
+  for (let j = 0; j < lines.length; j++) if (lines[j][0] <= S.t) i = j; else break;
+  if (i >= 0 && i !== S.idx) show(i);
+  if (S.idx >= 0 && !S.stub && gapAfter(S.idx) >= 8000 && S.t >= lines[S.idx][0] + Math.min(S.med, 5000)) toStub();
+}
+function frame(now) {
+  step(Math.min(100, now - last)); last = now;
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 交互 ---------- */
+function toggleTrans() {
+  S.trans = !S.trans;
+  if (!hasTr() || S.phase !== 'lines' || S.idx < 0 || S.stub) return;   /* 无译文歌忽略 */
+  const i = S.idx;
+  if (S.trans) {
+    const n = S.nxt; S.nxt = null;
+    if (n) { n.classList.remove('in2'); n.classList.add('drop'); rm(n, 200); }
+    later(() => { if (S.idx === i && !S.tr && bil() && S.cur) S.tr = mkX('sub pull', 0, S.song.lines[i][2]); }, 120);
+  } else {
+    const t = S.tr; S.tr = null;
+    if (t) { t.classList.remove('pull'); t.classList.add('retract'); later(() => t.remove(), 200); }
+    later(() => { if (S.idx === i && !S.nxt && !bil() && i + 1 < S.song.lines.length) S.nxt = mkLine(i + 1, 's2 in2', 0); }, 100);
+  }
+}
+function seekLine(d) {
+  if (S.phase !== 'lines') return;
+  const lines = S.song.lines;
+  const j = Math.max(0, Math.min(lines.length - 1, S.idx + d));
+  if (j === S.idx && S.idx >= 0) return;
+  S.t = lines[j][0];
+  if (d < 0) show(j);
+}
+function togglePause() {
+  S.paused = !S.paused; blk.classList.toggle('paused', S.paused);
+}
+const CMD = {
+  pause: togglePause, trans: toggleTrans,
+  next: () => changeSong((S.si + 1) % SONGS.length), prev: () => seekLine(-1),
+  theme: () => root.dataset.theme = root.dataset.theme === 'lavender' ? '' : 'lavender',
+  bg: () => root.classList.toggle('light'),
+};
+addEventListener('keydown', e => {
+  const m = { ' ': 'pause', t: 'trans', n: 'next', l: 'theme', w: 'bg' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (m) { e.preventDefault(); CMD[m](); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekLine(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); seekLine(1); }
+});
+addEventListener('message', e => { const c = e.data && e.data.cmd; if (CMD[c]) CMD[c](); });
+addEventListener('resize', fitStage);
+
+/* ---------- 启动 ---------- */
+if (Q.get('theme') === 'lavender') root.dataset.theme = 'lavender';
+if (Q.get('bg') === 'light') root.classList.add('light');
+fitStage();
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+  const qs = Q.get('song'), qt = Q.get('t');
+  const si = qs === 'none' ? -1 : Math.max(0, Math.min(SONGS.length - 1, +qs || 0));
+  const seek = qt != null && si >= 0;
+  if (seek) root.classList.add('instant');
+  startCard(Math.max(0, si), si < 0 ? NOLYRICS : null);
+  if (seek) {
+    S.t = +qt * 1000; step(0);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      layer.querySelectorAll('.in1,.in2,.p3,.pull').forEach(el => el.classList.remove('in1', 'in2', 'p3', 'pull'));
+      wedge.classList.remove('hit');
+      root.classList.remove('instant');
+      last = performance.now(); requestAnimationFrame(frame);
+    }));
+  } else requestAnimationFrame(frame);
+});
+/* 外层对比页的统一指令：song=下一首，lineNext/linePrev=逐句 */
+addEventListener('message',e=>{const c=e.data&&e.data.cmd;if(c==='lineNext')seekLine(1);else if(c==='linePrev')seekLine(-1);else if(c==='song')CMD.next();});
+})();
+
+</script>
+</body>
+</html>
