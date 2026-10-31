@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="p3">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Island A Droplet</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<script src="../shared/data.js"></script>
+<style>
+/* ============================================================
+   ISLAND A · DROPLET 水滴
+   一滴悬挂在屏幕上沿的液态胶囊。四个读数（音频 / 时间 / 通知 / 电量）
+   都在同一滴水里；状态切换 = 水滴被拉伸、鼓起、分出小水珠再融合。
+   形体：SVG goo 滤镜（模糊 + alpha 阈值）把 body / 天花板 / 小水珠熔成一体，
+         描边 = 两个软阈值之差（外轮廓 m − 内轮廓 mi），抗锯齿、无 erode。
+   QML：一个 ShaderEffect 读模糊后的 alpha a，
+         fill = smoothstep(t-0.04, t, a)，rim = fill − smoothstep(t, t+0.04, a)
+         （MultiEffect 做不了 erode/composite，别用）。内容 Item 放进 body 并 clip: true。
+   颜色：深墨平涂 + 描边；唯一渐变 = 打开菜单时的全屏水。
+   ============================================================ */
+:root { --rimc: var(--fill); --body: var(--ink); }
+html.danger { --rimc: var(--accent); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #05070d; }
+body { user-select: none; -webkit-user-select: none; color: var(--tx); cursor: default; }
+
+#stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #1a2030; }
+#desk { position: absolute; inset: 0; background: url(../shared/desk.jpg) center / cover no-repeat; }
+.win { position: absolute; border-radius: 12px; background: rgba(8,14,36,.20);
+  border: 1px solid rgba(255,255,255,.16); box-shadow: 0 14px 40px rgba(0,0,0,.14); overflow: hidden; }
+.win::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 34px;
+  background: rgba(8,14,36,.18); border-bottom: 1px solid rgba(255,255,255,.08); }
+.win.focus { border-color: rgba(163,240,255,.34); }
+[data-theme="lavender"] .win.focus { border-color: rgba(208,188,255,.34); }
+
+/* ---------- 岛：形体层（滤镜里）+ 内容层（滤镜外） ---------- */
+#top { position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 5; }
+#goo { position: absolute; left: -500px; top: -40px; width: 1000px; height: 440px;
+  filter: url(#gooF); pointer-events: none; }
+#goo .ceil { position: absolute; left: 0; right: 0; top: 0; height: 38px; background: var(--body); }
+#goo .body { position: absolute; background: var(--body); overflow: hidden; }
+#goo .drop { position: absolute; background: var(--body); border-radius: 50%; }
+.f-base { flood-color: var(--body); flood-opacity: .94; }
+.f-rim  { flood-color: var(--rimc); flood-opacity: 1; }
+.f-sh   { flood-color: #000814; flood-opacity: .32; }
+
+/* 内部焦散：--fill 平涂 + 噪声遮罩，缓慢漂移 */
+.caus { position: absolute; left: -240px; top: -60px; width: 1400px; height: 300px; background: var(--fill); opacity: var(--co, .07); transition: opacity .6s;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='150'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.016 .045' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 0 0 .9 0 0 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='420' height='150' filter='url(%23c)'/%3E%3C/svg%3E") 0 0 / 420px 150px repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='150'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.016 .045' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 0 0 .9 0 0 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='420' height='150' filter='url(%23c)'/%3E%3C/svg%3E") 0 0 / 420px 150px repeat;
+  animation: caus 34s ease-in-out infinite alternate; }
+@keyframes caus { to { transform: translate(-200px, 22px); } }
+
+#island { position: absolute; top: 0; cursor: pointer; }
+/* 肩部热区：屏幕上沿两侧各多 6px，鼠标顶到屏幕边缘也能悬停 */
+#island::before { content: ""; position: absolute; left: -6px; right: -6px; top: 0; height: 12px; }
+/* 焦散只在下三分之一出现，避开文字行 */
+.causw { position: absolute; inset: 0; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 58%, #000 92%); mask-image: linear-gradient(180deg, transparent 58%, #000 92%); }
+#top .l { letter-spacing: .1em; }
+.layer { position: absolute; left: 50%; top: 0; transform: translateX(-50%); pointer-events: none; }
+.layer .s { opacity: 0; transform: translateY(6px) scale(.9); filter: blur(3px);
+  transition: opacity .1s, transform .14s var(--ease), filter .1s; }
+.layer.on .s { opacity: 1; transform: none; filter: none;
+  transition: opacity .28s calc(var(--i, 0) * 50ms + 120ms), transform .55s var(--spring) calc(var(--i, 0) * 50ms + 120ms), filter .28s calc(var(--i, 0) * 50ms + 120ms); }
+.layer.on { pointer-events: auto; }
+
+.row { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 14px; padding: 0 18px; }
+.row .lft { justify-self: end; display: flex; align-items: center; gap: 9px; }
+.row .rgt { justify-self: start; display: flex; align-items: center; gap: 11px; }
+.dim { color: var(--dim); }
+.acc { color: var(--fill); }
+
+/* 读数：时间 */
+.time { font-size: 21px; color: var(--tx); letter-spacing: .01em; padding-right: 2px; }
+/* 读数：音频小波形 */
+.viz { display: flex; align-items: center; gap: 2.5px; height: 14px; color: var(--fill); }
+.viz i { display: block; flex: none; width: 2.5px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: 50% 50%;
+  transform: scaleY(var(--st, .6)); transition: transform .5s var(--spring), width .45s var(--spring), margin .45s var(--spring), opacity .25s, border-radius .3s; }
+/* 音频三态：播放 = 跳动；暂停 = 冻结在低位；停止 = 三个静止圆点 */
+html[data-au="play"] .viz i { animation: vz .9s var(--ease) infinite alternate; }
+html[data-au="pause"] .viz i { transform: scaleY(var(--lo)); }
+html[data-au="stop"] .viz i { transform: scaleY(.19); border-radius: 50% / 9%; }
+html[data-au="stop"] .viz i:nth-child(n+4) { width: 0; margin-left: -2.5px; opacity: 0; }
+html[data-au="stop"] .viz { color: var(--dim); }
+.viz i:nth-child(1) { animation-duration: .74s; --lo: .3; --st: .45; }
+.pk .ttl.idle { color: var(--dim); }
+.viz i:nth-child(2) { animation-duration: .52s; --lo: .5; --st: .9; }
+.viz i:nth-child(3) { animation-duration: .9s;  --lo: .25; --st: .6; }
+.viz i:nth-child(4) { animation-duration: .62s; --lo: .45; --st: 1; }
+.viz i:nth-child(5) { animation-duration: .8s;  --lo: .35; --st: .55; }
+.viz i:nth-child(6), .viz i:nth-child(8) { animation-duration: .58s; --lo: .3; --st: .75; }
+.viz i:nth-child(7) { animation-duration: .7s; --lo: .4; --st: .4; }
+@keyframes vz { from { transform: scaleY(var(--lo)); } to { transform: scaleY(1); } }
+/* 读数：通知计数 */
+.ntf { display: flex; align-items: center; gap: 5px; }
+.ntf .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.ntf .cnt { font-size: 17px; color: var(--tx); display: inline-block; }
+.cnt.pop { animation: pop .62s var(--spring); }
+@keyframes pop { 0% { transform: translateY(-9px) scale(.4); opacity: 0; color: var(--fill); } 60% { color: var(--fill); } }
+.ntf .ring { position: absolute; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--accent); opacity: 0; }
+.ring.go { animation: ring .8s var(--ease); }
+@keyframes ring { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(5); } }
+/* 读数：电量 = 一滴水的水位 */
+.bat { display: block; color: var(--fill); overflow: visible; }
+.bat.low { color: var(--accent); }
+.bat .lv { transition: y .6s var(--ease); }
+.bpct { display: none; font-size: 17px; color: var(--accent); margin-left: 5px; }
+.bpct small { font-size: 11px; }
+.lowb .bpct { display: inline-block; animation: pop2 .62s var(--spring); }
+@keyframes pop2 { 0% { transform: translateX(-8px) scale(.4); opacity: 0; } }
+.lowb .bat { animation: beat 1.3s var(--ease) infinite; }
+.bg { display: inline-flex; align-items: center; }
+.bat .bub { fill: var(--ink); opacity: 0; }
+.chg .bat .bub { animation: bub 1.4s var(--ease) infinite; }
+.chg .bat .bub:nth-of-type(2) { animation-delay: .5s; }
+.chg .bat .bub:nth-of-type(3) { animation-delay: .95s; }
+@keyframes bub { 0% { opacity: 0; transform: translateY(0); } 25% { opacity: .9; } 100% { opacity: 0; transform: translateY(-9px); } }
+
+/* PEEK */
+.pk .stack { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pk .time { font-size: 25px; }
+.pk .date { font-size: 11px; color: var(--dim); letter-spacing: .12em; }
+.pk .ttl { font-size: 13px; color: var(--tx); max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk .pct { font-size: 17px; color: var(--tx); }
+.pk .pct small { font-family: "BarlowC"; font-style: normal; font-size: 11px; letter-spacing: .06em; color: var(--dim); margin-left: 1px; }
+.pk .rgt { align-items: baseline; gap: 13px; }
+.pk .rgt .ntf { align-items: baseline; }
+.pk .rgt .ntf .dot { align-self: center; }
+.pk .rgt .bg { align-self: baseline; gap: 5px; align-items: flex-end; }
+.lowb .pk .pct.bp, .pk.lowb .pct.bp { color: var(--accent); }
+
+/* MEDIA */
+.disc { width: 26px; height: 26px; border-radius: 50%; background: var(--tx); overflow: hidden; display: grid; place-items: center; flex: none; position: relative; }
+.disc img { width: 78%; height: 78%; }
+.playing .disc { animation: spin 6s linear infinite; }
+@keyframes spin { to { transform: rotate(1turn); } }
+.mc { position: absolute; inset: 0; display: flex; align-items: center; gap: 11px; padding: 0 20px 0 12px; }
+.mc .meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.mc .ttl { font-size: 14px; font-weight: 700; color: var(--tx); white-space: nowrap; }
+.mc .art { font-size: 11px; color: var(--dim); white-space: nowrap; }
+.prog { position: absolute; left: 50px; right: 20px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--line); }
+.prog i { position: absolute; left: 0; top: 0; bottom: 0; width: 42%; border-radius: 2px; background: var(--fill); }
+.prog i::after { content: ""; position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--fill); }
+.mx { position: absolute; inset: 0; padding: 16px 24px 14px 18px; }
+.mx .top { display: flex; align-items: center; gap: 14px; }
+.mx .disc { width: 46px; height: 46px; }
+.mx .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.mx .ttl { font-size: 19px; font-weight: 700; color: var(--tx); line-height: 1; }
+.mx .art { font-size: 11px; color: var(--dim); }
+.mx .viz { height: 22px; gap: 3px; }
+.mx .viz i { width: 3px; }
+.mx .bot { position: absolute; left: 18px; right: 24px; bottom: 15px; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; }
+.mx .bot .prog { position: relative; left: 0; right: 0; bottom: 0; }
+.mx .tm { font-size: 13px; color: var(--dim); }
+.ctl { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+.ctl b { width: 28px; height: 28px; display: grid; place-items: center; color: var(--tx); border-radius: 50%; cursor: pointer;
+  transition: transform .4s var(--spring), background .15s; }
+.ctl b:hover { background: var(--panel); }
+.ctl b:active { transform: scale(.82); transition-duration: .08s; }
+.ctl b.pp { width: 32px; height: 32px; background: var(--fill); color: var(--ink); }
+.ctl svg { display: block; }
+
+/* NOTIFY card */
+.nc { position: absolute; inset: 0; display: flex; align-items: center; gap: 14px; padding: 0 24px 0 16px; }
+.nc .ic { width: 50px; height: 50px; border-radius: 50%; background: var(--tx); display: grid; place-items: center; flex: none; position: relative; }
+.nc .ic img { width: 30px; height: 30px; }
+.nc .ic::after { content: ""; position: absolute; right: 1px; top: 1px; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ink); }
+.nc .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.nc .hd { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); }
+.nc .hd .app { color: var(--fill); }
+.nc .tt { font-size: 15px; font-weight: 700; color: var(--tx); }
+.nc .bd { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc .n { align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; }
+.nc .n .d { font-size: 26px; color: var(--tx); }
+.nc .n .l { font-size: 11px; color: var(--dim); }
+
+/* OSD */
+.osd { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 18px 0 16px; color: var(--fill); }
+.osd .trk { flex: 1; height: 6px; border-radius: 6px; background: var(--line); position: relative; }
+.osd .trk i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--fill); width: 62%;
+  transition: width .45s var(--spring); }
+.osd .val { font-size: 20px; color: var(--tx); width: 30px; text-align: right; }
+.osd .ico { display: block; width: 18px; height: 18px; }
+
+/* BATTERY */
+.bt { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 20px 0 18px; }
+.bt .pct { font-size: 24px; color: var(--tx); }
+.bt .pct small { font-size: 14px; }
+.bt.low .pct { color: var(--accent); }
+.bt .lab { margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 4px; }
+.bt .lab .l { font-size: 11px; }
+.bt .lab .a { color: var(--tx); }
+.bt .lab .b { color: var(--dim); font-size: 11px; }
+.bt.low .lab .a { color: var(--accent); }
+.bt.low .bat { animation: beat 1.3s var(--ease) infinite; }
+@keyframes beat { 0%, 60%, 100% { transform: scale(1); } 20% { transform: scale(1.18); } }
+.bolt { color: var(--ink); }
+
+/* ---------- 打开菜单：水从岛里涌出铺满全屏 ---------- */
+#flood { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+/* 边缘由 JS 每帧生成一个带起伏的多边形（QML：Shape / ShaderEffect 的位移边缘遮罩） */
+#flood .lead, #flood .water { position: absolute; inset: 0; clip-path: circle(0px at 50% 0); }
+#flood .lead { background: var(--fill); }
+#flood .water { background: linear-gradient(180deg, var(--sky) 0%, var(--sea) 42%, var(--deep) 100%); overflow: hidden; }
+#flood .rays { position: absolute; left: 50%; top: -100px; width: 1400px; height: 1200px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 10%, transparent 70%); mask-image: linear-gradient(200deg, #000 10%, transparent 70%); }
+#flood .rays i { position: absolute; top: 0; height: 1300px; background: rgba(255,255,255,.16); transform-origin: 50% 0; rotate: 22deg;
+  animation: sway 9s ease-in-out infinite alternate; }
+@keyframes sway { from { transform: skewX(-5deg); opacity: .55; } to { transform: skewX(6deg); opacity: 1; } }
+#flood .bubs i { position: absolute; border-radius: 50%; border: 2px solid rgba(190,245,255,.7); opacity: 0; }
+#flood.on .bubs i { animation: rise var(--du) var(--ease) var(--de) both; }
+@keyframes rise { 0% { transform: translateY(0) scale(.6); opacity: 0; } 20% { opacity: .8; } 100% { transform: translateY(-520px) scale(1); opacity: 0; } }
+#flood .menu { position: absolute; right: 12%; top: 22%; }
+#flood .it { position: relative; font-size: 84px; color: var(--c2); margin-bottom: 30px; white-space: nowrap;
+  opacity: 0; transform: translateX(160px) rotate(var(--r)); transform-origin: 0 60%; }
+#flood.on .it { opacity: 1; transform: translateX(var(--dx)) rotate(var(--r));
+  transition: opacity .3s calc(var(--i) * 55ms + .45s), transform .8s var(--ease) calc(var(--i) * 55ms + .45s); }
+#flood .it .tx { position: relative; text-shadow: 0 3px 0 rgba(2,16,70,.35); }
+#flood .it .echo { position: absolute; left: 0; top: 0; color: var(--accent); translate: 6px 5px; opacity: 0; }
+#flood .it .sw, #flood .it .sr { position: absolute; opacity: 0; }
+#flood .it .sw { left: -50px; right: -60px; top: -14px; bottom: -24px; background: var(--shard); clip-path: polygon(0 66%, 100% 0, 97% 100%, 12% 92%);
+  transform: scaleX(.2); transform-origin: 100% 50%; }
+#flood .it .sr { left: -100px; right: -24px; top: -42px; bottom: 6px; background: var(--accent); clip-path: polygon(0 88%, 100% 0, 88% 34%);
+  transform: scaleX(.2); transform-origin: 100% 0; }
+#flood.on .it.sel .tx { color: var(--ink); text-shadow: none; transition: color .1s 1s; }
+#flood.on .it.sel .echo { opacity: 1; transition: opacity .1s 1s; }
+#flood.on .it.sel .sw { opacity: 1; transform: none; transition: transform .26s var(--ease) 1s, opacity .1s 1s; }
+#flood.on .it.sel .sr { opacity: 1; transform: none; transition: transform .3s var(--ease) 1.04s, opacity .1s 1.04s; }
+#flood .hint { position: absolute; right: 12%; bottom: 14%; display: flex; align-items: center; gap: 16px; opacity: 0; }
+#flood.on .hint { opacity: 1; transition: opacity .4s .7s; }
+#flood .hint .tag { background: var(--fill); color: var(--ink); padding: 8px 14px 7px; font-size: 22px; }
+#flood .hint .zh { font-size: 24px; color: var(--tx); }
+
+/* ---------- 原型控件（不属于设计稿本身） ---------- */
+#dock { position: fixed; left: 14px; bottom: 14px; z-index: 20; display: flex; flex-direction: column; gap: 2px; padding: 10px 8px 8px;
+  background: rgba(4,8,24,.62); backdrop-filter: blur(10px); border-radius: 14px; color: var(--tx); }
+#dock .it { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 6px 30px 5px 10px; cursor: pointer; font-size: 12px; }
+#dock .it .k { color: var(--dim); width: 12px; }
+#dock .it .zh { font-size: 10px; color: var(--dim); letter-spacing: .08em; }
+#dock .it .t, #dock .it .k, #dock .it .zh { position: relative; z-index: 1; transition: color .12s; }
+#dock .it::before { content: ""; position: absolute; left: -4px; right: 6px; top: -3px; bottom: -4px; background: var(--accent);
+  clip-path: polygon(0 80%, 100% 0, 92% 40%); transform: scaleX(0); transform-origin: 100% 0; transition: transform .22s var(--ease); }
+#dock .it::after { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: var(--shard);
+  clip-path: polygon(0 30%, 100% 0, 97% 100%, 4% 90%); transform: scaleX(0); transform-origin: 100% 50%; transition: transform .2s var(--ease); }
+#dock .it.on::before { transform: none; transition-delay: .03s; }
+#dock .it.on::after { transform: none; }
+#dock .it.on .t, #dock .it.on .k { color: var(--ink); }
+#dock .it.on .zh { color: rgba(4,16,60,.6); }
+#dock .it:hover:not(.on) .t { color: var(--fill); }
+#dock .sep { height: 1px; background: var(--line); margin: 6px 4px; }
+#dock .opt { display: flex; gap: 10px; padding: 2px 6px; font-size: 10px; color: var(--dim); }
+#dock .opt span { cursor: pointer; }
+#dock .opt b { color: var(--tx); font-weight: 700; }
+#dock .opt .live { color: var(--fill); }
+#cap { position: fixed; right: 16px; bottom: 14px; z-index: 20; text-align: right; color: var(--tx); pointer-events: none;
+  text-shadow: 0 1px 6px rgba(0,0,0,.45); }
+#cap .l { font-size: 12px; }
+#cap .l b { color: var(--fill); margin-right: 6px; }
+#cap .zh { font-size: 11px; margin-top: 5px; color: rgba(255,255,255,.86); }
+
+html.static *, html.static *::before, html.static *::after { animation: none !important; transition: none !important; }
+html.rm .viz i, html.rm .disc, html.rm .lowb .bat, html.rm .caus, html.rm #flood .rays i { animation: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- 形体滤镜：模糊 → alpha 阈值 = 液体；再 erode 一圈得到发光描边，外加投影 -->
+  <filter id="gooF" x="-5%" y="-5%" width="110%" height="120%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="b"/>
+    <!-- 两个软阈值：m = 外轮廓，mi = 内轮廓（阈值高一点 ≈ 2px 内缩）；rim = m − mi，天然抗锯齿 -->
+    <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 14 -6" result="m"/>
+    <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 14 -7.7" result="mi0"/>
+    <feGaussianBlur in="mi0" stdDeviation=".5" result="mi"/>
+    <feComposite in="m" in2="mi" operator="out" result="rimA"/>
+    <feFlood class="f-base" result="cb"/><feComposite in="cb" in2="m" operator="in" result="base"/>
+    <feComposite in="SourceGraphic" in2="mi" operator="in" result="inner"/>
+    <feFlood class="f-rim" result="cr"/><feComposite in="cr" in2="rimA" operator="in" result="rim"/>
+    <feGaussianBlur in="rim" stdDeviation="2.5" result="glowB"/>
+    <feComposite in="glowB" in2="mi" operator="in" result="glow"/>
+    <feGaussianBlur in="m" stdDeviation="6" result="shB"/>
+    <feOffset in="shB" dy="5" result="shO"/>
+    <feFlood class="f-sh" result="cs"/><feComposite in="cs" in2="shO" operator="in" result="sh"/>
+    <feMerge><feMergeNode in="sh"/><feMergeNode in="base"/><feMergeNode in="inner"/><feMergeNode in="glow"/><feMergeNode in="rim"/></feMerge>
+  </filter>
+</svg>
+
+<div id="stage">
+  <div id="desk"></div>
+  <div id="wins"></div>
+  <div id="flood">
+    <div class="lead"></div>
+    <div class="water">
+      <div class="fc caus" style="left:0;top:0;width:100%;height:100%;opacity:.14;-webkit-mask-size:840px 300px;mask-size:840px 300px;animation-duration:30s"></div>
+      <div class="rays"><i style="left:180px;width:46px"></i><i style="left:380px;width:96px;opacity:.6"></i><i style="left:600px;width:28px"></i><i style="left:760px;width:70px;opacity:.5"></i></div>
+      <div class="bubs" id="fbubs"></div>
+      <div class="menu" id="fmenu"></div>
+      <div class="hint"><span class="l tag">P3 MENU</span><span class="zh">水从岛里涌出，接管整块屏幕</span></div>
+    </div>
+  </div>
+  <div id="top">
+    <div id="goo"><div class="ceil" id="ceil"></div><div class="body" id="gbody"><div class="causw"><div class="caus"></div></div></div></div>
+    <div id="island" role="button" aria-label="灵动岛：点击打开 P3 菜单"></div>
+  </div>
+</div>
+
+<div id="dock"></div>
+<div id="cap"><div class="l"><b>A</b>DROPLET · 水滴</div><div class="zh">一滴挂在屏幕上沿的水：读数都在水里，状态让它拉伸、鼓起、分出小水珠再融合</div></div>
+<script>
+(() => {
+const D = window.P3DATA;
+const q = new URLSearchParams(location.search);
+const root = document.documentElement;
+const STATIC = q.get("static") === "1";
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (STATIC) root.classList.add("static");
+if (RM) root.classList.add("rm");
+root.dataset.theme = q.get("theme") === "lavender" ? "lavender" : "p3";
+
+/* ---------- 舞台：2560×1440 或 1706×1066，contain 缩放 ---------- */
+const SW = q.get("w") === "1706" ? 1706 : 2560, SH = SW === 1706 ? 1066 : 1440;
+const stage = document.getElementById("stage");
+stage.style.width = SW + "px"; stage.style.height = SH + "px";
+let SC = 1;
+function fit() {
+  const s = SC = Math.min(innerWidth / SW, innerHeight / SH);
+  stage.style.transform = `translate(${(innerWidth - SW * s) / 2}px, ${(innerHeight - SH * s) / 2}px) scale(${s})`;
+}
+fit(); addEventListener("resize", fit);
+
+/* 假窗口：niri 12px 间隙，从 y=54 开始 */
+const wins = document.getElementById("wins");
+const g = 12, y0 = 54, w1 = Math.round((SW - g * 3) * .58);
+wins.innerHTML = `<div class="win focus" style="left:${g}px;top:${y0}px;width:${w1}px;height:${SH - y0 - g}px"></div>` +
+  `<div class="win" style="left:${g * 2 + w1}px;top:${y0}px;width:${SW - w1 - g * 3}px;height:${Math.round((SH - y0 - g * 2) * .52)}px"></div>`;
+
+/* ---------- 图标 ---------- */
+const svg = (w, h, inner, vb) => `<svg width="${w}" height="${h}" viewBox="${vb || `0 0 ${w} ${h}`}" fill="currentColor">${inner}</svg>`;
+const I = {
+  play: svg(14, 14, '<path d="M3.5 1.8v10.4c0 .6.7 1 1.2.6l8-5.2c.5-.3.5-1 0-1.3l-8-5.2c-.5-.3-1.2 0-1.2.7z"/>'),
+  pause: svg(14, 14, '<rect x="2.5" y="1.5" width="3.4" height="11" rx="1.4"/><rect x="8.1" y="1.5" width="3.4" height="11" rx="1.4"/>'),
+  next: svg(14, 14, '<path d="M1.5 2.4v9.2c0 .6.6.9 1.1.6l6.6-4.6c.4-.3.4-.9 0-1.2L2.6 1.8c-.5-.3-1.1 0-1.1.6z"/><rect x="10" y="1.6" width="2.6" height="10.8" rx="1.2"/>'),
+  prev: svg(14, 14, '<g transform="translate(14 0) scale(-1 1)"><path d="M1.5 2.4v9.2c0 .6.6.9 1.1.6l6.6-4.6c.4-.3.4-.9 0-1.2L2.6 1.8c-.5-.3-1.1 0-1.1.6z"/><rect x="10" y="1.6" width="2.6" height="10.8" rx="1.2"/></g>'),
+  vol: svg(18, 18, '<path d="M2 6.6h2.8L9 3v12L4.8 11.4H2c-.6 0-1-.4-1-1V7.6c0-.6.4-1 1-1z"/><path d="M12 5.4c1.1.9 1.8 2.2 1.8 3.6s-.7 2.7-1.8 3.6M14.4 3c1.7 1.5 2.8 3.6 2.8 6s-1.1 4.5-2.8 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+  sun: svg(18, 18, '<circle cx="9" cy="9" r="3.6"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 1.2v1.8M9 15v1.8M1.2 9H3M15 9h1.8M3.5 3.5l1.3 1.3M13.2 13.2l1.3 1.3M3.5 14.5l1.3-1.3M13.2 4.8l1.3-1.3"/></g>'),
+  bolt: '<path class="bolt" d="M7.2 6.2 4.6 10.6h2l-.8 3.6 2.8-4.6h-2z" fill="currentColor"/>',
+};
+let bid = 0;
+/* 电量 = 水滴水位 */
+/* 外壳描边 + 内缩 1px 的水位（壳与水之间留一圈空隙，水位才读得出来） */
+function bat(pct, sz = 1, opt = "") {
+  const id = "bc" + (bid++), w = 14 * sz, h = 19 * sz, top = 14.2 - 10.8 * Math.max(0, Math.min(100, pct)) / 100; // 内缩水滴的底 14.2 → 顶 3.4
+  return `<svg class="bat ${opt}" width="${w}" height="${h}" viewBox="-1 -1 14 18" data-bat="${id}">
+    <defs><clipPath id="${id}"><path transform="translate(6 10.4) scale(.7) translate(-6 -10.4)" d="M6 .4C4.6 2.6.6 7 .6 10.4a5.4 5.4 0 0 0 10.8 0C11.4 7 7.4 2.6 6 .4z"/></clipPath></defs>
+    <path d="M6 .4C4.6 2.6.6 7 .6 10.4a5.4 5.4 0 0 0 10.8 0C11.4 7 7.4 2.6 6 .4z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <g clip-path="url(#${id})"><rect class="lv" x="-1" y="${top}" width="14" height="18" fill="currentColor"/>
+    <circle class="bub" cx="4" cy="14" r="1"/><circle class="bub" cx="7.5" cy="13.4" r=".8"/><circle class="bub" cx="5.6" cy="14.6" r=".7"/></g>
+  </svg>`;
+}
+const viz = n => `<span class="viz">${"<i></i>".repeat(n)}</span>`;
+const pad = n => String(n).padStart(2, "0");
+const C = D.clock, M = D.media, N = D.notify.latest[0];
+const timeS = `${pad(C.h)}:${pad(C.m)}`;
+
+/* ---------- 内容层 ---------- */
+const top = document.getElementById("top"), island = document.getElementById("island");
+const BT = 3; // 水滴顶端离屏幕上沿
+const L = {};
+function layer(name, w, h, html) {
+  const el = document.createElement("div");
+  el.className = "layer"; el.dataset.n = name;
+  el.style.cssText = `top:${BT}px;width:${w}px;height:${h}px`; el._w = w; el._h = h;
+  el.innerHTML = html; top.appendChild(el); L[name] = el; return el;
+}
+layer("idle", 236, 36, `<div class="row">
+  <div class="lft s" style="--i:0">${viz(5)}</div>
+  <div class="d time s" style="--i:1">${timeS}</div>
+  <div class="rgt s" style="--i:2"><span class="ntf"><span class="dot"></span><span class="ring"></span><span class="d cnt">${D.notify.count}</span></span><span class="bg"><span id="ib">${bat(D.battery.pct)}</span><span class="d bpct" id="ibp">12<small>%</small></span></span></div></div>`);
+layer("peek", 340, 52, `<div class="row pk" style="padding:0 26px">
+  <div class="lft s" style="--i:1"><span class="zh ttl" id="pkT">${M.title}</span></div>
+  <div class="stack s" style="--i:0"><span class="d time">${timeS}</span><span class="l date">${C.dow} ${C.month}/${C.day}</span></div>
+  <div class="rgt s" style="--i:2"><span class="ntf"><span class="dot"></span><span class="d pct" id="pkN">${D.notify.count}</span></span>
+  <span class="bg"><span id="pkB">${bat(D.battery.pct, 1.1)}</span><span class="d pct bp" id="pkP">${D.battery.pct}<small>%</small></span></span></div></div>`);
+layer("media", 352, 40, `<div class="mc playing">
+  <span class="disc s" style="--i:0"><img src="../shared/icons/netease.svg" alt=""></span>
+  <span class="meta s" style="--i:1"><span class="zh ttl">${M.title}</span><span class="zh art">${M.artist}</span></span>
+  <span class="s" style="--i:2">${viz(6)}</span><span class="d time s" style="--i:3;font-size:16px;color:var(--dim)">${timeS}</span></div>
+  <div class="prog s" style="--i:2"><i></i></div>`);
+layer("mediax", 470, 124, `<div class="mx playing">
+  <div class="top"><span class="disc s" style="--i:0"><img src="../shared/icons/netease.svg" alt=""></span>
+   <span class="meta s" style="--i:1"><span class="zh ttl">${M.title}</span><span class="zh art">${M.artist} · <span class="l" style="font-size:10px">${M.player}</span></span></span>
+   <span class="s" style="--i:2">${viz(8)}</span></div>
+  <div class="bot"><span class="d tm s" style="--i:2">1:38</span><span class="prog s" style="--i:2"><i></i></span><span class="d tm s" style="--i:3">3:52</span>
+   <span class="ctl s" style="--i:4"><b data-a="prev">${I.prev}</b><b class="pp" data-a="pp">${I.pause}</b><b data-a="next">${I.next}</b></span></div></div>`);
+layer("card", 430, 78, `<div class="nc"><span style="width:50px;flex:none"></span>
+  <span class="tx"><span class="hd s" style="--i:0"><span class="zh app">${N.app}</span><span class="l">${N.t}</span></span>
+   <span class="zh tt s" style="--i:1">${N.title}</span><span class="zh bd s" style="--i:2">${N.body}</span></span>
+  <span class="n s" style="--i:3"><span class="d" id="ncN">${D.notify.count + 1}</span><span class="l">UNREAD</span></span></div>`);
+layer("osd", 300, 40, `<div class="osd"><span class="s ico" id="osdI" style="--i:0">${I.vol}</span>
+  <span class="trk s" style="--i:1"><i id="osdT"></i></span><span class="d val s" id="osdV" style="--i:2">${D.audio.vol}</span></div>`);
+layer("batt", 316, 40, `<div class="bt"><span class="s" style="--i:0" id="btI">${bat(12, 1.25, "low")}</span>
+  <span class="d pct s" style="--i:1" id="btP">12<small>%</small></span>
+  <span class="lab s" style="--i:2"><span class="l a" id="btA">LOW BATTERY</span><span class="l b" id="btB">0:24 LEFT · PLUG IN</span></span></div>`);
+
+/* 跟随小水珠的图标（通知分裂出来的那一滴里装着应用图标） */
+const dIcon = document.createElement("div");
+dIcon.style.cssText = "position:absolute;left:0;top:0;border-radius:50%;background:var(--tx);display:grid;place-items:center;pointer-events:none;width:40px;height:40px;transform:scale(0);opacity:0;transition:opacity .16s";
+dIcon.innerHTML = `<img src="${N.icon}" alt="" style="width:60%;height:60%">`;
+top.appendChild(dIcon);
+let iconTarget = 0;
+
+/* ---------- 弹簧 ---------- */
+const S = {};
+function spr(name, x, k, c) { S[name] = { x, v: 0, t: x, k, c }; }
+spr("w", 236, 190, 16.5); spr("h", 36, 330, 21); spr("r", 18, 330, 21); spr("dy", 0, 260, 18);
+spr("ax", 0, 150, 15); spr("ay", 18, 150, 13); spr("as", 0, 170, 15);   // 水珠 A
+spr("bx", 0, 200, 16); spr("by", 18, 120, 12); spr("bs", 0, 200, 16);   // 水珠 B（滴落/上升）
+let snapAll = STATIC || RM;
+function T(o, snap) {
+  for (const k in o) { const s = S[k]; s.t = o[k]; if (snap || snapAll) { s.x = o[k]; s.v = 0; } }
+}
+function kick(k, v) { if (!snapAll) S[k].v += v; }
+const gbody = document.getElementById("gbody"), ceil = document.getElementById("ceil");
+const drops = {};
+for (const n of ["a", "b"]) { const e = document.createElement("div"); e.className = "drop"; document.getElementById("goo").appendChild(e); drops[n] = e; }
+function render() {
+  const w = S.w.x, h = Math.max(4, S.h.x), r = Math.min(S.r.x, h / 2, w / 2), dy = S.dy.x;
+  gbody.style.cssText = `left:${500 - w / 2}px;top:${40 + BT + dy}px;width:${w}px;height:${h}px;border-radius:${r}px`;
+  const cw = Math.max(20, w - r * 1.6);
+  ceil.style.cssText = `left:${500 - cw / 2}px;width:${cw}px`;
+  for (const n of ["a", "b"]) {
+    const s = Math.max(0, S[n + "s"].x), x = S[n + "x"].x, y = S[n + "y"].x;
+    drops[n].style.cssText = `left:${500 + x - s / 2}px;top:${40 + y - s / 2}px;width:${s}px;height:${s}px;display:${s < .5 ? "none" : "block"}`;
+  }
+  island.style.cssText = `left:${-w / 2}px;width:${w}px;height:${BT + h + Math.max(0, dy)}px`;
+  // 内容层裁到实时液体轮廓：弹簧没走完时读数不会戳出水面（QML：content 放进 body，clip: true）
+  for (const k in L) {
+    const el = L[k], ix = Math.max(0, (el._w - w) / 2), it = Math.max(0, dy), ib = Math.max(0, el._h - dy - h);
+    el.style.clipPath = `inset(${it}px ${ix}px ${ib}px ${ix}px round ${r}px)`;
+  }
+  // 图标和它下面那滴 goo 共用同一个弹簧 as，颈部被拉断时两者同步
+  const is = Math.max(0, S.as.x) * .64;   // 图标比水珠小一圈，青色描边包住它
+  dIcon.style.opacity = iconTarget; dIcon.style.transform = `translate(${S.ax.x - 20}px, ${S.ay.x - 20}px) scale(${is / 40})`;
+  fluid(performance.now());
+}
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(.05, (now - last) / 1000); last = now;
+  const n = Math.ceil(dt / .004), h = dt / n;
+  for (let i = 0; i < n; i++) {
+    for (const k in S) { const s = S[k]; const a = -s.k * (s.x - s.t) - s.c * s.v; s.v += a * h; s.x += s.v * h; }
+    if (gravity) S.by.v += 2400 * h;
+  }
+  render(); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- 姿态 ---------- */
+const P = {
+  idle:   { w: 236, h: 36, r: 18, dy: 0 },
+  peek:   { w: 340, h: 52, r: 26, dy: 0 },
+  media:  { w: 352, h: 40, r: 20, dy: 0 },
+  mediax: { w: 470, h: 124, r: 34, dy: 0 },
+  card:   { w: 430, h: 78, r: 39, dy: 0 },
+  osd:    { w: 300, h: 40, r: 20, dy: 0 },
+  batt:   { w: 316, h: 40, r: 20, dy: 0 },
+  sink:   { w: 128, h: 54, r: 27, dy: 0 },
+};
+let curLayer = null;
+const CO = { mediax: .10, card: .10 };
+function show(name, poseName, snap) {
+  if (name === "idle" && !poseName) syncIdle();
+  T(P[poseName || name], snap);
+  gbody.style.setProperty("--co", CO[name] || .07);
+  for (const k in L) L[k].classList.toggle("on", k === name);
+  curLayer = name;
+}
+const hideDrops = snap => T({ as: 0, bs: 0 }, snap);
+
+/* ---------- 时间线：每次切状态都作废上一条 ---------- */
+let tok = 0, timers = [], hold = 0;
+const HOLD = { 3: 1700, 4: 900, 7: 470 };
+function at(ms, fn) {
+  const my = tok;
+  if (STATIC) { if (ms <= hold) fn(); return; }
+  timers.push(setTimeout(() => { if (my === tok) fn(); }, RM ? Math.min(ms, ms * .5) : ms));
+}
+function reset() { tok++; timers.forEach(clearTimeout); timers = []; top.classList.remove("chg"); gravity = 0;
+  S.by.k = 120; S.by.c = 12; S.bs.k = 200; S.bs.c = 16; iconTarget = 0; flood.classList.remove("on", "out"); FL = null; paintFlood(0, 0);
+  top.style.opacity = ""; top.style.transition = ""; }
+
+/* ---------- 音频三态：play 跳动 / pause 冻结在低位 / stop 三个静止圆点，岛收窄 ---------- */
+let au = q.get("audio") || (M.playing ? "play" : "pause");
+/* ---------- 电量：≤20% 常驻警示（红水位 + 红描边 + 数字），直到插上充电器 ---------- */
+let batPct = +(q.get("bat") || D.battery.pct);
+const LOWT = 20, lowNow = () => batPct <= LOWT && !charging;
+let charging = false;
+function syncIdle() {
+  root.dataset.au = au;
+  const low = lowNow();
+  root.classList.toggle("danger", low);
+  for (const [box, sz] of [["ib", 1], ["pkB", 1.1]]) document.getElementById(box).innerHTML = bat(batPct, sz, low ? "low" : "");
+  document.getElementById("ibp").innerHTML = `${batPct}<small>%</small>`;
+  document.getElementById("pkP").innerHTML = `${batPct}<small>%</small>`;
+  L.idle.classList.toggle("lowb", low); L.peek.firstElementChild.classList.toggle("lowb", low);
+  const t = document.getElementById("pkT");
+  t.textContent = au === "stop" ? "未在播放" : M.title; t.classList.toggle("idle", au === "stop");
+  const w = 236 + (au === "stop" ? -30 : 0) + (low ? 56 : 0);
+  P.idle.w = w; L.idle._w = w; L.idle.style.width = w + "px";
+}
+function setAudio(a) { au = a; const was = P.idle.w; syncIdle();
+  if (curLayer === "idle") { T({ w: P.idle.w }); kick("h", a === "stop" ? -40 : 40); }
+  L.mediax.querySelector(".mx").classList.toggle("playing", a === "play");
+  L.media.querySelector(".mc").classList.toggle("playing", a === "play");
+  const pp = L.mediax.querySelector(".pp"); if (pp) pp.innerHTML = a === "play" ? I.pause : I.play;
+}
+/* 常驻低电量时，偶尔从电量水滴下方坠一滴（次级动效） */
+let dripT = 0;
+function idleDrip() {
+  clearTimeout(dripT);
+  if (STATIC || RM) return;
+  dripT = setTimeout(() => {
+    if (lowNow() && curLayer === "idle" && !gravity && S.bs.x < .5) {
+      const r = document.getElementById("ib").getBoundingClientRect(), tr = top.getBoundingClientRect();
+      const x = (r.left + r.width / 2 - tr.left) / SC;
+      S.by.k = 120; S.by.c = 12; T({ bx: x, by: BT + 30, bs: 4 }, true); T({ by: BT + 40, bs: 11 });
+      setTimeout(() => { S.by.k = 0; S.by.c = 0; gravity = 1; T({ bs: 6 });
+        setTimeout(() => { gravity = 0; S.by.k = 120; S.by.c = 12; T({ bs: 0 }, true); }, 900); }, 650);
+    }
+    idleDrip();
+  }, 5200);
+}
+let gravity = 0, FL = null;
+
+const cntEl = () => L.idle.querySelector(".cnt");
+let count = D.notify.count;
+function setCount(n, anim) {
+  count = n; const c = cntEl(); c.textContent = n;
+  if (anim && !snapAll) { c.classList.remove("pop"); void c.offsetWidth; c.classList.add("pop");
+    const r = L.idle.querySelector(".ring"); r.classList.remove("go"); void r.offsetWidth; r.classList.add("go"); }
+}
+let base = "idle", cur = 0, sub = q.get("sub") || "";
+
+const STATES = [
+  null,
+  { t: "IDLE", zh: "常态" , run() { base = "idle"; show("idle"); hideDrops(); } },
+  { t: "PEEK", zh: "悬停", run() { show("peek"); hideDrops(); kick("h", 60); } },
+  { t: "MEDIA", zh: "播放", run() {
+      base = "media"; hideDrops();
+      if (sub === "compact") { show("media"); return; }
+      show("media"); kick("w", -300);
+      at(1700, () => { show("mediax"); kick("h", -200); });
+      at(5200, () => { show("media"); });
+    } },
+  { t: "NOTIFY", zh: "新通知", run() {
+      setCount(D.notify.count); show(base === "media" ? "media" : "idle"); iconTarget = 0;
+      const p = P[curLayer];
+      // 1 预备：岛身被往右拽一下
+      T({ ax: p.w / 2 - 16, ay: BT + p.h / 2, as: 14 }, true);
+      at(120, () => { kick("w", 220); kick("h", -90); T({ ax: p.w / 2 + 52, as: 42 }); iconTarget = 1; });
+      // 2 分裂出来的水珠带着应用图标挂在旁边，颈部被拉断
+      // 3 岛鼓成卡片，水珠滑到卡片左侧的图标位并融进去
+      at(900, () => { show("card"); T({ ax: -P.card.w / 2 + 16 + 25, ay: BT + P.card.h / 2, as: 63 }); });
+      // 4 卡片收回，水珠缩进计数，计数 +1
+      at(3900, () => { T({ ax: 52, ay: BT + 18, as: 0 }); show(base === "media" ? "media" : "idle"); });
+      at(4300, () => { iconTarget = 0; });
+      at(4250, () => setCount(D.notify.count + 1, true));
+    } },
+  { t: "OSD", zh: "音量", run() {
+      hideDrops(); osd("vol", D.audio.vol, true);
+      at(500, () => osd("vol", 74)); at(900, () => osd("vol", 80)); at(1400, () => osd("vol", 70));
+      at(2600, () => osd("sun", D.brightness)); at(3200, () => osd("sun", 68));
+      at(4800, () => show(base));
+    } },
+  { t: "BATTERY", zh: "电量", run() {
+      hideDrops(); base = base === "media" ? "media" : "idle";
+      const low = () => {
+        charging = false; batPct = 12; syncIdle(); top.classList.remove("chg"); battUI(12, false); show("batt");
+        const drip = () => { // 低电量：岛底部凝出一滴，坠落
+          gravity = 0; S.by.k = 120; S.by.c = 12;
+          T({ bx: 96, by: BT + 34, bs: 4 }, true); T({ by: BT + 46, bs: 15 });
+          at(650, () => { S.by.k = 0; S.by.c = 0; gravity = 1; T({ bs: 7 }); });
+        };
+        drip(); if (!STATIC) { at(1500, drip); }
+      };
+      const settleLow = () => { gravity = 0; S.by.k = 120; S.by.c = 12; T({ bs: 0 }); show("idle"); kick("w", -140); };
+      const chg = () => {
+        charging = true; batPct = 12; syncIdle(); top.classList.add("chg"); gravity = 0; S.by.k = 120; S.by.c = 12;
+        show("batt"); battUI(12, true); kick("h", 120);
+        const feed = (k) => { // 充电：小水珠从下方升上来汇入
+          T({ bx: 96, by: BT + 96, bs: 10 }, true); T({ by: BT + 22, bs: 18 });
+          at(520, () => { T({ bs: 0 }); kick("h", 70); kick("w", 90); battUI(Math.min(13 + k * 2, 18), true); });
+        };
+        for (let k = 0; k < 4; k++) at(200 + k * 900, () => feed(k));
+        if (STATIC) { T({ bs: 0 }, true); battUI(18, true); }
+      };
+      if (sub === "charge") chg();
+      else if (sub === "idle") { charging = false; batPct = 12; settleLow(); T({ bs: 0 }, true); idleDrip(); }
+      else { low(); if (sub !== "low") {
+        at(2800, settleLow);                       // 警告收回，但常态保持红色读数
+        at(4600, chg);                             // 插上充电器
+        at(8400, () => { top.classList.remove("chg"); charging = false; batPct = D.battery.pct; show(base); hideDrops(); });
+      } }
+    } },
+  { t: "OPEN MENU", zh: "打开菜单", run() { openMenu(); } },
+];
+
+function battUI(pct, charging) {
+  const btI = document.getElementById("btI");
+  btI.innerHTML = bat(pct, 1.25, charging ? "" : "low").replace("</svg>", (charging ? I.bolt : "") + "</svg>");
+  document.getElementById("btP").innerHTML = `${pct}<small>%</small>`;
+  L.batt.firstElementChild.classList.toggle("low", !charging);
+  document.getElementById("btA").textContent = charging ? "CHARGING · 65W" : "LOW BATTERY";
+  document.getElementById("btB").textContent = charging ? "FULL IN 1:18" : "0:24 LEFT · PLUG IN";
+}
+
+let osdHide = 0;
+function osd(kind, v, snapIn) {
+  if (curLayer !== "osd") { show("osd"); }
+  document.getElementById("osdI").innerHTML = kind === "vol" ? I.vol : I.sun;
+  document.getElementById("osdT").style.width = v + "%";
+  document.getElementById("osdV").textContent = v;
+  kick("h", 70); kick("w", 50);
+}
+
+/* ---------- 打开菜单：岛先吸气收缩，然后一滴水坠下、炸开成全屏的水 ---------- */
+const flood = document.getElementById("flood");
+const fmenu = document.getElementById("fmenu");
+[["APPS", -14, 60], ["STATUS", -6, 20], ["CALENDAR", -8, -16], ["MUSIC", -3, -40], ["POWER", 4, -70]].forEach(([t, r, dx], i) => {
+  fmenu.insertAdjacentHTML("beforeend", `<div class="it d ${i === 0 ? "sel" : ""}" style="--r:${r}deg;--dx:${dx}px;--i:${i}"><span class="sh sr sr"></span><span class="sw"></span><span class="echo">${t}</span><span class="tx">${t}</span></div>`);
+});
+const fb = document.getElementById("fbubs");
+for (let k = 0; k < 18; k++) {
+  const s = 8 + (k * 37 % 20);
+  fb.insertAdjacentHTML("beforeend", `<i style="left:${(k * 211) % 100}%;top:${70 + (k * 13) % 30}%;width:${s}px;height:${s}px;--du:${2.2 + (k % 5) * .4}s;--de:${.3 + (k % 7) * .12}s"></i>`);
+}
+/* 水面：一个带起伏边缘的多边形，从坠落水珠的实时位置长出来（不是 UI 圆形擦除）
+   QML：Shape + PathPolyline 每帧更新，或 ShaderEffect 用噪声位移圆形遮罩的边缘 */
+const lead = flood.querySelector(".lead"), water = flood.querySelector(".water");
+const RMAX = Math.hypot(SW / 2 + 200, SH + 200);
+function blob(cx, cy, r, t, amp) {
+  if (r <= 0) return "circle(0px at 50% 0)";
+  if (r >= RMAX) return "none";
+  const n = 72, pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2;
+    const k = 1 + amp * (.55 * Math.sin(5 * a + t * 3.1) + .3 * Math.sin(9 * a - t * 4.7) + .15 * Math.sin(14 * a + t * 6.3));
+    pts.push(`${(cx + Math.cos(a) * r * k).toFixed(1)}px ${(cy + Math.sin(a) * r * k).toFixed(1)}px`);
+  }
+  return `polygon(${pts.join(",")})`;
+}
+const eio = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const eo = p => 1 - Math.pow(1 - p, 3);
+function paintFlood(rl, rw, t = 0) {
+  if (!FL) { lead.style.clipPath = water.style.clipPath = "circle(0px at 50% 0)"; return; }
+  const amp = r => .02 + .1 * Math.max(0, 1 - r / 700);
+  lead.style.clipPath = blob(FL.x, FL.y, rl, t, amp(rl));
+  water.style.clipPath = blob(FL.x, FL.y, rw, t + 1.7, amp(rw));
+}
+function fluid(now) {
+  if (!FL) return;
+  const t = (now - FL.t0) / 1000, R0 = FL.r0;
+  if (FL.dir > 0) {
+    const pl = snapAll ? 1 : Math.min(1, t / .78), pw = snapAll ? 1 : Math.max(0, Math.min(1, (t - .07) / .78));
+    paintFlood(pl >= 1 ? RMAX : R0 + (RMAX - R0) * eio(pl), pw >= 1 ? RMAX : (pw <= 0 ? 0 : R0 + (RMAX - R0) * eio(pw)), t);
+  } else {
+    const pw = Math.min(1, t / .6), pl = Math.max(0, Math.min(1, (t - .08) / .6));
+    const rw = RMAX * (1 - eio(pw)), rl = RMAX * (1 - eio(pl));
+    paintFlood(rl, rw, t);
+    if (pl >= 1) { FL = null; paintFlood(0, 0); }
+  }
+}
+function openMenu() {
+  hideDrops(); show("idle", "sink");           // 吸气：变短变圆，读数退场
+  for (const k in L) L[k].classList.remove("on");
+  kick("h", -80);
+  at(260, () => {                             // 坠：水滴拉长成泪滴，一颗水珠从底部掉下
+    T({ w: 96, h: 62, r: 30 }); T({ bx: 0, by: BT + 44, bs: 30 }, true); T({ by: BT + 66 });
+    if (STATIC && sub === "sink") T({ by: BT + 84, bs: 22 }, true);   // 静帧：水珠刚刚断开、正在下落
+  });
+  at(470, () => {                             // 水珠就地化开成水：起点 = 水珠的实时位置和半径
+    FL = { x: SW / 2 + S.bx.x, y: S.by.x, r0: Math.max(6, S.bs.x * .42), t0: performance.now(), dir: 1 };
+    flood.classList.remove("out"); flood.classList.add("on");
+    at(60, () => { S.bs.k = 900; S.bs.c = 60; T({ bs: 0 }); });  // 约 120ms 内缩没，像是变成了水
+    if (STATIC) T({ bs: 0 }, true);
+  });
+  at(1100, () => { top.style.opacity = "0"; }); // 已被水面盖住，静默隐藏
+  at(2050, () => {                            // 水退回岛里
+    flood.classList.remove("on"); flood.classList.add("out");
+    FL = { x: SW / 2, y: BT + 18, r0: 0, t0: performance.now(), dir: -1 };
+    S.bs.k = 200; S.bs.c = 16; T({ w: 40, h: 22, r: 11 }, true); top.style.opacity = "";
+  });
+  at(2420, () => { show(base); kick("w", 400); });
+  at(2750, () => { flood.classList.remove("out"); });
+}
+
+/* ---------- 切状态 ---------- */
+const dock = document.getElementById("dock");
+function go(n, opts = {}) {
+  reset(); cur = n;
+  [...dock.querySelectorAll(".it")].forEach((e, i) => e.classList.toggle("on", i + 1 === n));
+  if (!opts.keepSub) sub = "";
+  hold = n === 7 && sub === "sink" ? 300 : (HOLD[n] || 0);
+  if (n !== 6) { charging = false; batPct = +(q.get("bat") || D.battery.pct); }
+  syncIdle();
+  if (n !== 4) setCount(D.notify.count);
+  STATES[n].run();
+  idleDrip();
+}
+dock.innerHTML = STATES.slice(1).map((s, i) => `<div class="it l" data-n="${i + 1}"><span class="k">${i + 1}</span><span class="t">${s.t}</span><span class="zh">${s.zh}</span></div>`).join("") +
+  `<div class="sep"></div><div class="opt l"><span id="oDemo">SPACE <b>DEMO</b></span><span id="oTh">T <b>THEME</b></span><span id="oAu">A <b id="oAuV">PLAY</b></span><span id="oW"><b>${SW}</b></span></div>`;
+dock.addEventListener("click", e => {
+  const it = e.target.closest(".it"); if (it) { stopDemo(); go(+it.dataset.n); }
+  if (e.target.closest("#oDemo")) toggleDemo();
+  if (e.target.closest("#oTh")) toggleTheme();
+  if (e.target.closest("#oAu")) cycleAudio();
+  if (e.target.closest("#oW")) { q.set("w", SW === 2560 ? "1706" : "2560"); location.search = q; }
+});
+function cycleAudio() { setAudio({ play: "pause", pause: "stop", stop: "play" }[au]); document.getElementById("oAuV").textContent = au.toUpperCase(); }
+function toggleTheme() { root.dataset.theme = root.dataset.theme === "p3" ? "lavender" : "p3"; }
+
+/* ---------- 自动演示 ---------- */
+const DUR = { 1: 2600, 2: 2400, 3: 7000, 4: 5600, 5: 5600, 6: 9600, 7: 3400 };
+let demo = 0, demoT = 0;
+function step() { const n = cur % 7 + 1; go(n); demoT = setTimeout(step, DUR[n]); }
+function toggleDemo() { demo ? stopDemo() : (demo = 1, document.getElementById("oDemo").classList.add("live"), cur = 0, step()); }
+function stopDemo() { demo = 0; clearTimeout(demoT); document.getElementById("oDemo").classList.remove("live"); }
+
+addEventListener("keydown", e => {
+  if (e.key >= "1" && e.key <= "7") { stopDemo(); go(+e.key); }
+  else if (e.key === " ") { e.preventDefault(); toggleDemo(); }
+  else if (e.key === "t" || e.key === "T") toggleTheme();
+  else if (e.key === "a" || e.key === "A") cycleAudio();
+});
+
+/* ---------- 真实交互 ---------- */
+let hovering = false;
+island.addEventListener("mouseenter", () => {
+  if (demo || cur === 7) return; hovering = true;
+  if (curLayer === "idle") go(2);
+  else if (curLayer === "media") { reset(); show("mediax"); }
+});
+island.addEventListener("mouseleave", () => {
+  if (!hovering) return; hovering = false;
+  if (curLayer === "peek") go(1);
+  else if (curLayer === "mediax") { reset(); show("media"); }
+});
+island.addEventListener("click", e => { if (e.target.closest(".ctl")) return; stopDemo(); go(7); });
+top.addEventListener("click", e => {
+  const b = e.target.closest(".ctl b"); if (!b) return; e.stopPropagation();
+  if (b.dataset.a === "pp") { const on = au !== "play"; setAudio(on ? "play" : "pause"); kick("w", on ? 120 : -120); }
+  else kick("w", b.dataset.a === "next" ? 160 : -160);
+});
+let vol = D.audio.vol, wheelT = 0;
+island.addEventListener("wheel", e => {
+  e.preventDefault(); stopDemo();
+  if (cur !== 5) { reset(); cur = 5; [...dock.querySelectorAll(".it")].forEach((x, i) => x.classList.toggle("on", i === 4)); }
+  vol = Math.max(0, Math.min(100, vol - Math.sign(e.deltaY) * 4)); osd("vol", vol);
+  clearTimeout(wheelT); wheelT = setTimeout(() => { cur = 0; go(base === "media" ? 3 : 1); if (base === "media") { reset(); show("media"); } }, 1300);
+}, { passive: false });
+
+/* ---------- 初始 ---------- */
+const st = Math.max(1, Math.min(7, +(q.get("state") || 1)));
+if (st === 3) base = "media";
+sub = q.get("sub") || "";
+syncIdle(); setAudio(au); document.getElementById("oAuV").textContent = au.toUpperCase();
+go(st, { keepSub: true });
+if (q.get("demo") === "1" && !STATIC) { cur = st - 1; toggleDemo(); }
+})();
+</script>
+</body>
+</html>

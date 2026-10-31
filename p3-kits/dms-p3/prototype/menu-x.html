@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Shell Menu</title>
+<link rel="stylesheet" href="shared/tokens.css">
+<link rel="stylesheet" href="shared/menu.css">
+</head>
+<body>
+<div id="stage">
+  <div id="back">
+    <div class="desk"><img src="shared/desk.jpg" alt="" onerror="this.remove()"></div>
+    <div class="desk-blur"><img src="shared/desk.jpg" alt="" onerror="this.remove()"></div>
+    <div class="tint"></div>
+    <div class="water">
+      <div class="sea">
+        <div class="dive">
+          <img src="shared/miku-bg.png" alt="" onerror="this.remove()">
+          <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+            <filter id="cf" x="0" y="0" width="100%" height="100%">
+              <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+              <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+            </filter>
+            <rect width="100%" height="100%" filter="url(#cf)"/>
+          </svg>
+          <div class="depth"></div>
+          <div class="rays"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="bubbles" id="bubbles"></div>
+        </div>
+      </div>
+      <div class="veil"></div>
+    </div>
+  </div>
+
+  <div class="date"><div class="in">
+    <div class="d md"><span id="md">10/30</span><small id="dow">FRI</small></div>
+    <div class="row"><span class="l tod" id="tod">AFTERNOON</span><span class="l hm" id="hm">16:29</span></div>
+  </div></div>
+
+  <div id="menu"></div>
+
+  <div id="pg" class="pg">
+    <div class="pg-head">
+      <div class="d pg-title"></div>
+      <div class="pg-rule"></div>
+    </div>
+    <div class="pg-body"><div class="pg-root"></div></div>
+    <div class="pg-wipe"></div>
+  </div>
+
+  </div>
+
+<script src="shared/data.js"></script>
+<script src="shared/backend.js"></script>
+<script src="shared/menu.js"></script>
+<script src="pages/apps.js"></script>
+<script src="pages/status.js"></script>
+<script src="pages/calendar.js"></script>
+<script src="pages/system.js"></script>
+<script src="pages/power.js"></script>
+</body>
+</html>

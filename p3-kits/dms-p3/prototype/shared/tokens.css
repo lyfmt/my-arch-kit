@@ -1,0 +1,23 @@
+/* dms-p3 原型共享设计令牌：只有 P3 蓝一套
+   规则：水下渐变是唯一渐变，其余平涂；.d 展示字只给名词和数字；.l 标签字给其余一切 */
+@font-face { font-family: "P3"; src: url("fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "P3"; src: url("fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-daLY50.woff2") format("woff2"); font-weight: 900; font-style: italic; unicode-range: U+0100-02BA, U+2020, U+20A0-20AB, U+2113; }
+@font-face { font-family: "BarlowC"; src: url("fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+:root {
+  --deep: #020a52;  --sea: #0626c4;  --sky: #0b8fe8;
+  --fill: #a3f0ff;  --ink: #04103c;  --tx: #ecfcff;
+  --c1: #a1eefd; --c2: #90e1f2; --c3: #7ccdf4; --c4: #c2f6ff; --c5: #74c9ff;
+  --dim: rgba(163,240,255,.62);
+  --line: rgba(163,240,255,.22);
+  --panel: rgba(120,200,255,.08);
+  --glass: rgba(4,16,60,.72);      /* 叠在桌面上的深色底（顶栏、胶囊） */
+  --accent: #e3121b;               /* 只给选中残影、未读、危险 */
+  --shard: #fff;
+}
+:root { --ease: cubic-bezier(.22,.9,.24,1); --spring: cubic-bezier(.34,1.56,.64,1); }
+
+* { box-sizing: border-box; }
+.d  { font-family: "P3", sans-serif; font-style: italic; font-weight: 900; line-height: .86; letter-spacing: -.01em; }
+.l  { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; line-height: 1; }
+.zh { font-family: "Noto Sans CJK SC", "Noto Sans SC", sans-serif; font-weight: 500; letter-spacing: .06em; }

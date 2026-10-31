@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waterline Island</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+/* ============================================================
+   WATERLINE 水位线：顶栏只有一个胶囊，它是一个小水缸的横截面
+   电量 = 水位；音频 = 水面波纹（由可视化驱动）；通知 = 缸里上浮的气泡 + 计数水珠
+   时间用 P3 展示字浮在最上层，没入水下的部分有折射错位
+   水下渐变是唯一渐变；白楔 + 红残影只给选中项
+   ============================================================ */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #04060c; }
+body { color: var(--tx); user-select: none; -webkit-user-select: none; }
+#stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #0a0f1c; }
+#desk { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.win { position: absolute; border-radius: 12px; background: rgba(6,10,26,.30); box-shadow: inset 0 0 0 1px rgba(255,255,255,.09); }
+.win.f { box-shadow: inset 0 0 0 2px var(--line); }
+.win i { position: absolute; left: 32px; height: 9px; border-radius: 5px; background: rgba(255,255,255,.08); }
+
+/* ---------- 岛 ---------- */
+#island { position: absolute; left: 50%; top: 7px; z-index: 5; width: 264px; height: 40px; border-radius: 20px; overflow: hidden;
+  background: color-mix(in srgb, var(--deep) 92%, transparent);   /* 空气带：平涂深色，不依赖背景模糊 */
+  box-shadow: 0 10px 28px rgba(0,3,22,.30), 0 2px 4px rgba(0,3,22,.30);
+  transform: translateX(-50%); transform-origin: 50% 0; cursor: pointer; }
+#island .rim { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--line); pointer-events: none; z-index: 4; }
+#island .alarm { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1.5px var(--accent); opacity: 0; pointer-events: none; z-index: 4; transition: opacity .3s; }
+#island.low .alarm { animation: alarm 2.4s var(--ease) infinite; }
+@keyframes alarm { 0%, 100% { opacity: .12; } 35% { opacity: .95; } }
+#tank { position: absolute; left: 0; top: 0; display: block; overflow: visible; }
+/* 水体三段色（唯一渐变）。薰衣草主题在本页局部改成浅粉紫，不动 tokens.css */
+:root { --w0: var(--sky); --w1: var(--sea); --w2: var(--deep); }
+:root[data-theme="lavender"] { --w0: #a897e6; --w1: #4a3a8c; --w2: var(--deep); }
+
+/* 状态内容：从水下浮上来（向上 + 淡入），离场直接沉下去。只用 opacity + translate，移植 QML 时不需要图层模糊 */
+.c { position: absolute; z-index: 2; white-space: nowrap; opacity: 0; pointer-events: none;
+  transform: translate(var(--fx, 0px), var(--fy, 9px));
+  transition: opacity .2s var(--ease), transform .45s var(--ease); }
+.c.on { opacity: 1; transform: none; pointer-events: auto;
+  transition: opacity .34s var(--ease) var(--dl, 0s), transform .72s var(--spring) var(--dl, 0s); }
+.row { top: 0; bottom: 0; display: flex; align-items: center; }
+.dim { color: var(--dim); }
+.row > *, #time .d, #mTitle, #nText, #buoy, #mProg .tm { text-shadow: 0 1px 2px rgba(0,8,40,.32); }
+
+#pkDate { left: 82px; align-items: baseline; gap: 5px; --dl: .04s; }
+#pkDate .l { font-size: 9px; color: var(--tx); }
+#pkDate .d { font-size: 15px; } #pkDate { align-items: center; }
+#pkTrack { left: 140px; gap: 7px; --dl: .09s; }
+#pkTrack .t { font-size: 12.5px; font-weight: 700; }
+#buoyP { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; }
+#buoy { --dl: .14s; position: relative; }
+#buoy { --fy: 5px; }
+#buoy > span { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 1px; line-height: 1; }
+#buoy .d { font-size: 14px; }
+#buoy .l { font-size: 8px; color: var(--tx); max-width: 0; overflow: hidden; opacity: 0; transition: max-width .4s var(--spring), opacity .25s var(--ease); }
+#island.peek #buoy .l { max-width: 10px; opacity: 1; }
+/* 常态音频：水面上一枚音符随浪起伏；暂停时音符留着，只是变淡 */
+#rNoteP { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; }
+#rNote { --fy: 5px; }
+#rNote svg { position: absolute; left: -4.5px; top: -5.5px; width: 9px; height: 11px; display: block; color: var(--tx); transition: opacity .3s var(--ease); }
+#island.paused #rNote svg { opacity: .5; }
+
+#time { left: 17px; top: 11px; --fy: 6px; }
+#time .d { display: block; font-size: 19.5px; letter-spacing: .005em; text-shadow: 0 1px 2px rgba(0,8,40,.35); will-change: transform; }
+#cnt { right: 8px; top: 8px; width: 24px; height: 24px; --fy: 0px; }
+#cnt .ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1.4px rgba(236,252,255,.82); background: rgba(236,252,255,.07); will-change: transform; }
+#cnt .ring::after { content: ""; position: absolute; left: 5px; top: 4px; width: 4px; height: 3px; border-radius: 50%; background: rgba(255,255,255,.75); rotate: -30deg; }
+#cnt .n { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; padding: 1px 1px 0 0; }
+#cnt .dot { position: absolute; right: -1px; top: -1px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--deep); }
+#cnt.zero .dot { display: none; }
+
+/* 水面以上的半截用 --fill，水下的半截用 --tx 并错开 0.6px（只在水位穿过时间时才看得见） */
+#tm { color: var(--fill); }
+#tm2 { position: absolute; left: 0; top: 0; color: var(--tx); transform: translateX(.6px); }
+/* 悬停 */
+#pkTrack { left: 140px; top: 0; bottom: 0; }
+#pkTrack .t, #mMini .t { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; font-weight: 700; font-size: 12.5px; letter-spacing: .02em; }
+#pkTrack .a, #mMini .a { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; font-weight: 500; font-size: 11px; color: var(--tx); opacity: .9; }
+.note { width: 9px; height: 11px; display: block; color: var(--tx); }
+
+/* 媒体：深缸 */
+#mHead { right: 42px; top: 13px; font-size: 9px; color: var(--dim); --dl: .05s; }
+#mTitle { left: 18px; top: 50px; --dl: .08s; }
+#mTitle .t { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; font-weight: 900; font-size: 21px; letter-spacing: .02em; line-height: 1.1; display: block; }
+#mTitle .a { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+#mTitle .a .zh { font-size: 11px; color: var(--tx); letter-spacing: .04em; font-family: "Noto Sans CJK JP", sans-serif; }
+#mProg { left: 18px; right: 150px; bottom: 15px; height: 12px; --dl: .14s; }
+#mProg .tr { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: rgba(236,252,255,.2); }
+#mProg .fi { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 1px; background: var(--fill); }
+#mProg .kn { position: absolute; bottom: -3px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--tx); }
+#mProg .tm { position: absolute; right: 0; bottom: 7px; font-size: 9px; color: var(--tx); letter-spacing: .1em; }
+#mCtl { right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; --dl: .12s; }
+.bt { position: relative; width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; background: rgba(236,252,255,.06); box-shadow: inset 0 0 0 1.4px rgba(236,252,255,.7); color: var(--tx); cursor: pointer; display: grid; place-items: center; transition: transform .35s var(--spring), background .15s, box-shadow .15s; }
+.bt svg { width: 12px; height: 12px; position: relative; z-index: 1; }
+.bt.big { width: 42px; height: 42px; background: var(--fill); color: var(--ink); box-shadow: none; }
+.bt.big svg { width: 15px; height: 15px; }
+.bt::before { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--accent); opacity: 0; translate: 0 0; transition: opacity .1s, translate .25s var(--ease); }
+.bt:hover { transform: scale(1.12); background: #fff; color: var(--ink); box-shadow: none; }
+.bt:hover::before { opacity: 1; translate: 3px 3px; }
+.bt:active { transform: scale(.92); }
+#mMini { left: 84px; top: 0; bottom: 0; gap: 7px; --dl: .06s; }
+
+/* 通知 */
+#nIcon { position: absolute; left: 0; top: 0; z-index: 3; width: 40px; height: 40px; border-radius: 50%; opacity: 0; pointer-events: none; background: rgba(236,252,255,.10); box-shadow: inset 0 0 0 1.5px rgba(236,252,255,.85); display: grid; place-items: center; }
+#nIcon img { width: 26px; height: 26px; border-radius: 7px; display: block; }
+#nIcon::after { content: ""; position: absolute; left: 7px; top: 6px; width: 7px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.7); rotate: -30deg; }
+#nText { left: 72px; top: 17px; --fx: 0px; --fy: 12px; }
+#nText .h { display: flex; gap: 8px; align-items: baseline; }
+#nText .h .l { font-size: 9px; color: var(--tx); }
+#nText .h .app { color: var(--tx); letter-spacing: .14em; }
+#nText .tt { display: block; margin-top: 5px; font-size: 15px; font-weight: 700; letter-spacing: .04em; }
+#nText .bd { display: block; margin-top: 4px; font-size: 11.5px; color: var(--tx); letter-spacing: .03em; }
+#nText > * { transition: inherit; }
+
+/* OSD */
+#osd { left: 84px; top: 0; bottom: 0; gap: 7px; --fy: 0px; --fx: -8px; }
+#osd svg { width: 15px; height: 15px; color: var(--tx); display: block; }
+#osd .l { font-size: 10px; color: var(--tx); }
+#osdN, #bN { right: 42px; top: 0; bottom: 0; align-items: baseline; display: flex; gap: 1px; --dl: .05s; }
+#osdN .d, #bN .d { font-size: 19px; align-self: center; }
+#osdN .l, #bN .l { font-size: 9px; color: var(--tx); align-self: center; margin-top: 6px; }
+
+/* 电量 */
+#bLow, #bChg { left: 84px; top: 0; bottom: 0; gap: 8px; --fx: -8px; --fy: 0px; }
+#bLow .l, #bChg .l { font-size: 10px; }
+#bLow .warn { color: var(--tx); display: flex; align-items: center; gap: 6px; }
+#bLow .warn::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+#bLow .d, #bChg .d { font-size: 14px; color: var(--tx); }
+#bChg svg { width: 10px; height: 14px; color: var(--tx); display: block; }
+#bChg .l.k { color: var(--tx); }
+#island.low #bN .d { color: var(--tx); }
+
+/* 打开菜单：整屏注水 */
+#flood { position: absolute; left: 0; top: 0; z-index: 8; pointer-events: none; }
+#hint { position: absolute; left: 50%; top: 46%; z-index: 9; pointer-events: none; transform: translate(-50%, -50%); text-align: center; }
+#hint .wd { position: relative; display: inline-block; padding: 0 30px; opacity: 0; transform: translateX(80px) rotate(-6deg); transition: opacity .2s var(--ease), transform .55s var(--spring); }
+#hint .wd .sw { position: absolute; left: -30px; right: -40px; top: -10px; bottom: -18px; background: var(--shard); clip-path: polygon(0 66%, 100% 0, 97% 100%, 12% 92%); transform: scaleX(.2); transform-origin: 100% 50%; transition: transform .3s var(--ease) .05s; }
+#hint .wd .tx, #hint .wd .ec { position: relative; display: block; font-size: 112px; color: var(--ink); }
+#hint .wd .ec { position: absolute; left: 30px; top: 0; color: var(--accent); translate: 0 0; transition: translate .3s var(--ease) .12s; }
+#hint .sub { margin-top: 30px; font-size: 14px; color: var(--fill); opacity: 0; transition: opacity .3s var(--ease) .15s; }
+#hint.on .wd { opacity: 1; transform: rotate(-6deg); }
+#hint.on .wd .sw { transform: none; }
+#hint.on .wd .ec { translate: 7px 6px; }
+#hint.on .sub { opacity: 1; }
+#hint .wd .ec { z-index: 0; } #hint .wd .tx { z-index: 1; }
+@keyframes press { 0% { transform: translateX(-50%); } 28% { transform: translateX(-50%) scale(1.045, .86); } 62% { transform: translateX(-50%) scale(.985, 1.06); } 100% { transform: translateX(-50%); } }
+#island.press { animation: press .5s var(--ease); }
+
+/* ---------- 演示控件 ---------- */
+#dock { position: absolute; left: 16px; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 16px; background: rgba(4,8,24,.62); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+#dock button { position: relative; border: 0; background: none; color: rgba(236,252,255,.62); cursor: pointer; padding: 7px 9px 6px; border-radius: 11px; font-size: 11px; display: flex; gap: 5px; align-items: baseline; transition: background .15s, color .15s; }
+#dock button b { font-family: "P3"; font-style: italic; font-weight: 900; font-size: 13px; letter-spacing: 0; color: rgba(236,252,255,.4); }
+#dock button em { font-style: normal; font-size: 9px; color: var(--accent); }
+#dock button:hover { color: #fff; background: rgba(255,255,255,.07); }
+#dock button.on { background: var(--fill); color: var(--ink); }
+#dock button.on b { color: var(--ink); }
+#dock .sep { width: 1px; height: 18px; background: rgba(255,255,255,.12); margin: 0 4px; }
+#dock button.demo.on { background: var(--accent); color: #fff; }
+#cap { position: absolute; right: 18px; bottom: 16px; z-index: 20; text-align: right; color: rgba(255,255,255,.88); text-shadow: 0 1px 6px rgba(0,0,0,.45); }
+#cap .l { font-size: 12px; letter-spacing: .3em; }
+#cap .l span { color: var(--fill); margin-left: 6px; letter-spacing: .1em; }
+#cap .zh { font-size: 11.5px; margin-top: 5px; opacity: .8; }
+body.static *, body.static *::before, body.static *::after { transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .c, .c.on { transition-duration: .2s !important; transform: none !important; } }
+
+</style>
+</head>
+<body>
+<div id="stage">
+  <img id="desk" src="../shared/desk.jpg" alt="">
+  <div id="wins"></div>
+
+  <div id="island" role="button" aria-label="Waterline island">
+    <canvas id="tank"></canvas>
+    <div class="c" id="time"><span class="d" id="tm">16:29</span><span class="d" id="tm2" aria-hidden="true">16:29</span></div>
+    <div class="c row" id="pkDate"><span class="l" id="pkDow">FRI</span><span class="d" id="pkMd">10/30</span></div>
+    <div class="c row" id="pkTrack"><svg class="note" viewBox="0 0 9 11"><path fill="currentColor" d="M3 1.2 9 0v7.6a1.9 1.6 0 1 1-1.2-1.5V2.2L4.2 2.9v5.9A1.9 1.6 0 1 1 3 7.3Z"/></svg><span class="t"></span><span class="a"></span></div>
+    <div class="c row" id="mMini"><svg class="note" viewBox="0 0 9 11"><path fill="currentColor" d="M3 1.2 9 0v7.6a1.9 1.6 0 1 1-1.2-1.5V2.2L4.2 2.9v5.9A1.9 1.6 0 1 1 3 7.3Z"/></svg><span class="t"></span><span class="a"></span></div>
+    <div class="c l" id="mHead">NOW PLAYING</div>
+    <div class="c" id="mTitle"><span class="t"></span><span class="a"><span class="zh"></span></span></div>
+    <div class="c" id="mProg"><i class="tr"></i><i class="fi"></i><i class="kn"></i><span class="l tm" id="mTm">1:42 / 4:03</span></div>
+    <div class="c" id="mCtl">
+      <button class="bt" data-a="prev" aria-label="previous"><svg viewBox="0 0 12 12"><path fill="currentColor" d="M2 1h1.6v10H2zM11 1v10L4.4 6z"/></svg></button>
+      <button class="bt big" data-a="play" aria-label="play/pause"><svg viewBox="0 0 12 12" id="pp"><path fill="currentColor" d="M2.2 1h2.6v10H2.2zM7.2 1h2.6v10H7.2z"/></svg></button>
+      <button class="bt" data-a="next" aria-label="next"><svg viewBox="0 0 12 12"><path fill="currentColor" d="M8.4 1H10v10H8.4zM1 1v10l6.6-5z"/></svg></button>
+    </div>
+    <div class="c" id="nText"><span class="h"><span class="l app" id="nApp"></span><span class="l" id="nT"></span></span><span class="zh tt" id="nTitle"></span><span class="zh bd" id="nBody"></span></div>
+    <div id="nIcon"><img id="nImg" alt=""></div>
+    <div class="c row" id="osd"><svg id="osdIc" viewBox="0 0 16 16"></svg><span class="l" id="osdL">VOLUME</span></div>
+    <div class="c row" id="osdN"><span class="d" id="osdV">62</span><span class="l">%</span></div>
+    <div class="c row" id="bLow"><span class="l warn">BATTERY LOW</span><span class="d">0:38</span></div>
+    <div class="c row" id="bChg"><svg viewBox="0 0 10 14"><path fill="currentColor" d="M6.4 0 0 8h3.8L2.8 14 10 5.4H6z"/></svg><span class="l k">CHARGING</span><span class="d">9.6W</span></div>
+    <div class="c row" id="bN"><span class="d" id="bV">12</span><span class="l">%</span></div>
+    <div class="c" id="cnt"><i class="ring"><span class="d n" id="cntN">9</span></i><i class="dot"></i></div>
+    <div id="buoyP"><div class="c" id="buoy"><span><span class="d" id="buoyV">78</span><span class="l">%</span></span></div></div>
+    <div id="rNoteP"><div class="c" id="rNote"><svg viewBox="0 0 9 11"><path fill="currentColor" d="M3 1.2 9 0v7.6a1.9 1.6 0 1 1-1.2-1.5V2.2L4.2 2.9v5.9A1.9 1.6 0 1 1 3 7.3Z"/></svg></div></div>
+    <i class="alarm"></i><i class="rim"></i>
+  </div>
+
+  <canvas id="flood"></canvas>
+  <div id="hint"><span class="wd"><i class="sw"></i><span class="d ec">MENU</span><span class="d tx">MENU</span></span><div class="l sub">P3 MENU · OPENING</div></div>
+
+  <div id="dock" class="l"></div>
+  <div id="cap"><div class="l">WATERLINE<span>水位线</span></div><div class="zh">胶囊是一只小水缸：电量是水位，音乐是水面的波纹，通知是缸里升起的气泡。</div></div>
+</div>
+<script src="../shared/data.js"></script>
+<script>
+(() => {
+const D = window.P3DATA;
+const Q = new URLSearchParams(location.search);
+const SW = Q.get('w') === '1706' ? 1706 : 2560, SH = SW === 1706 ? 1066 : 1440;
+const STATIC = Q.get('static') === '1';
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const root = document.documentElement;
+root.dataset.theme = Q.get('theme') === 'lavender' ? 'lavender' : 'p3';
+if (STATIC) document.body.classList.add('static');
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- 舞台：按逻辑像素排版，整体缩放到窗口 ---------- */
+const stage = $('stage'), island = $('island');
+stage.style.width = SW + 'px'; stage.style.height = SH + 'px';
+document.body.append($('dock'), $('cap'));
+const G = 12, TOP = 54, colW = Math.round((SW - G * 3) * .58);
+[[G, TOP, colW, SH - TOP - G, 1], [G * 2 + colW, TOP, SW - colW - G * 3, Math.round((SH - TOP - G * 2) * .55), 0]].forEach(([x, y, w, h, f]) => {
+  const d = document.createElement('div'); d.className = 'win' + (f ? ' f' : '');
+  Object.assign(d.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  d.innerHTML = '<i style="top:26px;width:18%"></i><i style="top:46px;width:34%;opacity:.6"></i>';
+  $('wins').append(d);
+});
+
+/* ---------- 数据 ---------- */
+const clk = D.clock, pad = n => String(n).padStart(2, '0');
+$('tm').textContent = $('tm2').textContent = `${clk.h}:${pad(clk.m)}`;
+$('pkDow').textContent = clk.dow; $('pkMd').textContent = `${clk.month}/${pad(clk.day)}`;
+document.querySelectorAll('#pkTrack .t, #mMini .t, #mTitle .t').forEach(e => e.textContent = D.media.title);
+document.querySelectorAll('#pkTrack .a, #mMini .a, #mTitle .zh').forEach(e => e.textContent = D.media.artist);
+const N0 = D.notify.latest[0];
+$('nApp').textContent = N0.app; $('nT').textContent = N0.t; $('nTitle').textContent = N0.title; $('nBody').textContent = N0.body; $('nImg').src = N0.icon;
+let count = 0, playing = D.media.playing, mpos = D.media.pos, vol = D.audio.vol, bri = D.brightness, bat = D.battery.pct;
+const setCount = n => { count = n; $('cntN').textContent = n; $('cnt').classList.toggle('zero', !n); };
+setCount(D.notify.count);
+$('buoyV').textContent = bat;
+const ICON = {
+  vol: '<path fill="currentColor" d="M1 5.5h3L8 2v12L4 10.5H1z"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M10.5 5.4a3.6 3.6 0 0 1 0 5.2M12.6 3.4a6.4 6.4 0 0 1 0 9.2"/>',
+  bri: '<circle cx="8" cy="8" r="3.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 .9v1.8M8 13.3v1.8M.9 8h1.8M13.3 8h1.8M3 3l1.3 1.3M11.7 11.7 13 13M3 13l1.3-1.3M11.7 4.3 13 3"/></g>'
+};
+const PP = { pause: '<path fill="currentColor" d="M2.2 1h2.6v10H2.2zM7.2 1h2.6v10H7.2z"/>', play: '<path fill="currentColor" d="M2.5 1v10l8.5-5z"/>' };
+
+/* ---------- 弹簧（半隐式欧拉；减弱动效时改为临界阻尼） ---------- */
+class Spring { constructor(x, k, d) { this.x = this.t = x; this.v = 0; this.k = k; this.d = REDUCE ? 2 * Math.sqrt(k) : d; }
+  step(dt) { this.v += (-this.k * (this.x - this.t) - this.d * this.v) * dt; this.x += this.v * dt; }
+  snap(v = this.t) { this.x = this.t = v; this.v = 0; } }
+const sp = {
+  w: new Spring(204, 210, 19), h: new Spring(36, 170, 18), r: new Spring(18, 220, 26),
+  lvl: new Spring(.3 + .6 * bat / 100, 40, 7), slosh: new Spring(0, 95, 7.5), amp: new Spring(playing ? 1 : 0, 26, 10),
+  pop: new Spring(1, 300, 11), cntPop: new Spring(1, 260, 9), E: new Spring(-90, 30, 9.5),
+  vz: new Spring(104, 120, 20), vw: new Spring(20, 120, 20), rowY: new Spring(0, 160, 21),
+  nx: new Spring(40, 120, 16), ny: new Spring(130, 85, 11), ns: new Spring(.3, 170, 11), no: new Spring(0, 140, 22),
+};
+
+/* ---------- 布局表：每个状态 = 尺寸 + 浮上来的内容 ---------- */
+const S = {
+  1: { w: 204, h: 36, vz: 120, vw: 20, on: ['time', 'rNote', 'buoy', 'cnt'] },
+  2: { w: 344, h: 36, vz: 200, vw: 46, on: ['time', 'pkDate', 'pkTrack', 'buoy', 'cnt'] },
+  '3a': { w: 312, h: 36, vz: 150, vw: 56, on: ['time', 'mMini', 'buoy', 'cnt'] },
+  3: { w: 404, h: 128, sy: 42, on: ['time', 'mHead', 'mTitle', 'mProg', 'mCtl', 'cnt'] },
+  4: { w: 352, h: 76, sy: 5, on: ['nText', 'cnt'] },
+  5: { w: 264, h: 36, on: ['time', 'osd', 'osdN', 'cnt'] },
+  6: { w: 296, h: 36, on: ['time', 'bLow', 'bN', 'cnt'] },
+  '6b': { w: 296, h: 36, on: ['time', 'bChg', 'bN', 'cnt'] },
+  7: { w: 232, h: 36, vz: 116, vw: 116, on: ['time', 'cnt'] },
+};
+const ALL = [...document.querySelectorAll('#island .c')];
+let T = 0, gen = 0, queue = [], cur = 1, sub = 0, lay = 1, demo = false, hovered = false;
+let charging = false, low = false, osdMode = 'vol', merging = false, flooding = false, hintTimer = 0;
+const after = (s, fn) => { const g = gen; queue.push({ at: T + s, fn, g }); };
+function layout(key) {
+  const L = S[key]; lay = key;
+  ALL.forEach(e => e.classList.toggle('on', L.on.includes(e.id)));
+  island.classList.toggle('peek', key === 2);
+  // 高卡片：水位固定在内容行之间（水面永远不穿过字）；胶囊：水位 = 电量
+  if (L.sy) sp.lvl.t = 1 - (L.sy - 2) / (L.h - 4); else level(bat / 100);
+  sp.vz.t = L.vz ?? L.w / 2; sp.vw.t = L.vw ?? L.w / 2;
+  const apply = () => {
+    const dw = L.w - sp.w.t;
+    sp.w.t = L.w; sp.h.t = L.h; sp.r.t = L.h <= 40 ? L.h / 2 : 24;
+    sp.slosh.v += clamp(dw * .022, -5, 5);           // 胶囊一拉长，水就晃一下（轻）
+    if (L.h !== sp.h.x) sp.pop.v -= 1;               // 变高时轻轻一顿，不是果冻
+  };
+  if (L.w < sp.w.t && !STATIC) after(.1, apply); else apply();  // 收缩时先让内容沉下去
+}
+// 0–100% 映射到缸高的 30–90%：满电也留一条空气带，低电也不会只剩空气
+const level = v => { sp.lvl.t = .3 + .6 * clamp(v, 0, 1); };
+function rest() {           // 回到常态（不打断演示的计时）
+  cur = 1; low = false; charging = false; island.classList.remove('low');
+  layout(1); level(bat / 100); sp.amp.t = playing ? 1 : 0; syncDock();
+}
+
+/* ---------- 状态 ---------- */
+function go(n, o = {}) {
+  gen++; queue = []; cur = n; merging = false;
+  low = false; charging = false; island.classList.remove('low');
+  if (n !== 7) endFlood();
+  if (n !== 4) { sp.no.t = 0; }
+  sp.amp.t = playing ? 1 : 0;
+  if (n !== 6) { bat = D.battery.pct; level(bat / 100); }
+  if (n === 1) layout(1);
+  if (n === 2) layout(2);
+  if (n === 3) { if (STATIC || o.expanded) layout(3); else { layout('3a'); after(1.0, () => layout(3)); } }
+  if (n === 4) notify();
+  if (n === 5) osd(o.mode || 'vol', o.wheel);
+  if (n === 6) battery(o.sub ?? 0);
+  if (n === 7) openMenu();
+  if (n === 6) sub = o.sub ?? 0;
+  syncDock();
+}
+function notify() {
+  if (count > D.notify.count) setCount(D.notify.count);
+  layout(4); sp.amp.t = .2;
+  sp.nx.snap(42); sp.ny.snap(STATIC ? 38 : 120); sp.ns.snap(STATIC ? 1 : .35); sp.no.snap(STATIC ? 1 : 0);
+  sp.ny.t = 38; sp.ns.t = 1; sp.no.t = 1;
+  if (STATIC) return;
+  after(.42, () => ripple(42, 1.6));
+  after(3.1, () => {               // 气泡缩小，游到计数圈里并入
+    ALL.forEach(e => e.id === 'nText' && e.classList.remove('on'));
+    merging = true; sp.ns.t = .5;
+    after(.12, () => { layout(1); });
+  });
+}
+function merged() {
+  merging = false; sp.no.t = 0; sp.no.snap(0);
+  setCount(count + 1); sp.cntPop.v += 8; sp.pop.v -= .6; ripple(sp.w.x - 20, 1.2);
+  after(.6, rest);
+}
+function osd(mode, fromWheel) {
+  osdMode = mode; $('osdIc').innerHTML = ICON[mode]; $('osdL').textContent = mode === 'vol' ? 'VOLUME' : 'BRIGHT';
+  layout(5); showOsd();
+  if (STATIC || fromWheel) return;
+  for (let i = 1; i <= 9; i++) after(.35 + i * .16, () => bump(mode === 'vol' ? 2 : 3));
+  after(.35 + 9 * .16 + 1.4, rest);
+}
+function showOsd() { const v = osdMode === 'vol' ? vol : bri; $('osdV').textContent = v; level(v / 100); sp.amp.t = .25; }
+function bump(d) {
+  if (osdMode === 'vol') vol = clamp(vol + d, 0, 100); else bri = clamp(bri + d, 0, 100);
+  showOsd(); sp.slosh.v += d > 0 ? 2.2 : -2.2;
+}
+function battery(s) {
+  sub = s;
+  if (s === 0) {
+    bat = 12; low = true; island.classList.add('low'); layout(6);
+    level(bat / 100); $('bV').textContent = bat;
+    if (!STATIC) after(2.8, () => { if (demo) battery(1); });
+  } else {
+    bat = 12; charging = true; layout('6b'); $('bV').textContent = bat; level(bat / 100);
+    if (STATIC) { bat = 18; $('bV').textContent = bat; level(.18); }
+  }
+  syncDock();
+}
+function openMenu() {
+  layout(7); sp.lvl.t = 1; sp.amp.t = 2.2; sp.slosh.v += 3;
+  island.classList.remove('press'); void island.offsetWidth; island.classList.add('press');
+  if (STATIC) { flooding = true; sp.E.snap(SH + 120); $('hint').classList.add('on'); return; }
+  after(.16, () => { flooding = true; sp.E.snap(-60); sp.E.t = SH + 120; });
+  after(.6, () => $('hint').classList.add('on'));
+  after(2.1, () => { $('hint').classList.remove('on'); sp.E.t = -140; level(bat / 100); sp.amp.t = 1; });
+  after(2.9, () => { endFlood(); rest(); });
+}
+function endFlood() { flooding = false; $('hint').classList.remove('on'); }
+
+/* ---------- 水体：表面 = 平静正弦 + 可视化频段 + 晃荡 + 气泡波纹 ---------- */
+const NB = 14, bands = new Float32Array(NB);
+let ripples = [], bubbles = [], pops = [];
+function ripple(x, a) { ripples.push({ x, a, t: T }); }
+function surf(x) {
+  const w = sp.w.x, h = sp.h.x, L = clamp(sp.lvl.x, -.05, 1.08);
+  let y = 2 + (h - 4) * (1 - L);
+  const calm = REDUCE ? .4 : 1;
+  y += (Math.sin(x * .11 + T * 2.1) * .55 + Math.sin(x * .053 - T * 1.4) * .45) * (.7 + .5 * sp.amp.x) * calm;
+  // 可视化只在一段窄区里起浪（常态 40px，宽卡片铺满），其余水面是平静正弦
+  const vz = sp.vz.x, vw = Math.max(6, sp.vw.x), dz = (x - vz) / vw;
+  if (dz > -1 && dz < 1) {
+    const win = .5 + .5 * Math.cos(Math.PI * dz), u = (dz + 1) / 2;
+    const nb = clamp(Math.round(vw / 4.5), 4, NB);
+    const f = u * (nb - 1), i = Math.floor(f), k = f - i, s = (1 - Math.cos(k * Math.PI)) / 2;
+    const b = bands[i] * (1 - s) + bands[Math.min(nb - 1, i + 1)] * s;
+    y -= b * win * sp.amp.x * (h > 60 ? 6.5 : 4) * calm;
+  }
+  const u = clamp(x / w, 0, 1), tilt = .2 * h;   // 晃荡最多倾斜缸高的 20%，两端不会见底
+  y += clamp(sp.slosh.x, -tilt, tilt) * (u - .5) * 2;
+  for (const r of ripples) { const age = T - r.t, dx = Math.abs(x - r.x);
+    y += r.a * Math.exp(-age * 2.6) * Math.sin(age * 13 - dx * .42) * Math.exp(-dx / 26); }
+  return y;
+}
+let col = {};
+function readTheme() { const cs = getComputedStyle(root); ['w0', 'w1', 'w2', 'fill', 'c4', 'accent', 'tx'].forEach(k => col[k] = cs.getPropertyValue('--' + k).trim()); }
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; };
+
+const tank = $('tank'), tc = tank.getContext('2d'), TW = 470, TH = 150;
+const flood = $('flood'), fc = flood.getContext('2d');
+let R = 1, FR = 1;
+function fit() {
+  const s = Math.min(innerWidth / SW, innerHeight / SH);
+  stage.style.transform = `translate(${(innerWidth - SW * s) / 2}px, ${(innerHeight - SH * s) / 2}px) scale(${s})`;
+  R = Math.max(1, s * devicePixelRatio) * 1.5; FR = Math.min(1, s * devicePixelRatio);
+  tank.width = TW * R; tank.height = TH * R; tank.style.width = TW + 'px'; tank.style.height = TH + 'px';
+  flood.width = SW * FR; flood.height = SH * FR; flood.style.width = SW + 'px'; flood.style.height = SH + 'px';
+}
+function spawn(fast) {
+  const w = sp.w.x, h = sp.h.x;
+  bubbles.push({ x: fast ? 10 + Math.random() * (w - 20) : w * (.3 + Math.random() * .52), y: h + 3,
+    r: fast ? .8 + Math.random() * 1.3 : 1 + Math.random() * 1.4, v: fast ? 26 + Math.random() * 18 : 8 + Math.random() * 7,
+    ph: Math.random() * 6 });
+}
+if (STATIC) [[.5, .45, 1.6], [.66, .8, 1.1], [.58, .2, 1.3]].forEach(([u, f, r]) => bubbles.push({ x: 188 * u, y: 30, r, v: 0, ph: 0, u, f }));
+
+function drawTank() {
+  const w = sp.w.x, h = sp.h.x, c = tc;
+  c.setTransform(R, 0, 0, R, 0, 0); c.clearRect(0, 0, TW, TH);
+  const step = 2, pts = [];
+  for (let x = -2; x <= w + 3; x += step) pts.push([x, surf(x)]);
+  const top = Math.min(...pts.map(p => p[1]));
+  // 后层水面：错相、更淡，给出一点景深
+  c.beginPath(); c.moveTo(-2, h + 2);
+  for (const [x] of pts) c.lineTo(x, surf(x + 23) - 1.6 - sp.amp.x * .6);
+  c.lineTo(w + 3, h + 2); c.closePath(); c.fillStyle = rgba(col.fill, .13); c.fill();
+  // 主水体：唯一的渐变
+  c.beginPath(); c.moveTo(-2, h + 2); for (const p of pts) c.lineTo(p[0], p[1]); c.lineTo(w + 3, h + 2); c.closePath();
+  const g = c.createLinearGradient(0, top - 2, 0, Math.max(h, top + 34) + 6);
+  g.addColorStop(0, col.w0); g.addColorStop(.5, col.w1); g.addColorStop(1, col.w2);
+  c.globalAlpha = .94; c.fillStyle = g; c.fill(); c.globalAlpha = 1;
+  // 气泡
+  c.lineWidth = .9;
+  for (const b of bubbles) { c.beginPath(); c.arc(b.x, b.y, b.r, 0, 7); c.strokeStyle = rgba(col.c4, .85); c.stroke();
+    c.beginPath(); c.arc(b.x - b.r * .35, b.y - b.r * .35, b.r * .28, 0, 7); c.fillStyle = 'rgba(255,255,255,.8)'; c.fill(); }
+  for (const p of pops) { const a = (T - p.t) / .35; if (a > 1) continue;
+    c.beginPath(); c.ellipse(p.x, p.y, 1.5 + a * 4, .8 + a * 1.3, 0, 0, 7); c.strokeStyle = rgba(col.c4, .8 * (1 - a)); c.stroke(); }
+  // 水面线
+  c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+  c.lineWidth = 1.3; c.strokeStyle = low ? col.accent : rgba(col.fill, .95); c.stroke();
+}
+
+/* 整屏注水：水从岛口倒下来，前沿中间领先，左右追上 */
+function drawFlood() {
+  const c = fc; c.setTransform(FR, 0, 0, FR, 0, 0); c.clearRect(0, 0, SW, SH);
+  if (!flooding) return;
+  const E = sp.E.x, cx = SW / 2, p = clamp(E / (SH + 120), 0, 1);
+  const lead = 260 * Math.sin(Math.PI * clamp(p * 1.1, 0, 1));
+  // 先是一股与岛同宽的水柱从岛口倒下，再向两侧铺开（半宽 116 → 整屏）
+  const pw = clamp((E - 30) / (SH * .7), 0, 1), ew = pw * pw * (3 - 2 * pw);
+  const hw = 116 + (SW / 2 + 40 - 116) * ew;
+  const front = x => {
+    const ax = Math.abs(x - cx), sh = clamp((hw - ax) / 60 + .5, 0, 1), sm = sh * sh * (3 - 2 * sh);
+    const y = E + lead * Math.exp(-Math.pow((x - cx) / (SW * .2), 2)) + Math.sin(x * .012 + T * 3) * 10 + Math.sin(x * .031 - T * 2.2) * 5;
+    return Math.max(0, y) * Math.sqrt(sm);
+  };
+  c.beginPath(); c.moveTo(0, 0);
+  for (let x = 0; x <= SW; x += 8) c.lineTo(x, front(x));
+  c.lineTo(SW, 0); c.closePath();
+  const g = c.createLinearGradient(0, 0, 0, SH);
+  g.addColorStop(0, col.w0); g.addColorStop(.45, col.w1); g.addColorStop(1, col.w2);
+  c.fillStyle = g; c.fill();
+  c.save(); c.clip();
+  // 光束：平涂半透明白色斜条
+  c.globalAlpha = .07; c.fillStyle = '#fff';
+  [[.58, 60], [.66, 140], [.77, 40], [.83, 100]].forEach(([u, bw], i) => {
+    const x = SW * u + Math.sin(T * .7 + i) * 20; c.beginPath(); c.moveTo(x, 0); c.lineTo(x + bw, 0); c.lineTo(x + bw - SH * .5, SH); c.lineTo(x - SH * .5, SH); c.fill(); });
+  c.restore(); c.globalAlpha = 1;
+  c.beginPath();
+  for (let x = 0; x <= SW; x += 8) { const y = front(x); x ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.lineWidth = 4; c.strokeStyle = rgba(col.fill, .9); c.stroke();
+}
+
+/* ---------- 帧循环 ---------- */
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(.034, (now - last) / 1000); last = now;
+  if (STATIC) dt = 0;
+  T += dt;
+  for (let i = 0; i < queue.length; i++) { const q = queue[i]; if (q.at <= T) { queue.splice(i--, 1); if (q.g === gen) q.fn(); } }
+  const sub4 = 4, h = dt / sub4;
+  for (let i = 0; i < sub4; i++) for (const k in sp) sp[k].step(h);
+  if (STATIC) sp.rowY.snap();
+  // 可视化频段（确定性，静态截图也有形）
+  for (let i = 0; i < NB; i++) {
+    const v = Math.abs(Math.sin(T * (2.3 + i * .41) + i * 1.3) * Math.sin(T * (1.1 + i * .17) + i * .7));
+    const beat = .6 + .4 * Math.pow(Math.max(0, Math.sin(T * 7.6)), 6);
+    bands[i] = playing ? (.25 + .75 * v) * beat : 0;
+  }
+  const w = sp.w.x, H = sp.h.x;
+  island.style.width = w + 'px'; island.style.height = H + 'px'; island.style.borderRadius = sp.r.x + 'px';
+  island.style.scale = `${1 + (1 - sp.pop.x) * .02} ${sp.pop.x}`;
+  // 气泡：常态按未读数缓慢冒；充电时成串
+  if (dt) {
+    const rate = charging ? 14 : (cur === 7 ? 6 : Math.min(count, 9) * .08);
+    if (Math.random() < rate * dt) spawn(charging);
+    for (const b of bubbles) { b.y -= b.v * dt * (H > 60 ? 1.4 : 1); b.x += Math.sin(T * 3 + b.ph) * .12; }
+    bubbles = bubbles.filter(b => { const s = surf(b.x); if (b.y - b.r < s + .5) { pops.push({ x: b.x, y: s, t: T }); ripple(b.x, .45); return false; } return true; });
+    pops = pops.filter(p => T - p.t < .4); ripples = ripples.filter(r => T - r.t < 1.6);
+    if (charging && cur === 6 && bat < 100) { bat = Math.min(100, bat + dt * 1.6); level(bat / 100); $('bV').textContent = Math.floor(bat); }
+    if (playing) mpos = (mpos + dt / 243) % 1;
+  } else bubbles.forEach(b => { if (b.u) { b.x = w * b.u; const s = surf(b.x) + 5; b.y = s + (H - 4 - s) * b.f; } });
+  // 通知气泡：随速度拉伸，沿途留下细泡
+  if (merging) { sp.nx.t = w - 18; sp.ny.t = 18;
+    if (Math.hypot(sp.nx.x - sp.nx.t, sp.ny.x - sp.ny.t) < 7) merged(); }
+  const nI = $('nIcon'), st = clamp(sp.ny.v * .0016, -.22, .22) + clamp(Math.abs(sp.nx.v) * -.0008, -.15, 0);
+  nI.style.opacity = clamp(sp.no.x, 0, 1);
+  nI.style.transform = `translate(${sp.nx.x - 20}px, ${sp.ny.x - 20}px) scale(${sp.ns.x * (1 + st)}, ${sp.ns.x * (1 - st)})`;
+  if (dt && sp.no.x > .3 && Math.abs(sp.ny.v) + Math.abs(sp.nx.v) > 60 && Math.random() < .5)
+    bubbles.push({ x: sp.nx.x + (Math.random() - .5) * 16, y: sp.ny.x + 14 * sp.ns.x, r: .6 + Math.random(), v: 14, ph: Math.random() * 6 });
+  // 时间：水面以下的半截换色并错开 0.6px（低电/充电时水位穿过时间才看得见）
+  const tY = clamp(surf(41) - 11, -8, 30);
+  $('tm').style.clipPath = `inset(-8px -6px calc(100% - ${tY}px) -6px)`;
+  $('tm2').style.clipPath = `inset(${tY}px -6px -8px -6px)`;
+  // 计数圈随水面轻轻起伏，并入时被撑开
+  const cy = clamp((surf(w - 18) - 8) * .25, -1.5, 1.5);
+  $('cnt').querySelector('.ring').style.transform = `translateY(${cy}px) scale(${Math.max(.6, sp.cntPop.x)})`;
+  // 电量数字和音符都"漂"在水面下方一点；水位很低时改漂在水面上方的空气带里
+  const y0 = 2 + (H - 4) * (1 - clamp(sp.lvl.x, -.05, 1.08)), under = y0 < 17;
+  const ride = (el, x, off) => { const y = surf(x), sl = (surf(x + 4) - surf(x - 4)) / 8;
+    el.style.transform = `translate(${x}px, ${clamp(under ? y + off : y - off, 7, H - 7)}px) rotate(${clamp(Math.atan(sl), -.25, .25)}rad)`; };
+  ride($('buoyP'), w - (lay === 2 ? 56 : 52), 8.5);
+  ride($('rNoteP'), sp.vz.x - sp.vw.x - 7, 8);
+  // 胶囊里的单行内容：跟着水位走，始终待在水面下（或水位低时待在空气带里），水面线不穿字
+  sp.rowY.t = H > 40 ? 0 : (under ? clamp((y0 + H) / 2, 18, 21) : clamp(y0 / 2, 9, 13)) - H / 2;
+  island.querySelectorAll('.row').forEach(e => e.style.translate = `0 ${sp.rowY.x}px`);
+  island.classList.toggle('paused', !playing);
+  // 进度
+  $('mProg').querySelector('.fi').style.width = mpos * 100 + '%'; $('mProg').querySelector('.kn').style.left = mpos * 100 + '%';
+  const s = Math.floor(mpos * 243); $('mTm').textContent = `${Math.floor(s / 60)}:${pad(s % 60)} / 4:03`;
+  drawTank(); drawFlood();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 演示控件 ---------- */
+const NAMES = ['IDLE', 'PEEK', 'MEDIA', 'NOTIFY', 'OSD', 'BATTERY', 'MENU'];
+const dock = $('dock');
+dock.innerHTML = NAMES.map((n, i) => `<button data-s="${i + 1}"><b>${i + 1}</b>${n}</button>`).join('') +
+  '<i class="sep"></i><button class="demo" data-k="demo"><b>␣</b>DEMO</button><button data-k="theme"><b>T</b>THEME</button>' +
+  `<button data-k="w"><b>W</b>${SW === 2560 ? '2560' : '1706'}</button>`;
+function syncDock() { dock.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', +b.dataset.s === cur));
+  dock.querySelector('.demo').classList.toggle('on', demo); }
+dock.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.s) press(+b.dataset.s); else if (b.dataset.k === 'demo') toggleDemo(); else if (b.dataset.k === 'theme') theme();
+  else { Q.set('w', SW === 2560 ? '1706' : '2560'); location.search = Q; } });
+function press(n) { stopDemo(); if (n === 6 && cur === 6) go(6, { sub: sub ? 0 : 1 }); else go(n); }
+function theme() { root.dataset.theme = root.dataset.theme === 'p3' ? 'lavender' : 'p3'; readTheme(); }
+
+const SEQ = [[1, 2.4], [2, 2.6], [3, 4.2], [1, 1.1], [4, 4.8], [5, 3.2], [6, 5.8], [1, 1.2], [7, 3.2]];
+let dTimer = 0, dI = 0;
+function demoStep() { const [n, t] = SEQ[dI % SEQ.length]; dI++; go(n); dTimer = setTimeout(demoStep, t * 1000); }
+function toggleDemo() { if (demo) stopDemo(); else { demo = true; dI = 0; demoStep(); } syncDock(); }
+function stopDemo() { if (!demo) return; demo = false; clearTimeout(dTimer); syncDock(); }
+
+/* ---------- 真实交互 ---------- */
+island.addEventListener('mouseenter', () => { hovered = true; if (!demo && cur === 1) go(2); });
+island.addEventListener('mouseleave', () => { hovered = false; if (!demo && cur === 2) go(1); });
+island.addEventListener('click', e => { if (e.target.closest('.bt')) return; stopDemo(); go(7); });
+island.addEventListener('wheel', e => { e.preventDefault(); stopDemo();
+  const mode = e.shiftKey ? 'bri' : 'vol';
+  if (cur !== 5 || osdMode !== mode) go(5, { mode, wheel: true });
+  bump(e.deltaY < 0 ? 3 : -3);
+  gen++; queue = []; after(1.5, () => hovered ? go(2) : rest());
+}, { passive: false });
+$('mCtl').addEventListener('click', e => { const b = e.target.closest('.bt'); if (!b) return; e.stopPropagation();
+  b.animate([{ transform: 'scale(.86)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+  if (b.dataset.a === 'play') { playing = !playing; $('pp').innerHTML = playing ? PP.pause : PP.play; sp.amp.t = playing ? 1 : 0; }
+  else { mpos = 0; sp.slosh.v += b.dataset.a === 'next' ? 6 : -6; } });
+addEventListener('keydown', e => {
+  if (e.key >= '1' && e.key <= '7') press(+e.key);
+  else if (e.key === ' ') { e.preventDefault(); toggleDemo(); }
+  else if (e.key === 't' || e.key === 'T') theme();
+});
+
+addEventListener('resize', fit);
+readTheme(); fit();
+const s0 = clamp(+Q.get('state') || 1, 1, 7);
+for (const k in sp) sp[k].snap();
+go(s0, { sub: Q.get('sub') === '2' ? 1 : 0 });
+if (STATIC) { for (const k in sp) sp[k].snap(); }
+if (Q.get('demo') === '1' && !STATIC) toggleDemo();
+document.fonts && document.fonts.ready.then(readTheme);
+requestAnimationFrame(frame);
+})();
+
+</script>
+</body>
+</html>

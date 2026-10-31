@@ -9,6 +9,7 @@
 | [`kanban/`](kanban/AGENTS.md) | 看板 | 快捷键呼出的覆盖层看板：TODO / DOING / DONE 三列 + 定时刷新的每日任务 |
 | [`p5lock/`](p5lock/AGENTS.md) | P5 锁屏 | Persona 5 风格的 session-lock 锁屏，接入 DMS 的自定义锁屏命令 |
 | [`dms-p5/`](dms-p5/AGENTS.md) | P5 DMS 改造 | 对 DMS 内置 UI 打补丁：歪斜卡片栏、勒索信时钟、拉绳、P5 面板与菜单（安装方式与其它组件不同，见包内说明） |
+| [`p3-kits/`](p3-kits/AGENTS.md) | P3 系列 | Persona 3 Reload 风格组件集合：`dms-p3`（灵动岛顶栏 + 全屏菜单，基于 DMS 2.0；**接入逻辑和映射已写全，QML 移植未开始，暂不能安装**，与 dms-p5 只能启用一个）、`p3-lyrics`（桌面歌词原型） |
 | [`p5-reference/`](p5-reference/AGENTS.md) | P 系列参考包 | **不是组件、无需安装**：收集自 CodePen 的 8 个 Persona 5 风格 UI 片段，已本地化，作参考用 |
 
 用户让你安装某个组件时：**先完整读完该组件目录里的 `AGENTS.md`**，它包含依赖、步骤、验证方法和注意事项。本文件只讲所有组件共用的约定。

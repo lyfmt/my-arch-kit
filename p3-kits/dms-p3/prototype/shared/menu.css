@@ -1,0 +1,354 @@
+/* ==========================================================================
+   P3 SHELL MENU — framework styles (menu-x.html + pages/*.js)
+   Depends on shared/tokens.css (colors, .d .l .zh, --ease --spring).
+
+   STAGE      1920×1080, cover-scaled. Safe area x 110..1810 (eDP-1 16:10 crops ~96px per side).
+   LAYERS     #back (desk.jpg, blur+tint for bg=none, water for bg=water)
+              .date  #menu (5 slanted items / rail)  #pg (page panel)
+   STATES on #stage:
+     .bg-water | .bg-none     backdrop mode (?bg, dev key G)
+     .opening  .closing .closed   open / close choreography (key O replays, Esc closes)
+     .paged                   a sub-page is open: list → rail, water dives, panel in
+     .static                  ?static=1 — every animation/transition jumps to its end state
+
+   ==========================================================================
+   PAGE PRIMITIVES (use these inside render(root, ctx); all flat fills, no gradients)
+   --------------------------------------------------------------------------
+   Panel body: x 400..1810, y 250..930 on the stage → root is 1410 × 680, overflow hidden.
+   Header (title) is drawn by the framework above the body; don't repeat it.
+
+   TYPE SCALE  (P3 display .d only for nouns + numbers; everything else upright BarlowC)
+     .p-h1      P3 96px    hero noun / big number          (one per page at most)
+     .p-h2      P3 48px    item names, card titles
+     .p-num     P3 64px    numeric readouts; put the unit in <small class="p-unit">
+     .p-num.sm  P3 40px    secondary numbers
+     .p-sec     BarlowC 15px .24em dim + hairline rule to the right  (section label)
+     .p-label   BarlowC 17px .14em              (row / control label)
+     .p-value   BarlowC 22px .04em  tx          (text value, right side of a row)
+     .p-meta    BarlowC 13px .12em  dim         (secondary data line, units)
+     .zh        Chinese text (tokens.css)
+   LAYOUT
+     .p-grid    CSS grid, gap 28px; set --cols (default 2)
+     .p-stack   flex column, gap 14px
+     .p-card    flat --panel fill, 22px padding, no border (default tide focus works on it)
+     .p-chip    small flat --fill tag, ink text;  .p-chip.hot = --accent;  .p-chip.ghost = outline
+     .p-ico     24px glyph slot; fill with P3Menu.glyph(name, size)
+   ROW
+     <div class="p-row" data-focus> <span class="p-ico">…</span> <span class="p-label">WI-FI</span>
+        <span class="p-value">lyfmt-5G</span> <span class="p-chev">…</span> </div>
+     56px tall, hairline bottom; .p-row.tall = 72px (label + .p-meta stacked in .p-two)
+   VALUE BAR (read-only meter)
+     <div class="p-bar" style="--v:42"><i></i></div>     (.p-bar.hot: accent fill)
+   TOGGLE  (framework flips .on on click/Enter and fires 'p3change' {detail:{value:bool}})
+     <div class="p-row p-toggle on" data-focus> <span class="p-label">BLUETOOTH</span> <span class="p-switch"></span></div>
+     .p-switch renders the flat 56×28 switch; any element with .p-toggle may hold one.
+   SLIDER  (framework handles ←→ (step), drag, wheel; fires 'p3change' {detail:{value}})
+     <div class="p-slider" data-focus data-value="62" data-min="0" data-max="100" data-step="5">
+        <span class="p-label">VOLUME</span> <b class="p-num sm p-sval"></b> <div class="p-track"><i></i></div></div>
+     .p-sval gets the number written into it.  P3Menu.ui.setSlider(el, v) to set from code.
+   HOLD-TO-CONFIRM  (Enter held / pointer held for data-hold ms, default 1000; release cancels)
+     <div class="p-btn p-hold danger" data-focus data-hold="1000">
+        <span class="p-label">POWER OFF</span></div>
+     framework injects .p-hold-fill, fires 'p3confirm' on completion.
+   BUTTON      .p-btn (flat --panel block, centered label) ; .p-btn.danger (accent label)
+   FOCUS / SELECTION inside a page
+     Mark focusable things with [data-focus]. One shared indicator glides between them:
+       data-cursor="tide"   (default) no box, no fill. .is-focus turns text / --p-fg to --fill;
+                            a pulsing sky glow dot sits on the top-left corner. Fresh entry adds
+                            .p-wob (320ms --spring jelly) and pops the dot once. Works on
+                            transparent and filled elements.
+       data-cursor="wedge"  white wedge BEHIND the element + red echo; .is-focus → ink text.
+                            For rail-like lists only. Element must be transparent.
+       data-cursor="none"   framework only toggles .is-focus / .p-wob; the page styles them.
+     Colors inside focusable elements should use var(--p-fg) / var(--p-dim) / var(--p-track) /
+     var(--p-on) so both modes can retint them; all primitives above already do.
+     [data-autofocus] picks the initial focus (else the first [data-focus]).
+   ENTRANCE    elements marked [data-in] (else root's direct children) rise in staggered
+               (45ms steps) after the wipe passes. Order = DOM order.
+   ========================================================================== */
+
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000510; }
+body { user-select: none; -webkit-user-select: none; color: var(--tx); cursor: default; }
+
+:root { --deepv: 2,10,82; }
+:root {
+  --ink-shadow: 0 4px 0 rgba(var(--deepv), .8), -2px 2px 0 rgba(var(--deepv), .55);
+  --p-fg: var(--tx); --p-dim: var(--dim); --p-track: var(--line); --p-on: var(--fill); --p-onfg: var(--ink);
+  --soft: cubic-bezier(.3,1.25,.5,1);
+}
+
+#stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1920px; height: 1080px; margin: -540px 0 0 -960px;
+  overflow: hidden; background: #000510;
+}
+
+/* ---------------------------------------------------------------- backdrop */
+#back { position: absolute; inset: 0; }
+.desk, .desk-blur { position: absolute; inset: 0; }
+.desk img, .desk-blur img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.desk-blur { opacity: 0; transition: opacity .45s var(--ease); }
+.desk-blur img { filter: blur(14px) saturate(1.05); transform: scale(1.04); }
+.tint { position: absolute; inset: 0; background: rgb(var(--deepv)); opacity: 0; transition: opacity .45s var(--ease); }
+.bg-none .desk-blur { opacity: 1; }
+.bg-none .tint { opacity: .5; }
+.bg-none.paged .tint { opacity: .72; }
+.bg-none.closing .desk-blur, .bg-none.closed .desk-blur,
+.bg-none.closing .tint, .bg-none.closed .tint { opacity: 0; }
+
+.water { position: absolute; inset: 0; overflow: hidden; display: none;
+  clip-path: polygon(0 -12%, 100% -22%, 100% 100%, 0 100%); }
+.bg-water .water { display: block; }
+.bg-water.opening .water { animation: tideIn .8s var(--ease) backwards; }
+.bg-water.closing .water { animation: tideOut .5s cubic-bezier(.6,0,.8,.4) .18s forwards; }
+.bg-water.closed .water { clip-path: polygon(0 112%, 100% 102%, 100% 100%, 0 100%); }
+@keyframes tideIn  { from { clip-path: polygon(0 112%, 100% 102%, 100% 100%, 0 100%); } }
+@keyframes tideOut { to   { clip-path: polygon(0 112%, 100% 102%, 100% 100%, 0 100%); } }
+
+.water .sea { position: absolute; inset: -30px; transition: transform .9s var(--ease); }
+.water .dive { position: absolute; inset: 0; transform-origin: 100% 100%;
+  transition: transform .9s var(--ease), filter .9s var(--ease); }
+.water img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bg-water.opening .water .dive { animation: riseIn .9s var(--ease) backwards; }
+@keyframes riseIn { from { transform: translateY(80px) scale(1.04); } }
+
+/* deeper water behind the top of the list: kills the bright caustic band (APPS contrast) */
+.depth { position: absolute; left: 860px; top: 120px; width: 900px; height: 520px; pointer-events: none;
+  background: rgb(var(--deepv)); opacity: .5;
+  -webkit-mask-image: radial-gradient(closest-side, #000 35%, transparent);
+          mask-image: radial-gradient(closest-side, #000 35%, transparent); }
+.veil { position: absolute; inset: 0; background: rgb(var(--deepv)); opacity: 0; transition: opacity .7s var(--ease); }
+.paged .water .dive { transform: scale(1.55); filter: blur(3px); }
+.paged .veil { opacity: .46; }
+
+.rays { position: absolute; left: 900px; top: -80px; width: 1100px; height: 900px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 15%, transparent 70%);
+          mask-image: linear-gradient(200deg, #000 15%, transparent 70%); }
+.rays i { position: absolute; top: 0; height: 1000px;
+  background: linear-gradient(180deg, rgba(255,255,255,.2), transparent 85%);
+  transform-origin: 50% 0; rotate: 24deg; animation: sway 12s ease-in-out infinite alternate; }
+.rays i:nth-child(1) { left: 260px; width: 40px; animation-duration: 14s; }
+.rays i:nth-child(2) { left: 420px; width: 90px; opacity: .6; }
+.rays i:nth-child(3) { left: 610px; width: 26px; animation-duration: 9s; }
+.rays i:nth-child(4) { left: 720px; width: 70px; opacity: .5; animation-duration: 16s; }
+.rays i:nth-child(5) { left: 900px; width: 34px; animation-duration: 11s; }
+@keyframes sway { from { transform: skewX(-5deg); opacity: .55; } to { transform: skewX(6deg); opacity: 1; } }
+.caustic { position: absolute; left: 820px; top: -60px; width: 1300px; height: 520px; opacity: .16;
+  mix-blend-mode: screen; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+          mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+  animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { to { translate: -90px 26px; } }
+.bubbles i { position: absolute; border-radius: 50%; border: 2px solid rgba(190,245,255,.7);
+  opacity: 0; animation: rise linear infinite; }
+@keyframes rise {
+  0% { transform: translate(0, 0); opacity: 0; } 12% { opacity: .7; }
+  50% { transform: translate(14px, -480px); } 85% { opacity: .4; }
+  100% { transform: translate(-6px, -960px); opacity: 0; } }
+
+/* ---------------------------------------------------------------- date block */
+.date { position: absolute; right: 130px; top: 54px; text-align: right; color: var(--ink);
+  transform-origin: 100% 0; transition: transform .7s var(--ease), color .3s; z-index: 4; }
+.bg-none .date, .paged .date { color: var(--tx); }
+.date .md { font-size: 112px; letter-spacing: -.02em; }
+.date .md small { font-size: 58px; margin-left: 6px; }
+.date .row { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 8px; }
+.date .tod { background: var(--ink); color: var(--fill); padding: 6px 12px 5px; font-size: 18px; }
+.bg-none .date .tod, .paged .date .tod { background: var(--fill); color: var(--ink); }
+.date .hm { font-size: 22px; letter-spacing: .1em; }
+.date .in { transition: transform .9s var(--ease); }
+.paged .date { transform: scale(.56); }
+.opening .date .in { animation: dropIn .7s var(--spring) .28s backwards; }
+.closing .date .in { animation: liftOut .35s var(--ease) forwards; }
+.closed .date .in { opacity: 0; }
+@keyframes dropIn  { from { opacity: 0; transform: translateY(-60px); } }
+@keyframes liftOut { to   { opacity: 0; transform: translateY(-50px); } }
+
+/* ---------------------------------------------------------------- main list */
+#menu { position: absolute; left: 0; top: 0; z-index: 3; transition: transform .9s var(--ease); }
+.it { position: absolute; left: var(--x); top: var(--y); font-size: 78px; color: var(--c); cursor: pointer;
+  transform-origin: 0 60%;
+  transition: transform .62s var(--soft) calc(var(--i) * 32ms), opacity .3s; }
+.it .mv { display: block; }
+.it .rt { display: block; position: relative; transform: rotate(var(--r)); transform-origin: 0 60%;
+  transition: transform .22s var(--ease); }
+.it .tx { position: relative; display: block; white-space: nowrap; text-shadow: var(--ink-shadow);
+  transition: color .12s, text-shadow .12s; }
+.it .echo { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--accent); opacity: 0;
+  transition: opacity .1s, translate .2s var(--ease); }
+.it .sh { position: absolute; pointer-events: none; opacity: 0; }
+.it .sw { left: -46px; right: -54px; top: -14px; bottom: -22px; background: var(--shard);
+  clip-path: polygon(0 66%, 100% 0, 97% 100%, 12% 92%);
+  transform: scaleX(.2); transform-origin: 100% 50%; transition: transform .22s var(--ease), opacity .1s; }
+.it .sr { left: -96px; right: -22px; top: -40px; bottom: 6px; background: var(--accent);
+  clip-path: polygon(0 88%, 100% 0, 88% 34%);
+  transform: scaleX(.2); transform-origin: 100% 0; transition: transform .26s var(--ease) .03s, opacity .1s; }
+.it.on { z-index: 2; }
+.it.on .rt { transform: rotate(var(--r)) translate(-22px, 0) scale(1.3); }
+.it.on .tx { color: var(--ink); text-shadow: none; }
+.it.on .echo { opacity: 1; translate: 5px 4px; }
+.it.on .sh { opacity: 1; transform: none; }
+.it.hit .sw { animation: hit .38s var(--ease); }
+@keyframes hit { 40% { transform: scale(1.12, 1.25); } }
+
+
+.opening .it .mv { animation: itIn .72s var(--spring) backwards; animation-delay: calc(var(--i) * 60ms + .2s); }
+@keyframes itIn { from { opacity: 0; transform: translateX(170px) rotate(7deg); } }
+.closing .it .mv { animation: itOut .32s cubic-bezier(.5,0,.9,.5) forwards; animation-delay: calc((var(--n) - 1 - var(--i)) * 30ms); }
+.closed .it .mv { opacity: 0; }
+@keyframes itOut { to { opacity: 0; transform: translateX(-120px) rotate(-6deg); } }
+
+/* rail: the list shrinks into a slim upright column on the left */
+.paged .it { transform: translate(calc(var(--rx) - var(--x)), calc(var(--ry) - var(--y))) scale(.4); }
+.paged .it .rt { transform: none; }
+.paged .it.on .rt { transform: translate(-10px, 0) scale(1.3); }
+.paged .it:not(.on) .tx { color: var(--dim); text-shadow: none; }
+.paged .it:not(.on):hover .tx { color: var(--tx); }
+.paged .paged .it.on .sr { transform: scaleX(.55); }
+
+/* ---------------------------------------------------------------- page panel */
+#pg { position: absolute; inset: 0; z-index: 3; pointer-events: none; visibility: hidden; }
+.paged #pg { visibility: visible; pointer-events: auto; }
+.pg-head { position: absolute; left: 400px; top: 96px; width: 1410px; height: 130px;
+  display: flex; align-items: flex-end; gap: 28px; padding-bottom: 22px; }
+.pg-title { font-size: 104px; color: var(--tx); white-space: nowrap; padding-right: .06em; }
+.pg-rule { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--line);
+  transform-origin: 0 50%; }
+.pg-rule::before { content: ""; position: absolute; left: 0; top: -2px; width: 120px; height: 6px; background: var(--fill); }
+.pg-body { position: absolute; left: 400px; top: 250px; width: 1410px; height: 680px; }
+.pg-root { position: relative; z-index: 1; width: 100%; height: 100%; overflow: hidden; }
+.pg-wipe { position: absolute; left: 0; top: 70px; width: 240px; height: 900px; background: var(--fill);
+  transform: translateX(2400px) skewX(-14deg); visibility: hidden; z-index: 5; pointer-events: none; }
+
+.pg.enter .pg-wipe { animation: wipe .62s cubic-bezier(.6,.05,.3,1); }
+.pg.enter .pg-body { animation: reveal .62s cubic-bezier(.6,.05,.3,1) backwards; }
+.pg.enter .pg-rule { animation: rule .7s var(--ease) .18s backwards; }
+.pg.enter .pg-title { animation: titleIn .62s var(--spring) .16s backwards; }
+.pg.enter [data-k] { animation: kIn .52s var(--ease) backwards; animation-delay: calc(var(--k) * 45ms + .3s); }
+@keyframes wipe { from { visibility: visible; transform: translateX(300px) skewX(-14deg); } to { visibility: visible; transform: translateX(2400px) skewX(-14deg); } }
+@keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes rule { from { transform: scaleX(0); } }
+@keyframes titleIn { from { opacity: 0; transform: translateX(-90px); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } }
+@keyframes kIn { from { opacity: 0; transform: translateY(22px); } }
+.pg.leave .pg-head, .pg.leave .pg-body { animation: pgOut .24s cubic-bezier(.5,0,.9,.5) forwards; }
+@keyframes pgOut { to { opacity: 0; transform: translateX(60px); } }
+.pg.swap .pg-body { animation: pgOut .16s cubic-bezier(.5,0,.9,.5) forwards; }
+
+/* page-level focus (two shared elements, the page marks [data-focus]; see menu.js header)
+   .p-tide   default. A pulsing sky glow dot on the focused element's top-left corner; text turns --fill.
+             On fresh entry the dot pops (.wob) and the element jellies (.p-wob).
+   .p-cursor data-cursor="wedge": white wedge behind + red echo (rail-like lists only). */
+.p-cursor, .p-tide { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; opacity: 0;
+  transition: left .26s var(--soft), top .26s var(--soft), width .26s var(--soft), height .26s var(--soft), opacity .12s; }
+.p-cursor { z-index: 0; }
+.p-cursor::before, .p-cursor::after { content: ""; position: absolute; inset: -6px -8px -6px -14px;
+  clip-path: polygon(14px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.p-cursor::after { background: var(--shard); }
+.p-cursor::before { background: var(--accent); translate: 6px 5px; transition: translate .3s var(--soft) .05s; }
+.p-cursor.moving::before { translate: -10px 5px; transition-duration: 0s; transition-delay: 0s; }
+.p-cursor.on, .p-tide.on { opacity: 1; }
+.p-cursor.pop::after { animation: cpop .3s var(--ease); }
+@keyframes cpop { 40% { transform: scale(1.04, 1.18); } }
+
+.p-tide { z-index: 3; }
+/* focus mark: a small glowing sky dot on the element's top-left corner, softly pulsing.
+   It rides the .p-tide box, so it glides to the next element on focus change. */
+.p-tide::before { content: ""; position: absolute; left: -7px; top: -5px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--fill); box-shadow: 0 0 6px 2px rgba(11,143,232,.85), 0 0 16px 5px rgba(11,143,232,.35);
+  animation: tdGlow 1.8s ease-in-out infinite; }
+/* ripple ring around the dot */
+.p-tide::after { content: ""; position: absolute; left: -11.5px; top: -9.5px; width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--fill); box-sizing: border-box; opacity: 0; animation: tdRing 1.8s ease-out infinite; }
+.p-tide-wave { display: none; }
+.p-tide.wob::before { animation: tdPopDot .34s var(--spring), tdGlow 1.8s ease-in-out .34s infinite; }
+.p-tide.pop::before { animation: tdPopDot .26s var(--ease), tdGlow 1.8s ease-in-out .26s infinite; }
+@keyframes tdGlow  { 50% { box-shadow: 0 0 9px 3px rgba(11,143,232,.95), 0 0 24px 9px rgba(11,143,232,.28); scale: 1.12; } }
+@keyframes tdRing  { 0% { opacity: .75; transform: scale(.5); } 100% { opacity: 0; transform: scale(1.9); } }
+@keyframes tdPopDot { 0% { scale: .2; } 55% { scale: 1.5; } 100% { scale: 1; } }
+
+[data-focus] { position: relative; cursor: pointer; }
+/* jelly on fresh entry: individual scale/translate so it composes with page transforms */
+.p-wob { animation: pWob .32s var(--spring); }
+@keyframes pWob { 0% { scale: 1; } 30% { scale: 1.03 .965; translate: 2px 0; } 60% { scale: .99 1.015; translate: -1px 0; } 100% { scale: 1; translate: 0 0; } }
+/* steady focus, tide (default) */
+.is-focus:not([data-cursor="wedge"]):not([data-cursor="none"]) {
+  --p-fg: var(--fill); --p-dim: color-mix(in srgb, var(--fill) 78%, transparent);
+  color: var(--fill);
+}
+/* steady focus, wedge: ink on the white wedge */
+.is-focus[data-cursor="wedge"] {
+  --p-fg: var(--ink); --p-dim: color-mix(in srgb, var(--ink) 66%, transparent);
+  --p-track: color-mix(in srgb, var(--ink) 20%, transparent); --p-on: var(--ink); --p-onfg: var(--shard);
+  color: var(--ink);
+}
+.p-press { animation: press .26s var(--ease); }
+@keyframes press { 40% { transform: scale(.97); } }
+
+/* ---------------------------------------------------------------- primitives */
+.p-h1 { font: italic 900 96px/.86 "P3", sans-serif; letter-spacing: -.01em; color: var(--p-fg); }
+.p-h2 { font: italic 900 48px/.86 "P3", sans-serif; letter-spacing: -.01em; color: var(--p-fg); }
+.p-num { font: italic 900 64px/.86 "P3", sans-serif; letter-spacing: -.01em; color: var(--p-fg); white-space: nowrap; }
+.p-num.sm { font-size: 40px; }
+.p-unit { font: 700 16px/1 "BarlowC", sans-serif; letter-spacing: .12em; font-style: normal; color: var(--p-dim); margin-left: 4px; }
+.p-sec { display: flex; align-items: center; gap: 16px; margin: 0 0 12px; color: var(--p-dim);
+  font: 700 15px/1 "BarlowC", sans-serif; letter-spacing: .24em; text-transform: uppercase; }
+.p-sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.p-label { font: 700 17px/1 "BarlowC", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--p-fg); white-space: nowrap; }
+.p-value { font: 700 22px/1 "BarlowC", sans-serif; letter-spacing: .04em; color: var(--p-fg); white-space: nowrap; }
+.p-meta { font: 700 13px/1.1 "BarlowC", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--p-dim); white-space: nowrap; }
+.p-grid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 28px; }
+.p-stack { display: flex; flex-direction: column; gap: 14px; }
+.p-card { background: var(--panel); padding: 22px; }
+.p-chip { display: inline-block; padding: 5px 9px 4px; background: var(--fill); color: var(--ink);
+  font: 700 13px/1 "BarlowC", sans-serif; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.p-chip.hot { background: var(--accent); color: #fff; }
+.p-chip.ghost { background: none; color: var(--p-dim); outline: 1px solid var(--line); outline-offset: -1px; }
+.p-ico { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: none; color: var(--p-fg); }
+.p-ico svg, .p-chev svg { display: block; }
+.p-chev { margin-left: 4px; color: var(--p-dim); flex: none; }
+
+.p-row { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); color: var(--p-fg); }
+.p-row.tall { height: 72px; }
+.p-row .p-value, .p-row .p-switch, .p-row > .p-num { margin-left: auto; }
+.p-two { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+
+.p-bar { position: relative; height: 6px; background: var(--p-track); }
+.p-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--v, 0) * 1%); background: var(--p-on);
+  transition: width .6s var(--ease); }
+.p-bar.hot i { background: var(--accent); }
+
+.p-switch { position: relative; width: 56px; height: 28px; flex: none; outline: 2px solid var(--p-track); outline-offset: -2px; }
+.p-switch::after { content: ""; position: absolute; left: 5px; top: 5px; width: 18px; height: 18px; background: var(--p-dim);
+  transition: transform .28s var(--spring), background .15s; }
+.p-toggle.on .p-switch { background: var(--p-on); outline-color: var(--p-on); }
+.p-toggle.on .p-switch::after { transform: translateX(28px); background: var(--p-onfg); }
+
+.p-slider { display: grid; grid-template-columns: 1fr auto; align-items: end; row-gap: 12px; padding: 12px 18px 16px; color: var(--p-fg); }
+.p-slider .p-track { grid-column: 1 / -1; position: relative; height: 8px; background: var(--p-track); cursor: pointer; }
+.p-slider .p-track i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--v, 0) * 1%); background: var(--p-on);
+  transition: width .14s var(--ease); }
+.p-slider .p-track i::after { content: ""; position: absolute; right: -3px; top: -6px; width: 6px; height: 20px; background: var(--p-on); }
+.p-slider.dragging .p-track i { transition: none; }
+
+.p-btn { display: flex; align-items: center; justify-content: center; gap: 12px; height: 64px; padding: 0 22px;
+  background: var(--panel); color: var(--p-fg); overflow: hidden; }
+.p-btn.danger { --p-fg: #ff7076; }
+.p-btn.danger.is-focus { --p-fg: #ff9aa0; }
+.p-btn.danger.is-focus[data-cursor="wedge"] { --p-fg: var(--accent); }
+.p-btn.is-focus[data-cursor="wedge"] { background: transparent; }
+.p-hold-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent); opacity: .9;
+  transform: scaleX(0); transform-origin: 0 50%; transition: transform .3s var(--spring); pointer-events: none; z-index: -1; }
+.p-hold { isolation: isolate; }
+.p-hold.holding .p-hold-fill { transform: scaleX(1); transition: transform var(--hold, 1000ms) linear; }
+.p-hold.holding, .p-hold.p-done { --p-fg: #fff; color: #fff; }
+.p-hold.p-done .p-hold-fill { transform: scaleX(1); animation: done .5s var(--ease); }
+@keyframes done { 30% { opacity: 1; filter: brightness(1.6); } }
+
+/* ---------------------------------------------------------------- static (screenshots) */
+.static *, .static *::before, .static *::after, .static .p-wob {
+  transition-duration: 0s !important; transition-delay: 0s !important;
+  animation-duration: 0s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+}
+.static .bubbles i { animation: none !important; opacity: .45; }
+.static .rays i, .static .caustic { animation: none !important; }
