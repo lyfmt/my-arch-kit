@@ -1,0 +1,253 @@
+/* c-island · 剪切板 = 灵动岛 activity。说明和 QML 映射见 c-island.html 顶部注释。
+   形状：#isl 是一块固定大小的平涂 --isl，用 clip-path inset(... round r) 裁出当前胶囊 / 面板，只动 clip-path（QML：宽高 SpringAnimation）。
+   内容：三张 face 各自固定排版，按状态淡入；面板内容比形状晚 60ms。 */
+:root { --isl: #14306e; --isl2: #1d3d82; --soft: cubic-bezier(.3,1.25,.5,1);
+  --mono: "JetBrains Mono", "Fira Code", "DejaVu Sans Mono", monospace; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+body { color: var(--tx); user-select: none; -webkit-user-select: none; cursor: default; }
+button { font: inherit; color: inherit; border: 0; background: transparent; padding: 0; cursor: pointer; }
+
+#stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: var(--deep); }
+.deskc { position: absolute; inset: 0; background: #1a2a5a; }
+.desk { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.win { position: absolute; border-radius: 12px; background: rgba(4,16,60,.16); border: 1px solid rgba(255,255,255,.16); }
+.win .tb { position: absolute; left: 18px; top: 14px; color: rgba(255,255,255,.55); font-size: 11px; }
+.win .ln { position: absolute; left: 18px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); }
+
+/* ---------------------------------------------------------------- 岛 */
+#isl { position: absolute; left: 50%; top: 0; width: 680px; margin-left: -340px; height: 1200px; z-index: 5;
+  background: var(--isl); clip-path: inset(8px 290px 1158px 290px round 17px);
+  transition: clip-path .52s var(--soft); }
+#isl.closing { transition: clip-path .38s var(--ease); }
+.face { position: absolute; left: 50%; top: 8px; opacity: 0; pointer-events: none; transform: translateY(-6px) scale(.97);
+  transition: opacity .1s, transform .18s var(--ease); white-space: nowrap; }
+.face.on { opacity: 1; pointer-events: auto; transform: none;
+  transition: opacity .22s var(--fd, 60ms), transform .46s var(--soft) var(--fd, 60ms); }
+
+/* idle：时间胶囊 */
+.fi { width: 100px; height: 34px; margin-left: -50px; display: flex; align-items: center; justify-content: center; }
+.fi .tm { font-size: 21px; padding-top: 1px; }
+
+/* toast：刚复制的那条 */
+.ft { width: 460px; height: 44px; margin-left: -230px; display: flex; align-items: center; gap: 11px; padding: 0 18px 0 8px; }
+.ft .lead { width: 28px; height: 28px; border-radius: 14px; flex: none; overflow: hidden; display: grid; place-items: center; background: var(--isl2); }
+.ft .lead img { width: 100%; height: 100%; object-fit: cover; }
+.ft .lead.sw { border-radius: 14px; }
+.ft .lead svg { width: 13px; height: 13px; fill: var(--fill); }
+.ft .lb { font-size: 12px; color: var(--fill); flex: none; padding-top: 1px; }
+.ft .pv { flex: 1; min-width: 0; font-size: 13px; color: var(--tx); overflow: hidden; text-overflow: ellipsis; }
+.ft .pv.mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0; }
+.ft .n { position: relative; flex: none; height: 20px; overflow: hidden; display: flex; align-items: center; gap: 4px; }
+.ft .n b { font-size: 19px; color: var(--tx); line-height: 20px; padding-top: 1px; display: block; }
+.ft .n i { font-style: normal; font-size: 11px; color: var(--dim); }
+.ft.on .n b { animation: rollIn .5s var(--spring) .2s both; }
+@keyframes rollIn { from { transform: translateY(20px); } }
+/* 胶囊胀开时一圈 --fill 波纹从左侧图标扩散（只在复制瞬间一次） */
+.ft .rip { position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--fill); opacity: 0; pointer-events: none; }
+.ft.on .rip { animation: rip .8s cubic-bezier(.2,.7,.3,1) .12s both; }
+@keyframes rip { from { opacity: .85; transform: scale(1); } to { opacity: 0; transform: scale(2.4); } }
+
+/* ---------------------------------------------------------------- 面板 */
+.fp { width: 600px; margin-left: -300px; white-space: normal; }
+.pin { position: relative; padding: 0 8px 8px; }
+
+/* 头：大号计数 + 标签，右侧标签页 + CLEAR */
+.ch { display: flex; align-items: center; gap: 10px; height: 60px; padding: 6px 6px 0 16px; }
+.ch .nn { font-size: 30px; color: var(--tx); min-width: 16px; }
+.ch .nn.roll { animation: rollIn .45s var(--spring); }
+.ch .tl { font-size: 13px; color: var(--dim); padding-top: 7px; }
+.ch .sp { flex: 1; }
+.cb { height: 28px; min-width: 28px; padding: 0 10px; border-radius: 14px; color: var(--dim);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.cb .l { font-size: 12.5px; color: inherit; padding-top: 1px; }
+.cb .d { font-size: 13px; color: inherit; }
+.cb svg { width: 13px; height: 13px; fill: currentColor; }
+.cb.on { background: var(--fill); color: var(--ink); }
+.cb:disabled { opacity: .35; cursor: default; }
+.cb.p-press, .ca.p-press { animation: press .26s var(--ease); }
+@keyframes press { 40% { transform: scale(.94); } }
+.tabs { display: flex; gap: 2px; }
+.ch .vr { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+
+/* 搜索 + 类型筛选 */
+.cs { display: flex; align-items: center; gap: 10px; height: 44px; margin: 4px 0 6px; padding: 0 8px 0 16px;
+  border-radius: 14px; background: rgba(163,240,255,.06); }
+.cs > svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--dim); stroke-width: 2.2; stroke-linecap: round; }
+.cs input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--tx); font-size: 15px;
+  caret-color: var(--fill); padding: 1px 0 0; }
+.cs input::placeholder { color: var(--dim); font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 13px; }
+.cs .fl { display: flex; gap: 0; flex: none; }
+.cs .fl .cb { height: 26px; padding: 0 9px; }
+.cs .fl .cb .l { font-size: 11.5px; }
+
+/* 列表 */
+.clw { position: relative; }
+.cl { position: relative; max-height: 560px; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.cl::-webkit-scrollbar { display: none; }
+.cl.ovf { -webkit-mask-image: linear-gradient(#000 calc(100% - 40px), transparent); mask-image: linear-gradient(#000 calc(100% - 40px), transparent); }
+.cl.ovf.end { -webkit-mask-image: none; mask-image: none; }
+
+/* 一行一条（与 island-b .nk 同款）：无卡片底，细分隔线；选中 = 极淡底 + 左上角呼吸光点，并向下展开 */
+.ck { position: relative; flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px;
+  padding: 12px 14px 0 16px; min-height: 72px; border-radius: 14px; cursor: pointer; transition: background .2s; }
+.ck + .ck { box-shadow: inset 0 1px 0 rgba(163,240,255,.10); }
+.ck.sel { background: rgba(163,240,255,.07); box-shadow: none; }
+.ck.sel + .ck { box-shadow: none; }
+.ck::before { content: ""; position: absolute; left: 6px; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--fill);
+  box-shadow: 0 0 6px 2px rgba(11,143,232,.85), 0 0 14px 4px rgba(11,143,232,.3); opacity: 0; scale: .3; transition: opacity .2s, scale .35s var(--spring); z-index: 2; }
+.ck.sel::before { opacity: 1; scale: 1; animation: nkGlow 1.8s ease-in-out infinite; }
+.ck.wob::before { animation: tdPopDot .34s var(--spring), nkGlow 1.8s ease-in-out .34s infinite; }
+.ck.wob { animation: pWob .32s var(--spring); }
+@keyframes nkGlow { 50% { box-shadow: 0 0 9px 3px rgba(11,143,232,.95), 0 0 20px 7px rgba(11,143,232,.25); } }
+@keyframes tdPopDot { 0% { scale: .2; } 55% { scale: 1.5; } 100% { scale: 1; } }
+@keyframes pWob { 0% { scale: 1; } 30% { scale: 1.015 .97; } 60% { scale: .995 1.01; } 100% { scale: 1; } }
+
+.ck .lead { width: 32px; height: 32px; margin-top: 3px; border-radius: 9px; overflow: hidden; flex: none; display: grid; place-items: center;
+  background: var(--isl2); transition: width .3s var(--soft), height .3s var(--soft); }
+.ck .lead img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; display: block; }
+.ck .lead .gl { font-size: 13px; color: var(--dim); padding-top: 1px; }
+.ck .lead.th { width: 84px; height: 47px; margin-top: 0; border-radius: 8px; }
+.ck.sel .lead.th { width: 112px; height: 63px; }
+.ck .lead.sw { border-radius: 9px; }
+.ck .tx { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; }
+.ck .r1 { display: flex; align-items: baseline; gap: 9px; min-width: 0; height: 14px; }
+.ck .ty { font-size: 12px; color: var(--fill); flex: none; }
+.ck .ty i { font-style: normal; color: var(--dim); }
+.ck .ap { font-size: 12px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .ap.zh { letter-spacing: .04em; }
+.ck .pm { width: 11px; height: 11px; fill: var(--fill); flex: none; align-self: center; margin-top: -1px; }
+.ck .sp { flex: 1; }
+.ck .t { flex: none; font-size: 12.5px; color: var(--dim); }
+.ck .pv { font-size: 14px; color: var(--tx); line-height: 1.32; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .pv.mono { font-family: var(--mono); font-size: 13px; letter-spacing: 0; }
+.ck.long.sel .pv { white-space: pre-line; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ck.long.sel .pv.mono { white-space: pre; }
+.ck.sel .pv { color: var(--fill); }
+.ck .pv mark { background: transparent; color: var(--fill); box-shadow: inset 0 -2px 0 rgba(163,240,255,.55); }
+.ck.sel .pv mark { color: var(--tx); }
+/* 展开的动作条：0fr → 1fr（QML：NumberAnimation on height） */
+.ck .ex { grid-column: 1 / -1; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--ease); }
+.ck.sel .ex { grid-template-rows: 1fr; }
+.ck .exi { overflow: hidden; min-height: 0; }
+.acts { display: flex; gap: 2px; margin: -4px 0 0 -10px; padding-bottom: 10px; opacity: 0; transform: translateY(-4px); transition: opacity .12s, transform .2s var(--ease); }
+.ck.sel .acts { opacity: 1; transform: none; transition: opacity .22s .08s, transform .4s var(--soft) .08s; }
+.ca { height: 28px; padding: 0 10px; white-space: nowrap; border-radius: 14px; color: var(--tx); display: inline-flex; align-items: center; gap: 6px; }
+.ca .l { font-size: 12px; padding-top: 1px; }
+.ca kbd { display: none; font-family: "BarlowC", sans-serif; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: var(--dim); padding-top: 1px; }
+/* 行内动作不带按键小字（p3-lock：不放按键说明），F10 的提示行统一列出 */
+.ca svg { width: 12px; height: 12px; fill: var(--fill); }
+.acts .sp { flex: 1; }
+.ca.dim { color: var(--dim); }
+/* 复制成功：行右侧弹出一枚 --fill 小签 */
+.stamp { position: absolute; right: 12px; top: 10px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--fill); color: var(--ink);
+  display: flex; align-items: center; font-size: 12px; z-index: 3; animation: stampIn .42s var(--spring) both; }
+@keyframes stampIn { from { transform: translateX(16px) scale(.6); opacity: 0; } }
+/* 删除：高度收拢 + 左滑 */
+.ck.gone { animation: gone .3s var(--ease) forwards; pointer-events: none; }
+@keyframes gone { to { opacity: 0; transform: translateX(-40px); } }
+.ck.fly { animation: fly .34s var(--ease) var(--dl, 0s) forwards; }
+@keyframes fly { to { opacity: 0; transform: translateX(60px); } }
+
+/* 入场：依次上浮 */
+[data-in] { animation: fadeUp .42s var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms + 120ms); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } }
+
+/* 空 / 离线 */
+.ce { height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--dim); }
+.ce .d { font-size: 40px; color: rgba(163,240,255,.3); }
+.ce .zh, .ce .l { font-size: 13px; }
+.ce .dots { display: flex; gap: 6px; }
+.ce .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--fill); opacity: .3; animation: dt 1.2s ease-in-out infinite; }
+.ce .dots i:nth-child(2) { animation-delay: .2s; } .ce .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dt { 40% { opacity: 1; transform: translateY(-3px); } }
+
+/* 按键提示（F10） */
+.hint { display: none; padding: 10px 14px 4px; font-size: 11px; color: var(--dim); letter-spacing: .12em; line-height: 1.6; white-space: normal; }
+.hint b { color: var(--fill); font-weight: 700; margin-right: 4px; }
+.hint span { margin-right: 14px; display: inline-block; }
+.hints .hint { display: block; }
+
+/* ---------------------------------------------------------------- 预览 */
+.pvw { padding: 4px 6px 4px; }
+.pvw .im { position: relative; height: 320px; border-radius: 14px; overflow: hidden; background: var(--isl2); display: grid; place-items: center; }
+.pvw .im img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pvw .im .gl { font-size: 40px; color: rgba(163,240,255,.3); }
+.pvw .txt { max-height: 320px; overflow: auto; scrollbar-width: none; padding: 14px 16px; border-radius: 14px; background: rgba(163,240,255,.06);
+  font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--tx); user-select: text; -webkit-user-select: text; }
+.pvw .txt.mono { font-family: var(--mono); font-size: 13px; letter-spacing: 0; white-space: pre; }
+.pvw .cap { display: flex; align-items: baseline; gap: 10px; padding: 14px 10px 6px; }
+.pvw .cap .ty { font-size: 12.5px; color: var(--fill); }
+.pvw .cap .ty i { font-style: normal; color: var(--dim); }
+.pvw .cap .m { font-size: 12.5px; color: var(--dim); }
+.pvw .cap .sp { flex: 1; }
+.pvw .cap .ix { font-size: 22px; color: var(--tx); }
+.pvw .cap .ix small { font-size: 14px; color: var(--dim); }
+.pvw .sw-big { width: 100%; height: 100%; }
+.swap { animation: swapIn .3s var(--ease); }
+@keyframes swapIn { from { opacity: 0; transform: translateY(8px); } }
+
+/* ---------------------------------------------------------------- 编辑器 */
+.ed { padding: 4px 6px 4px; }
+.ed textarea { width: 100%; height: 300px; resize: none; border: 0; outline: 0; border-radius: 14px; padding: 14px 16px;
+  background: rgba(163,240,255,.06); color: var(--tx); font-size: 14px; line-height: 1.6; caret-color: var(--fill); display: block; }
+.ed textarea.mono { font-family: var(--mono); font-size: 13px; letter-spacing: 0; white-space: pre; }
+.ed textarea::placeholder { color: var(--dim); font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 13px; }
+.ed .ld { height: 300px; border-radius: 14px; background: rgba(163,240,255,.06); display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 13px; }
+.ed .ld.err { color: var(--tx); }
+.ed .ft2 { display: flex; align-items: center; gap: 8px; padding: 12px 0 2px; }
+.ed .ft2 .m { font-size: 12px; color: var(--dim); }
+.ed .ft2 .sp { flex: 1; }
+.split { position: relative; display: flex; gap: 1px; }
+.split .cb.on:first-child { border-radius: 14px 4px 4px 14px; padding: 0 14px; }
+.split .cb.on:last-child { border-radius: 4px 14px 14px 4px; padding: 0 8px; }
+.split .cb.on svg { width: 10px; height: 10px; }
+.dd { position: absolute; right: 0; bottom: 36px; width: 190px; padding: 6px; border-radius: 14px; background: var(--isl2); z-index: 6;
+  opacity: 0; transform: translateY(6px) scale(.97); transform-origin: 100% 100%; pointer-events: none; transition: opacity .12s, transform .2s var(--ease); }
+.dd.on { opacity: 1; transform: none; pointer-events: auto; transition: opacity .18s, transform .36s var(--soft); }
+
+/* 右键菜单 / 下拉：平涂 --isl2，行 = 极淡底焦点 */
+.mi { position: relative; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px 0 16px; border-radius: 10px; color: var(--tx); cursor: pointer; }
+.mi .l { font-size: 12.5px; padding-top: 1px; }
+.mi kbd { margin-left: auto; font-family: "BarlowC", sans-serif; font-weight: 700; font-size: 11px; letter-spacing: .1em; color: var(--dim); }
+.mi.f { background: rgba(163,240,255,.09); color: var(--fill); }
+.mi.f::before { content: ""; position: absolute; left: 5px; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--fill);
+  box-shadow: 0 0 5px 2px rgba(11,143,232,.8); }
+.mi.na { opacity: .32; pointer-events: none; }
+.cm { position: absolute; width: 210px; padding: 6px; border-radius: 14px; background: var(--isl2); z-index: 7;
+  opacity: 0; transform: scale(.94); transform-origin: 0 0; pointer-events: none; transition: opacity .1s, transform .16s var(--ease); }
+.cm.on { opacity: 1; transform: none; pointer-events: auto; transition: opacity .16s, transform .34s var(--soft); }
+.cm .rule { height: 1px; background: rgba(163,240,255,.12); margin: 4px 8px; }
+
+/* ---------------------------------------------------------------- 清空确认：按住 1s（POWER 同款）。整个状态里唯一的红色在按钮上 */
+.cf2 { padding: 18px 16px 10px; }
+.cf2 .big { display: flex; align-items: baseline; gap: 14px; }
+.cf2 .big .d { font-size: 64px; color: var(--tx); }
+.cf2 .big .l { font-size: 15px; color: var(--dim); letter-spacing: .24em; }
+.cf2 .q { margin-top: 18px; font-size: 22px; color: var(--tx); letter-spacing: .1em; }
+.cf2 .ds { margin-top: 10px; font-size: 14px; color: var(--dim); line-height: 1.5; }
+.cf2 .row { display: flex; align-items: center; gap: 10px; margin-top: 26px; }
+.cf2 .row .sp { flex: 1; }
+.hold { position: relative; height: 40px; padding: 0 20px; border-radius: 20px; overflow: hidden; background: rgba(163,240,255,.10); color: var(--tx);
+  display: inline-flex; align-items: center; gap: 10px; --p: 0; }
+.hold::before { content: ""; position: absolute; inset: 0; background: var(--accent); clip-path: inset(0 calc((1 - var(--p)) * 100%) 0 0); }
+.hold .l { position: relative; font-size: 13px; padding-top: 1px; }
+.hold .k { position: relative; font-size: 11px; color: var(--dim); }
+.hold.full .k { color: var(--tx); }
+.cf2 .cb { height: 40px; padding: 0 16px; }
+.shake { animation: shake .36s var(--ease); }
+@keyframes shake { 20% { transform: translateX(-6px); } 50% { transform: translateX(4px); } 80% { transform: translateX(-2px); } }
+
+/* ---------------------------------------------------------------- 调试坞（原型外壳，不属于设计） */
+#dock { position: fixed; left: 16px; bottom: 16px; z-index: 20; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; max-width: calc(100vw - 32px);
+  padding: 4px; border-radius: 18px; background: rgba(4,10,30,.82); }
+#dock button { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .08em; color: rgba(255,255,255,.62); padding: 7px 10px 6px; border-radius: 999px; font-size: 11px; }
+#dock button kbd { font-family: inherit; color: var(--fill); margin-right: 5px; }
+#dock button.on { background: var(--fill); color: var(--ink); }
+#dock button.on kbd { color: var(--ink); }
+#dock .sep { width: 1px; height: 16px; background: rgba(255,255,255,.18); margin: 0 4px; }
+
+/* ?static=1：所有动画落到终态 */
+.static *, .static *::before, .static *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .ck.sel::before, .ce .dots i { animation: none !important; }
+}

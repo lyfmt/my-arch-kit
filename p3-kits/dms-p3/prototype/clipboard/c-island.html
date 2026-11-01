@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--
+  剪切板 · 方向 C · ISLAND 下拉（c-island）
+  剪切板是顶部灵动岛的一个 activity（与 island-b.html 同色 --isl #14306e、同款通知中心平涂行）：
+    idle   岛 = 时间胶囊（剪切板没有活动时不占地方）
+    toast  复制发生时胶囊横向胀开：COPIED + 预览 + 条目数，1.8s 后缩回 idle
+    open   Mod+Alt+V：胶囊向下垂成 600 宽的面板（圆角封顶 22），面板内容先于形状固定排版、被形状逐渐“露出”
+  切换：?state=idle|toast|open（默认 open），页面键 V 打开 / 关闭，C 模拟一次新复制，左下角调试坞。
+
+  DMS 2.0 映射（/tmp/dms-src/dux-shell/quickshell/Modals/Clipboard）：
+    ClipboardHistoryPopout.qml / ClipboardHistoryModal.qml  → #isl 面板态（open）。移植时做成 DIsland 的一个 Expanded activity，
+                                                             compact 态（toast）= 新的 ClipboardCompact，订阅 ClipboardService 的新增条目
+    ClipboardHeader.qml                → .ch（大号计数 .d + HISTORY/SAVED 标签 + 标签页 chip + CLEAR）
+    ClipboardHistoryContent.qml        → .cs 搜索行 + .cf 类型筛选 + .cl 列表（ListView, ensureVisible = keep()）
+    ClipboardEntry.qml                 → .ck 行（72px，选中时向下展开动作条；Long Text 1→3 行，图片缩略图 44→112×63）
+    ClipboardThumbnail.qml             → .ck .lead img（sourceSize 128；失败 → IMG 占位块）
+    ClipboardImagePreview.qml          → mode=preview（.pv 区，↑↓ 仍可换条目）
+    ClipboardEditor.qml                → mode=editor（返回 / 关闭，Cancel + Save 分裂按钮：Save / Save and close / Save and paste）
+    ClipboardContextMenu.qml           → .cm 右键菜单（右键或 Menu 键）
+    ClipboardKeyboardController.qml    → onKey()（handleKey / handlePreviewKey 一一对应，见 c-island.js）
+    ClipboardKeyboardHints.qml         → .hint（F10，默认隐藏）
+    ClipboardActions.qml / ClipboardService.qml → ACT.*（copy/paste/pin/unpin/delete/deletePinned/clearAll/clearFiltered）
+    清空 / 删除置顶的确认对话框          → mode=confirm：POWER 页同款按住 1s（--p 进度，红色只出现在这里）
+  QML 动效：岛宽高 = SpringAnimation（spring≈3.2 damping≈.28 ≈ CSS --soft），面内容 Behavior on opacity 延迟 60ms；
+    行展开 = NumberAnimation on height（.ck .ex 的 grid-rows 0fr→1fr）；其余只动 opacity / transform / clip-path。
+  URL：?static=1 ?state= ?tab=saved ?sel=N ?mode=preview|editor|confirm|empty|offline ?q= ?filter=all|text|long|image ?w=1706
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Island</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="c-island.css">
+</head>
+<body>
+<div id="stage">
+  <div class="deskc"><img class="desk" src="../shared/desk.jpg" alt="" onerror="this.remove()"></div>
+  <div id="wins"></div>
+  <div id="isl" data-s="open">
+    <div class="face fi" data-f="idle"><span class="d tm" id="tm">16:29</span></div>
+    <div class="face ft" data-f="toast"></div>
+    <div class="face fp" data-f="open"><div class="pin" id="panel"></div></div>
+  </div>
+</div>
+<div id="dock"></div>
+<script src="c-island.js"></script>
+</body>
+</html>
