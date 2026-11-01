@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P3 Quiet Lock</title>
+<link rel="stylesheet" href="lock.css">
+</head>
+<body>
+<div id="stage">
+  <!-- 解锁后露出的桌面占位层 -->
+  <section id="desk" aria-hidden="true">
+    <div class="desk-time d" id="deskTime">00:00</div>
+    <div class="desk-hint l">DESKTOP PLACEHOLDER · PRESS L TO LOCK AGAIN</div>
+  </section>
+
+  <!-- 锁屏层：水下背景是唯一的渐变 -->
+  <section id="lock">
+    <div class="bg" id="bg">
+      <img src="../../assets/bg.png" alt="">
+      <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+        <filter id="cq-caus" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+          <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+        </filter>
+        <rect width="1300" height="520" filter="url(#cq-caus)"/>
+      </svg>
+      <div class="rays"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="bubbles" id="bubbles"></div>
+    </div>
+
+    <!-- 时间 + 日期：空闲时唯一可见的内容 -->
+    <div id="clock">
+      <div class="time d" id="time">00:00</div>
+      <div class="date l" id="date"><span id="md">1/1</span><b class="sep"></b><span id="dow">MON</span><b class="sep"></b><span id="tod">EVENING</span></div>
+    </div>
+
+    <!-- 输入区：首次按键后错开进场 -->
+    <div id="auth">
+      <div class="who"><span class="user d" id="user">lyfmt</span><span class="host l" id="host">@ly-001</span></div>
+      <div class="field" id="field">
+        <div class="glyphs" id="glyphs"></div><i class="caret" id="caret"></i>
+        <span class="caps l" id="caps">CAPS LOCK</span>
+        <i class="rule"></i>
+      </div>
+      <div class="status l" id="status">TYPE PASSWORD · ENTER</div>
+    </div>
+
+    <!-- 电源：一行键位提示 + 竖排文字列表 -->
+    <div id="power">
+      <ul class="plist" id="plist" role="menu">
+        <li class="pi" role="menuitem" data-act="poweroff"><span class="w"></span><span class="t d" data-t="POWER OFF">POWER OFF</span><span class="sure l">ENTER AGAIN</span></li>
+        <li class="pi" role="menuitem" data-act="reboot"><span class="w"></span><span class="t d" data-t="REBOOT">REBOOT</span><span class="sure l">ENTER AGAIN</span></li>
+        <li class="pi" role="menuitem" data-act="suspend"><span class="w"></span><span class="t d" data-t="SUSPEND">SUSPEND</span><span class="sure l">ENTER AGAIN</span></li>
+      </ul>
+      <button class="hint l" id="hint" type="button"><kbd>TAB</kbd> POWER</button>
+    </div>
+
+    <div class="toast l" id="toast"></div>
+  </section>
+
+  <!-- 解锁扫过的楔形 -->
+  <div id="sweep" aria-hidden="true"><i class="r"></i><i class="w"></i></div>
+</div>
+<script src="lock.js"></script>
+</body>
+</html>

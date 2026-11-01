@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lock Column</title>
+<link rel="stylesheet" href="lock.css">
+</head>
+<body>
+<!-- 方案 b-column：P3R 主菜单斜列。用户名 / 密码 / POWER 三个大字沿头发斜排，选中项白楔 + 红残影。
+     调试参数：?static  ?theme=lavender  ?state=idle|typing|verify|error|power|confirm|caps|desktop  ?caps -->
+<div id="stage">
+  <div id="desktop"><span class="l">DESKTOP</span><span class="zh">（占位：真实桌面）· 按任意键重新锁定</span></div>
+  <div id="lock">
+    <div class="bg" id="bg">
+      <img src="../../assets/bg.png" alt="">
+      <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+        <filter id="cf" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#cf)"/>
+      </svg>
+      <div class="rays"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="bubbles" id="bubbles"></div>
+    </div>
+    <div class="clock" id="clock"><div class="d hm" id="hm">00:00</div><div class="l sub" id="sub"></div></div>
+    <div id="col">
+      <div id="shake">
+        <div class="hl r" id="hlR"><i></i></div><div class="hl w" id="hlW"><i></i></div>
+        <div class="it user" id="user" style="--x:1196px;--y:250px;--r:-10deg">
+          <div class="l kick" id="host"></div>
+          <div class="d tx" id="uname"></div>
+        </div>
+        <div id="rows"></div>
+        <div class="l caps" id="caps">CAPS LOCK</div>
+        <div class="status" id="status"><span class="l tag" id="stTag"></span><span class="zh" id="stZh"></span></div>
+      </div>
+    </div>
+  </div>
+  <div id="sweep"><i class="r"></i><i class="w"></i></div>
+</div>
+<script src="lock.js"></script>
+</body>
+</html>

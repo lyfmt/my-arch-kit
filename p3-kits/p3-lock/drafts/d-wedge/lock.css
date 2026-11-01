@@ -1,0 +1,210 @@
+@font-face { font-family: "P3"; src: url("../../assets/fonts/NunitoSans-BlackItalic-latin.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../../assets/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* ============================================================
+   P3 LOCK · d-wedge
+   规则（继承 p3-shell/shared/p3.css，但更克制）：
+   - 唯一渐变 = 背景的水（图 + 光束 + 焦散 + 气泡）；其余平涂
+   - 不画任何面板 / 卡片 / 边框盒。画面上只有：时间、用户名、密码楔形、一行状态、一行按键
+   - 唯一的斜形 = 白楔 + 红残影。这里白楔就是密码框本身；电源菜单的选中项借用同一套形状
+   - .d 展示字只给名词和数字；.l 标签字给其余；.zh 中文
+   - 预算花在动效：入场错峰、字块落入、验证水流、错误闪红抖动、解锁楔形铺满后擦走
+   ============================================================ */
+:root {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff;
+  --dim: rgba(163,240,255,.62); --line: rgba(163,240,255,.22);
+  --red: #e3121b; --shard: #fff;
+  --e-out: cubic-bezier(.16,1,.3,1); --e-snap: cubic-bezier(.3,1.35,.4,1); --e-io: cubic-bezier(.65,0,.35,1);
+  --d-fast: 160ms; --d-med: 320ms; --d-slow: 600ms;
+  /* 楔形几何：左低右高的四边形（同 p3-shell 的 .li.sel 楔形，压扁成输入条） */
+  --wedge: polygon(0 18%, 100% 0, 97% 100%, 2% 90%);
+  --echo:  polygon(0 30%, 100% 0, 96% 100%, 4% 100%);
+}
+[data-theme="lavender"] {
+  --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff;
+  --dim: rgba(208,188,255,.62); --line: rgba(208,188,255,.24);
+  --red: #ff3d6e;
+}
+[data-theme="lavender"] .bg img { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000510; }
+body { user-select: none; -webkit-user-select: none; color: var(--tx); cursor: default; }
+.d { font-family: "P3", sans-serif; font-style: italic; font-weight: 900; line-height: .86; letter-spacing: -.01em; }
+.l { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; line-height: 1; }
+.zh { font-family: "Noto Sans CJK SC", "Noto Sans SC", sans-serif; font-weight: 500; letter-spacing: .08em; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px; overflow: hidden; }
+.lock { position: absolute; inset: 0; }
+
+/* ---------- 背景（照搬 p3-shell） ---------- */
+.bg { position: absolute; inset: -30px; transition: transform .9s var(--e-out); }
+.bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rays { position: absolute; left: 900px; top: -80px; width: 1100px; height: 900px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 15%, transparent 70%); mask-image: linear-gradient(200deg, #000 15%, transparent 70%); }
+.rays i { position: absolute; top: 0; height: 1000px; background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 85%);
+  transform-origin: 50% 0; rotate: 24deg; animation: sway 12s ease-in-out infinite alternate; }
+.rays i:nth-child(1) { left: 260px; width: 40px; animation-duration: 14s; }
+.rays i:nth-child(2) { left: 420px; width: 90px; opacity: .6; }
+.rays i:nth-child(3) { left: 610px; width: 26px; animation-duration: 9s; }
+.rays i:nth-child(4) { left: 720px; width: 70px; opacity: .5; animation-duration: 16s; }
+.rays i:nth-child(5) { left: 900px; width: 34px; animation-duration: 11s; }
+@keyframes sway { from { transform: skewX(-5deg); opacity: .55; } to { transform: skewX(6deg); opacity: 1; } }
+.caustic { position: absolute; left: 820px; top: -60px; width: 1300px; height: 520px; opacity: .2; mix-blend-mode: screen; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 20%, transparent 90%); mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+  animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { to { translate: -90px 26px; } }
+.bubbles i { position: absolute; border-radius: 50%; border: 2px solid rgba(190,245,255,.75); opacity: 0; animation: rise linear infinite; }
+@keyframes rise { 0% { transform: translate(0,0); opacity: 0; } 12% { opacity: .7; } 50% { transform: translate(14px,-480px); } 85% { opacity: .4; } 100% { transform: translate(-6px,-960px); opacity: 0; } }
+
+/* ---------- 入场：每个元素自带 --i，从右侧擦入 ---------- */
+.in { animation: enter var(--d-slow) var(--e-out) backwards; animation-delay: calc(var(--i, 0) * 70ms + 160ms); }
+@keyframes enter { from { opacity: 0; translate: 80px 0; clip-path: inset(0 0 0 100%); } }
+
+/* ---------- 右上：时间（亮水区，用 ink） ---------- */
+.clock { position: absolute; right: 92px; top: 60px; text-align: right; color: var(--ink); }
+.clock .hm { font-size: 188px; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.clock .colon { display: inline-block; margin: 0 2px; translate: 0 -8px; animation: blink 2s steps(1) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.clock .day { display: flex; justify-content: flex-end; gap: 18px; margin-top: 12px; font-size: 24px; }
+.clock .tod { opacity: .6; }
+
+/* ---------- 用户名：楔形上方的展示字 ---------- */
+.who { position: absolute; left: 1004px; top: 452px; display: flex; align-items: baseline; gap: 22px;
+  transition: translate var(--d-slow) var(--e-out), opacity var(--d-med); }
+.who .name { font-size: 112px; color: var(--tx); }
+.who .host { font-size: 20px; color: var(--dim); }
+
+/* ---------- 空闲提示：未唤醒时代替楔形 ---------- */
+.hint { position: absolute; left: 1010px; top: 604px; font-size: 22px; color: var(--dim);
+  transition: opacity var(--d-med), translate var(--d-med) var(--e-out); animation: breathe 3.2s var(--e-io) infinite; }
+@keyframes breathe { 50% { opacity: .35; } }
+body.awake .hint { opacity: 0; translate: -30px 0; animation: none; }
+
+/* ---------- 密码楔形 ---------- */
+.field { position: absolute; left: 1000px; top: 586px; width: 660px; height: 96px; cursor: text;
+  transform-origin: 0 50%; }
+.field .body { position: absolute; inset: 0; background: var(--shard); clip-path: var(--wedge); overflow: hidden;
+  transition: clip-path var(--d-slow) var(--e-out); }
+.field .echo { position: absolute; left: -26px; top: -14px; width: 46%; height: 110%; background: var(--red);
+  clip-path: polygon(0 74%, 100% 0, 84% 40%); transition: translate var(--d-med) var(--e-out), opacity var(--d-med); }
+/* 未唤醒：楔形收成左端一条缝，红残影藏起 */
+body:not(.awake) .field .body, body.pw .field .body { clip-path: polygon(0 18%, 0 18%, 0 90%, 0 90%); }
+body:not(.awake) .field .echo, body.pw .field .echo { opacity: 0; translate: -30px 12px; }
+body.awake .field .echo { transition-delay: 120ms; }
+
+.field .ph { position: absolute; left: 62px; top: 40px; font-size: 20px; color: var(--ink); opacity: .38; transition: opacity var(--d-fast); }
+.field.has .ph { opacity: 0; }
+.glyphs { position: absolute; left: 44px; top: 30px; height: 46px; display: flex; gap: 12px; }
+/* 每个字符 = 一块 ink 斜块，从上方落入并回弹 */
+.glyphs i { width: 20px; height: 46px; background: var(--ink); clip-path: polygon(34% 0, 100% 0, 66% 100%, 0 100%);
+  animation: drop 260ms var(--e-snap) backwards; }
+@keyframes drop { from { translate: 0 -70px; scale: 1 1.4; opacity: 0; } }
+.glyphs i.out { animation: lift 180ms var(--e-out) forwards; }
+@keyframes lift { to { translate: 0 -40px; opacity: 0; } }
+.glyphs i.fall { animation: fall 420ms cubic-bezier(.5,0,.9,.4) forwards; animation-delay: calc(var(--k) * 18ms); }
+@keyframes fall { to { translate: var(--dx) 140px; rotate: var(--rot); opacity: 0; } }
+.caret { position: absolute; left: var(--cx, 44px); top: 26px; width: 4px; height: 54px; background: var(--red);
+  transition: left 140ms var(--e-out); animation: cblink 1s steps(1) infinite; rotate: 14deg; }
+@keyframes cblink { 50% { opacity: 0; } }
+body:not(.awake) .caret, .field.busy .caret { opacity: 0; animation: none; }
+
+/* 楔形整体在字数变化时轻轻一顶 */
+.field.bump .body { animation: bump 200ms var(--e-snap); }
+@keyframes bump { 40% { transform: scale(1.012, 1.08); } }
+
+/* 验证中：--fill 水从左往右斜向灌过楔形，循环 */
+.field .water { position: absolute; inset: 0; background: var(--fill); opacity: 0;
+  clip-path: polygon(-30% 0, -10% 0, -20% 100%, -40% 100%); }
+.field.busy .water { opacity: 1; animation: flow 820ms var(--e-io) infinite; }
+@keyframes flow { to { clip-path: polygon(110% 0, 140% 0, 120% 100%, 90% 100%); } }
+.field.busy .glyphs i { animation: wave 820ms var(--e-io) infinite; animation-delay: calc(var(--k) * 40ms); }
+@keyframes wave { 50% { translate: 0 -8px; } }
+
+/* 错误：红残影胀开闪两下，楔形横向抖动 */
+.field.err { animation: shake 420ms cubic-bezier(.36,.07,.19,.97); }
+@keyframes shake { 15% { translate: -18px 0; } 35% { translate: 14px 0; } 55% { translate: -9px 0; } 75% { translate: 5px 0; } }
+.field.err .echo { animation: flash 560ms var(--e-out); }
+@keyframes flash { 0%, 40% { translate: 10px 4px; scale: 2.25 1.5; } 20%, 60% { opacity: .35; } }
+.field.err .body { background: color-mix(in srgb, var(--shard) 80%, var(--red)); transition: background 0s; }
+
+/* ---------- 状态行（楔形正下方，一行字） ---------- */
+.status { position: absolute; left: 1032px; top: 712px; display: flex; align-items: baseline; gap: 18px; height: 24px; }
+.status .msg { font-size: 22px; color: var(--dim); transition: color var(--d-fast); }
+.status .sub { font-size: 16px; color: var(--dim); }
+.status .caps { font-size: 18px; color: var(--ink); background: var(--fill); padding: 4px 10px 3px; display: none; }
+body.caps .status .caps { display: inline-block; animation: enter var(--d-med) var(--e-out); }
+.status.err .msg { color: var(--red); }
+.status.err .msg, .status.swap .msg, .status.err .sub, .status.swap .sub { animation: msgin var(--d-med) var(--e-out); }
+@keyframes msgin { from { opacity: 0; translate: 0 10px; clip-path: inset(0 0 100% 0); } }
+body:not(.awake) .status { opacity: 0; }
+
+/* ---------- 底部按键提示（唯一的辅助行） ---------- */
+.keys { position: absolute; right: 92px; bottom: 54px; display: flex; gap: 34px; font-size: 16px; }
+.keys span { display: flex; align-items: center; gap: 10px; color: var(--dim); cursor: pointer; }
+.keys kbd { font: inherit; font-family: "BarlowC"; letter-spacing: .14em; color: var(--tx); }
+.keys .zh { font-size: 14px; }
+.keys span:hover kbd { color: var(--fill); }
+
+/* ---------- 电源：右下三词，选中项套白楔 ---------- */
+.power { position: absolute; right: 92px; bottom: 120px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  pointer-events: none; }
+.power .it { position: relative; display: flex; align-items: baseline; gap: 16px; padding: 10px 22px 8px 28px; cursor: pointer;
+  opacity: 0; translate: 60px 0; clip-path: inset(-40px -40px -40px 100%);
+  transition: opacity var(--d-med), translate var(--d-slow) var(--e-out), clip-path var(--d-slow) var(--e-out); }
+.power .it .d { position: relative; z-index: 1; font-size: 54px; color: var(--tx); transition: color var(--d-fast) 60ms; }
+.power .it .l { position: relative; z-index: 1; font-size: 16px; color: var(--dim); min-width: 100px; text-align: right; transition: color var(--d-fast); }
+.power .it::before, .power .it::after { content: ""; position: absolute; z-index: 0; opacity: 0; pointer-events: none; }
+.power .it::before { inset: 0; background: var(--shard); clip-path: polygon(0 26%, 100% 0, 98% 100%, 4% 92%); }
+.power .it::after { left: -16px; top: -14px; width: 40%; height: 80%; background: var(--red); clip-path: polygon(0 92%, 100% 0, 82% 36%); }
+.power .it.sel::before { opacity: 1; animation: wedgein var(--d-med) var(--e-out); }
+.power .it.sel::after { opacity: 1; animation: shard var(--d-med) var(--e-snap) 40ms backwards; }
+@keyframes wedgein { from { clip-path: polygon(0 26%, 0 26%, 4% 92%, 4% 92%); } }
+@keyframes shard { from { opacity: 0; translate: -24px 10px; } }
+.power .it.sel .d, .power .it.sel .l { color: var(--ink); }
+.power .it.armed::after { width: 52%; height: 70%; top: -22px; left: -26px; transition: all var(--d-med) var(--e-snap); }
+.power .it.armed .l { color: var(--red); background: var(--shard); padding: 3px 6px; margin: -3px -6px; }
+body.pw .power { pointer-events: auto; }
+body.pw .power .it { opacity: 1; translate: 0 0; clip-path: inset(-40px -40px -40px -40px); }
+body.pw .power .it:nth-child(2) { transition-delay: 0s, 50ms, 50ms; }
+body.pw .power .it:nth-child(3) { transition-delay: 0s, 100ms, 100ms; }
+/* 电源打开时，楔形和用户名退到背景 */
+body.pw .who { opacity: .35; }
+body.pw .status { opacity: 0; }
+.who { transition: opacity var(--d-med), translate var(--d-slow) var(--e-out); }
+.field, .status { transition: opacity var(--d-med); }
+
+/* ---------- 解锁：楔形铺满屏幕再向右擦走 ---------- */
+.desk { position: absolute; inset: 0; background: #0b1020; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; visibility: hidden; }
+.desk .l { font-size: 64px; color: #3a4670; }
+.desk .zh { font-size: 18px; color: #3a4670; }
+.sweep { position: absolute; inset: 0; pointer-events: none; visibility: hidden; }
+.sweep i { position: absolute; inset: 0; }
+.sweep .w { background: var(--shard); }
+.sweep .r { background: var(--red); }
+/* 第一段：从楔形所在的四边形长到全屏（坐标 = .field 的 --wedge 换算到舞台像素） */
+body.unlock .sweep { visibility: visible; }
+body.unlock .sweep .w { animation: grow 520ms var(--e-io) both, wipe 560ms var(--e-io) 600ms forwards; }
+/* 红残影在白楔下层：铺开时略领先露出边缘，擦走时慢一拍，形成白→红→桌面的两段 */
+body.unlock .sweep .r { animation: growR 500ms var(--e-io) both, wipe 600ms var(--e-io) 720ms forwards; }
+@keyframes grow {
+  from { clip-path: polygon(1000px 603px, 1660px 586px, 1640px 682px, 1013px 672px); }
+  to   { clip-path: polygon(-300px -200px, 2220px -200px, 2220px 1280px, -300px 1280px); } }
+@keyframes growR {
+  from { clip-path: polygon(974px 643px, 1278px 572px, 1227px 616px, 974px 643px); }
+  to   { clip-path: polygon(-300px -200px, 2220px -200px, 2220px 1280px, -300px 1280px); } }
+/* 第二段：斜边向右扫出，露出桌面；红残影慢一拍跟在后面 */
+@keyframes wipe {
+  from { clip-path: polygon(-300px -200px, 2220px -200px, 2220px 1280px, -300px 1280px); }
+  to   { clip-path: polygon(2400px -200px, 2220px -200px, 2220px 1280px, 2000px 1280px); } }
+body.revealed .lock { display: none; }
+body.revealed .desk { visibility: visible; animation: surface 900ms var(--e-out) 500ms backwards; }
+@keyframes surface { from { scale: 1.04; filter: brightness(1.6); } }
+
+/* ---------- 截图模式 ---------- */
+.static *, .static *::before, .static *::after { animation-duration: 0s !important; animation-delay: 0s !important;
+  transition-duration: 0s !important; transition-delay: 0s !important; }
+.static .bubbles i { opacity: .35; }
+.static .clock .colon { opacity: 1; }
+/* 截图冻结验证态：水停在楔形中段 */
+.static .field.busy .water { animation: none !important; clip-path: polygon(34% 0, 62% 0, 54% 100%, 26% 100%); }
