@@ -1,0 +1,8 @@
+// P3 桌面歌词（~/.config/quickshell/p3lyrics），读 music 卡片后端的歌词，只读、点击穿透
+// 默认显示在启动时聚焦的屏幕；要固定某块屏改成 "env" "P3LYRICS_SCREEN=HDMI-A-1" "qs" "-c" "p3lyrics" "-d"
+spawn-at-startup "qs" "-c" "p3lyrics" "-d"
+
+binds {
+    Mod+Alt+K hotkey-overlay-title="桌面歌词 显示/隐藏" { spawn "qs" "ipc" "-c" "p3lyrics" "call" "p3lyrics" "toggle"; }
+    Mod+Alt+T hotkey-overlay-title="桌面歌词 翻译开关" { spawn "qs" "ipc" "-c" "p3lyrics" "call" "p3lyrics" "trans"; }
+}
