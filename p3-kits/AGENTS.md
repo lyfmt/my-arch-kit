@@ -4,5 +4,6 @@
 
 | 目录 | 说明 | 状态 |
 | --- | --- | --- |
-| [`dms-p3/`](dms-p3/AGENTS.md) | DMS 改造：灵动岛顶栏 + 全屏菜单，基于 DMS 2.0，与 `dms-p5` 只能启用一个 | 浏览器原型和接入逻辑已写全，QML 移植未开始，暂不能安装 |
-| [`p3-lyrics/`](p3-lyrics/AGENTS.md) | 桌面歌词（RIPTIDE），之后接入 `music/` | 静态原型 |
+| [`dms-p3/`](dms-p3/AGENTS.md) | DMS 改造：灵动岛顶栏 + 全屏菜单，基于 DMS 2.0，与 `dms-p5` 只能启用一个 | QML 已移植（菜单五页 + 灵动岛气泡串），可安装：`enable.sh` / `disable.sh`（会重启 DMS；停用时还原启用前的 `settings.json`） |
+| [`p3-lock/`](p3-lock/AGENTS.md) | 锁屏（水下上浮），独立 Quickshell 进程，经 DMS Custom Lock Command 拉起，替代 `p5lock` | 已安装到 `~/.config/quickshell/p3lock/` 并接入 DMS：`customPowerActionLock` → `~/.config/quickshell/p3lock/p3lock.sh`，真锁屏已测试 |
+| [`p3-lyrics/`](p3-lyrics/AGENTS.md) | 桌面歌词（RIPTIDE），独立实例 `qs -c p3lyrics`，只读接入 `music/` | QML 版已完成，已安装并在运行（`qs -c p3lyrics`） |
