@@ -1,0 +1,19 @@
+--- a/DMSShell.qml
++++ b/DMSShell.qml
+@@ -26,6 +26,7 @@
+ import qs.Modules.WorkspaceOverlays
+ import qs.Modules.Settings.DisplayConfig
+ import qs.Services
++import qs.Modules.P3
+ 
+ Item {
+     id: root
+@@ -33,6 +34,8 @@
+     readonly property var _nightModeServiceRef: NightModeService
+     readonly property var _brightnessServiceRef: BrightnessService
+     readonly property var _refreshRateServiceRef: RefreshRateService
++    // dms-p3：引用一次 P3Menu 单例，让 p3menu IPC 在启动时注册
++    readonly property var _p3MenuRef: P3Menu
+ 
+     property var core: null
+ 
