@@ -1,0 +1,11 @@
+[Unit]
+Description=定时轮换分屏壁纸（每 5 分钟一张）
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

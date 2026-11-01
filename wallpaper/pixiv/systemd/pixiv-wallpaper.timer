@@ -1,0 +1,11 @@
+[Unit]
+Description=定时爬取 Pixiv 横版壁纸
+
+[Timer]
+# 每天 03:30 跑一次（错过了关机时段会在下次开机补跑）
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=20min
+
+[Install]
+WantedBy=timers.target

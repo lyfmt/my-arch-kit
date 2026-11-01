@@ -1,0 +1,101 @@
+# ============================================================
+# 复制为同目录的 config.toml 后再修改：cp config.example.toml config.toml
+# config.toml 已被 .gitignore 忽略，不要提交。
+#  Pixiv 壁纸同步配置
+#  数据源: https://pixiv.pictures/ 的登录态
+#  认证走 localStorage["PXV_NOW_COOKIE"] (PHPSESSID)，接口走
+#  api.cocomi.eu.org 代理的 Pixiv App API。
+#
+#  同步内容:
+#    1. 我的收藏（Pixiv 公开收藏）        -> 收藏/
+#    2. 我关注的画师（每位画师的近期作品） -> 关注/<画师>/
+#  自动化: 只增量拉取「新增收藏」和「新关注的画师」。
+# ============================================================
+
+[auth]
+# 登录态缓存文件（从浏览器提取后写在这里，避免每次都开浏览器）
+cache = "~/.config/pixiv-wallpaper/auth.json"   # 登录态缓存（程序自动生成，0600；切勿提交到仓库）
+# 从 agent-chrome 提取登录态的脚本
+fetch_script = "~/Projects/pixiv-wallpaper/get-session.sh"   # 改成你的安装目录
+# 代理 API 基址（一般不用改）
+api_base = "https://api.cocomi.eu.org/api/pixiv-now"
+origin  = "https://pixiv.pictures"
+referer = "https://pixiv.pictures/"
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+
+[download]
+# 壁纸根目录。收藏/关注 的子目录会创建在这里面。
+root = "~/Pictures/Wallpapers/Pixiv"
+
+# ---- 尺寸校验 ----
+# 只保留横版(宽>高)、分辨率达标、且宽高比接近任一屏幕的图像。
+# 尺寸差得多的（竖图、方图、超宽全景）直接不下载。
+min_width  = 1280      # 最小宽度(px)
+min_height = 720       # 最小高度(px)
+# 宽高比下限：低于它就太方/太竖（默认按最窄的屏幕 x (1-tolerance) 自动算）。
+# 宽高比上限：超宽全景允许到多少；超过才算极端比例、才不下载。
+#   1.6   = 16:10      1.778 = 16:9      2.0 = 2:1      3.0 = 3:1
+max_aspect = 3.5       # 2:1 / 3:1 这种超宽全景也会下载；>3.5 才跳过
+# 允许的宽高比下限 = 屏幕比例 - aspect_tolerance（相对误差）。
+# 屏幕比例留空则用 niri 自动探测；示例（按你的屏幕改）：
+#   <型号A>  2560x1600 = 1.600   (例：笔记本内屏)
+#   <型号B>  2560x1440 = 1.778   (例：外接屏)
+# 屏幕标识推荐写「显示器型号」（niri msg --json outputs 里的 model），
+# 因为输出名会在 eDP-1/eDP-2 之间漂移，而型号稳定；写输出名也兼容。
+screens = []   # 例：["<显示器型号A>", "<显示器型号B>"]，取自 niri msg --json outputs 的 model；[] = 按已连接输出自动探测
+screen_aspects = [1.600, 1.778]   # 与 screens 一一对应；留空 [] = 用 niri 自动探测
+aspect_tolerance = 0.20   # 0.20 = 下限放宽到屏幕比例的 80%（1.28）
+max_file_mb = 40          # 单张原图超过此大小则跳过（0 = 不限制）
+
+# ---- 内容筛选 ----
+allow_r18 = false          # false = 跳过 R-18 / R-18G（壁纸会公开显示，默认关）
+skip_ai   = false          # true = 跳过 AI 生成的作品
+exclude_tags = []          # 命中任一 tag 的作品会被跳过（大小写不敏感）
+
+# ---- 每轮限制 / 礼貌抓取 ----
+max_new_per_run = 0        # 每轮最多新增下载张数，0 = 不限制
+download_delay  = 1.0      # 每张图下载后的间隔秒数
+timeout         = 20       # 单次请求超时（秒）
+retries         = 3        # API 重试次数
+include_title   = true
+title_max_len   = 40
+
+[bookmarks]
+enabled = true
+folder  = "收藏"
+
+[following]
+enabled = true
+folder  = "关注"
+# 接口给每位画师回传的近期作品预览（一般为 4 个）
+recent_per_artist = 4
+
+# ============================================================
+#  分屏壁纸轮换
+#  定时器每 5 分钟换一次（见 systemd/pixiv-wallpaper-rotate.timer）。
+#  两块屏取自互不相交的目录，永远不一样。
+# ============================================================
+[rotation]
+enabled = true
+dir = "~/Pictures/Wallpapers/Pixiv-rotation"
+# 用显示器型号标识屏幕（稳定），也可写输出名。脚本会按当前实际连接的
+# 输出解析，未列出的已连接屏幕会自动追加，所以不会因 eDP-1/eDP-2 改名而失效。
+screens = []   # 例：["<显示器型号A>", "<显示器型号B>"]，取自 niri msg --json outputs 的 model；[] = 按已连接输出自动探测
+
+# ============================================================
+#  壁纸回收站
+#  在 Mod+Y（kitty 壁纸选择器）里选中一张图按 d，即可移入回收站。
+#  * 回收站里的图不会再被同步脚本下载回来（永久屏蔽）
+#  * 超过 retention_days 天后，定时任务会自动清除文件
+#  查看/还原:  wallpaper-trash list / wallpaper-trash restore <key>
+# ============================================================
+[trash]
+# 回收站目录，留空则默认 <download.root>/.trash
+dir = "~/Pictures/Wallpapers/Pixiv/.trash"
+retention_days = 3
+
+[images]
+# 原图下载镜像，按顺序尝试（i.pximg.net 直连常被墙/超时，放最后兜底）
+hosts = ["i.loli.best", "img.rika.club", "i.pixiv.re", "i.pximg.net"]
+referer = "https://www.pixiv.net/"
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"

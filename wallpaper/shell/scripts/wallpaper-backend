@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""wallpaper 组件的后端：扫描壁纸库、查询/设置 DMS 壁纸、调用 wallpaper-trash。
+
+用法（所有输出都是一行 JSON，失败时 {"ok":false,"error":...} 且退出码 1）:
+  wallpaper-backend list                  # {"ok":true,"items":[{path,title,pid,page,ext}...]}
+  wallpaper-backend current <output>      # {"ok":true,"path":<真实路径或 null>}
+  wallpaper-backend state <output>        # list + current 合在一次调用里（覆盖层打开时用）
+  wallpaper-backend set <output> <path>   # dms ipc call wallpaper setFor <output> <path>
+  wallpaper-backend trash <path>          # wallpaper-trash put <path> --json
+  wallpaper-backend restore <key>         # wallpaper-trash restore <key> --json
+
+壁纸目录读取 ~/.config/wallpaper-picker/config.toml 的 roots / exclude_dirs
+（与 wallpaper-picker 共用），没有配置时用 ~/Pictures/Wallpapers。
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    tomllib = None  # type: ignore
+
+HOME = Path.home()
+CONFIG_PATH = HOME / ".config" / "wallpaper-picker" / "config.toml"
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp", ".jxl"}
+SKIP_DIRS = {".trash", ".state", ".tmp", "Pixiv-rotation", ".git"}
+NAME_RE = re.compile(r"^(\d+)_p(\d+)(?:_(.*))?$")
+
+
+def out(obj: dict, code: int = 0) -> None:
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    sys.exit(code)
+
+
+def fail(msg: str) -> None:
+    out({"ok": False, "error": msg}, 1)
+
+
+def expand(p: str) -> Path:
+    return Path(os.path.expanduser(os.path.expandvars(str(p))))
+
+
+def run(cmd: list[str], timeout: float = 15.0) -> tuple[int, str]:
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, (p.stdout or "") + (p.stderr or "")
+    except FileNotFoundError:
+        return 127, f"未找到命令: {cmd[0]}"
+    except subprocess.TimeoutExpired:
+        return 124, "命令超时"
+
+
+def load_config() -> dict:
+    cfg = {"roots": ["~/Pictures/Wallpapers"], "exclude_dirs": []}
+    if tomllib and CONFIG_PATH.exists():
+        try:
+            raw = tomllib.loads(CONFIG_PATH.read_text("utf-8"))
+            for k in cfg:
+                if k in raw:
+                    cfg[k] = raw[k]
+        except Exception:  # noqa: BLE001
+            pass
+    return cfg
+
+
+def meta_for(img: Path) -> dict:
+    """标题与 Pixiv 信息：优先读同名 .json，退回到文件名 <id>_p<n>_<title>。"""
+    m = NAME_RE.match(img.stem)
+    pid, page, title = (m.group(1), "p" + m.group(2), m.group(3) or "") if m else ("", "", img.stem)
+    side = img.with_suffix(".json")
+    if side.is_file():
+        try:
+            d = json.loads(side.read_text("utf-8"))
+            title = str(d.get("title") or title)
+            pid = str(d.get("id") or pid)
+            if d.get("page") is not None:
+                page = "p" + str(d["page"])
+        except Exception:  # noqa: BLE001
+            pass
+    return {"title": title, "pid": pid, "page": page}
+
+
+def scan() -> list[dict]:
+    cfg = load_config()
+    exclude = SKIP_DIRS | set(cfg.get("exclude_dirs") or [])
+    seen: dict[str, Path] = {}
+    for root in cfg.get("roots") or []:
+        root = expand(root)
+        if not root.is_dir():
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(d for d in dirnames if d not in exclude and not d.startswith("."))
+            for fn in filenames:
+                p = Path(dirpath) / fn
+                if p.suffix.lower() not in IMAGE_EXTS or fn.startswith("."):
+                    continue
+                try:
+                    real = p.resolve(strict=True)
+                except OSError:
+                    continue
+                seen.setdefault(str(real), real)
+    items = []
+    for key in sorted(seen, key=str.lower):
+        real = seen[key]
+        it = {"path": key, "ext": real.suffix.lstrip(".").upper()}
+        it.update(meta_for(real))
+        items.append(it)
+    return items
+
+
+def cmd_list() -> None:
+    out({"ok": True, "items": scan()})
+
+
+def current(screen: str) -> str | None:
+    rc, text = run(["dms", "ipc", "call", "wallpaper", "getFor", screen], timeout=5)
+    if rc != 0:
+        raise RuntimeError(text.strip() or f"dms 返回 {rc}")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    last = lines[-1] if lines else ""
+    path = None
+    if last and not last.startswith("#"):  # "#rrggbb" 是纯色壁纸
+        p = expand(last)
+        if p.exists():
+            path = str(p.resolve())
+    return path
+
+
+def cmd_current(screen: str) -> None:
+    try:
+        out({"ok": True, "path": current(screen)})
+    except RuntimeError as e:
+        fail(str(e))
+
+
+def cmd_state(screen: str) -> None:
+    try:
+        cur = current(screen)
+    except RuntimeError:
+        cur = None  # DMS 没响应时照样打开，只是不知道当前壁纸
+    out({"ok": True, "items": scan(), "current": cur})
+
+
+def cmd_set(screen: str, path: str) -> None:
+    p = expand(path)
+    if not p.is_file():
+        fail(f"文件不存在: {path}")
+    rc, text = run(["dms", "ipc", "call", "wallpaper", "setFor", screen, str(p)])
+    if rc != 0:
+        fail(text.strip() or f"dms 返回 {rc}")
+    out({"ok": True, "path": str(p)})
+
+
+def trash_cli() -> str | None:
+    exe = shutil.which("wallpaper-trash")
+    if exe:
+        return exe
+    local = HOME / ".local" / "bin" / "wallpaper-trash"
+    return str(local) if local.exists() else None
+
+
+def cmd_trash(args: list[str]) -> None:
+    cli = trash_cli()
+    if not cli:
+        fail("找不到 wallpaper-trash 命令")
+    rc, text = run([cli, *args, "--json"])
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    try:
+        d = json.loads(lines[-1]) if lines else {}
+    except json.JSONDecodeError:
+        fail(text.strip() or f"wallpaper-trash 返回 {rc}")
+    if rc != 0 or not d.get("ok"):
+        fail(str(d.get("error") or text.strip() or f"wallpaper-trash 返回 {rc}"))
+    out(d)
+
+
+def main(argv: list[str]) -> None:
+    if not argv:
+        fail("缺少子命令: list | current | set | trash | restore")
+    cmd, rest = argv[0], argv[1:]
+    if cmd == "list" and not rest:
+        cmd_list()
+    elif cmd == "current" and len(rest) == 1:
+        cmd_current(rest[0])
+    elif cmd == "state" and len(rest) == 1:
+        cmd_state(rest[0])
+    elif cmd == "set" and len(rest) == 2:
+        cmd_set(rest[0], rest[1])
+    elif cmd == "trash" and len(rest) == 1:
+        cmd_trash(["put", rest[0]])
+    elif cmd == "restore" and len(rest) == 1:
+        cmd_trash(["restore", rest[0]])
+    else:
+        fail(f"参数错误: {' '.join(argv)}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
