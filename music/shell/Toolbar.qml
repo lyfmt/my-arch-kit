@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell.Widgets
 
-// 底部工具栏：上一曲/播放/下一曲 · 进度 · 时间 · 喜欢 · 收藏
+// 底部工具栏：上一曲/播放/下一曲 · 进度 · 时间 · 音量 · 播放方式 · 桌面歌词 · 喜欢 · 收藏
 Item {
     id: bar
 
@@ -174,6 +174,7 @@ Item {
                 Backend.setMode(next);
             }
         }
+        LyricsButton {}
         IconButton {
             icon: "favorite"
             filled: Backend.isLiked
