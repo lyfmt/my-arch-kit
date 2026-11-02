@@ -3,7 +3,7 @@ import Quickshell
 
 // 截帧用的测试壳：把 LyricsLayer 放进普通窗口（1920×1080 舞台、深色底），按 P3LYRICS_SHOTS 列出的时刻截图到 /tmp。
 //   P3LYRICS_DEMO=1 P3LYRICS_DEMO_SONG=1 P3LYRICS_SHOTS=2.2,3.0,6.0 qs -p shell/capture.qml
-// 截图名 /tmp/p3lyr-cap-<秒>.png；全部截完后退出。只用来调试，install.sh 不装它。
+// 截图名 /tmp/p3lyr-cap-<秒>.png；全部截完后退出。P3LYRICS_ZOOM 设歌词缩放（默认 1）。只用来调试，install.sh 不装它。
 ShellRoot {
     id: root
     readonly property var shots: (Quickshell.env("P3LYRICS_SHOTS") || "2,4").split(",").map(parseFloat)
@@ -28,7 +28,8 @@ ShellRoot {
                 transformOrigin: Item.TopLeft
                 music: Music
                 idleHidden: false
-                transDefault: Quickshell.env("P3LYRICS_TRANS") !== "0"
+                trans: Quickshell.env("P3LYRICS_TRANS") !== "0"
+                zoom: parseFloat(Quickshell.env("P3LYRICS_ZOOM")) || 1
             }
         }
     }

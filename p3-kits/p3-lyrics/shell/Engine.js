@@ -7,6 +7,7 @@
 //   目标 Tgt    每个字（tx/ty/sk）、翻译行的 .in（tx/ty）、浪刃（x/op）、水线容器与 .base（op）
 //               合成规则 = WAAPI 的 replace：基础值上依次叠加所有生效中的动画，后建的覆盖先建的
 // 时长单位 ms，歌词时间单位 s（与原型相同）。
+.import "Demo.js" as Demo
 
 // ---------------------------------------------------------------- 缓动
 function bez(x1, y1, x2, y2) {
@@ -59,8 +60,14 @@ var ST = {
     tr: { fs: 26, lh: 1.3, ls: .08, w: 500, it: false },
     by: { fs: 24, lh: 1.3, ls: .2, w: 700, it: false },
 };
-// 真实歌词没有手写的 '|' 换行：主句超过 MAXW（舞台像素，≈ 原型最长一行）时按宽度均分成多行
+// 真实歌词没有手写的 '|' 换行：主句超过 MAXW（舞台像素，≈ 原型最长一行）时按宽度均分成多行。
+// 放大到一行放不进屏幕时，按屏幕宽度收窄换行宽度。
 var MAXW = 980, MAXROWS = 3;
+var EDGE = 12;   // 整块离屏幕边缘至少留这么多（屏幕像素）
+function maxW() {
+    var k = lay.k > 0 ? lay.k : 1;
+    return lay.width > 0 ? Math.max(240, Math.min(MAXW, (lay.width - 2 * EDGE) / k - 40)) : MAXW;
+}
 
 // ---------------------------------------------------------------- 时间轴
 var clk = 0;
@@ -239,6 +246,24 @@ function desired(t) {
 }
 var NONE = { key: "none", kind: "none", i: -1, none: true };
 
+// 调整位置时停着一句不动的样句（不出第二道浪），拖的时候目标不会变：进入调整模式时取刚唱过的那句，
+// 还没开始唱就用第一句；没有歌词时用演示歌的第一句；歌词换了再重取
+var held = null;
+function sampleItem() {
+    var L = song ? song.lines : [], i = -1;
+    function has(x) { return !!(x.text && x.text.trim()); }
+    for (var j = L.length - 1; j >= 0; j--) if (L[j].t <= time && has(L[j])) { i = j; break; }
+    if (i < 0) for (var n = 0; n < L.length; n++) if (has(L[n])) { i = n; break; }
+    if (i < 0) {
+        var d = Demo.SONGS[0].lines[0];
+        return { key: "adj:demo", kind: "sample", i: -1, g: gen, hold: true, lat: isLat(d.text), ja: false,
+                 main: [d.text], sub: d.trans, punch: false };
+    }
+    var l = L[i];
+    return { key: "adj:" + gen + ":" + i, kind: "sample", i: i, g: gen, hold: true, lat: isLat(l.text), ja: song.ja,
+             main: l.text.split("|").map(function (s) { return s.trim(); }), sub: l.trans, punch: false };
+}
+
 // ---------------------------------------------------------------- 排版
 // 舞台坐标：#lyr 原点在 (1800, 844)，块的右下角贴着原点。块内坐标以块左上角为原点。
 var spaceCache = {};
@@ -285,9 +310,9 @@ function trimTk(tk) {
 var reBreakAfter = /[\s，。、！？；：,.!?;:）)」』】…~～—]/;
 // 太宽的一行按宽度均分：英文只在空格处断；中日文可以在任意字后断，优先标点 / 空格
 function splitTk(tk, lat) {
-    var total = sumW(tk);
-    if (total <= MAXW) return [tk];
-    var n = Math.min(MAXROWS, Math.ceil(total / MAXW)), rows = [], from = 0, acc = 0, cut = [];
+    var total = sumW(tk), mw = maxW();
+    if (total <= mw) return [tk];
+    var n = Math.min(MAXROWS, Math.ceil(total / mw)), rows = [], from = 0, acc = 0, cut = [];
     var pos = [];   // 每个记号之后的累计宽度
     for (var i = 0; i < tk.length; i++) { acc += tk[i].w; pos.push(acc); }
     for (var r = 1; r < n; r++) {
@@ -316,7 +341,7 @@ function build(item) {
     var fam = item.lat ? lay.fontP3 : item.ja ? lay.fontJP : lay.fontSC;
     var bi = blockComp.createObject(lyr);
     var b = { item: bi, it: item, fs: fs, LH: LH, lat: item.lat, glyphs: [], tgts: [], tr: null, wv: null,
-              gone: false, removed: false, cw: null, sinks: [], sunkDone: false, sinkTag: null, Wm: 0, Hm: 0 };
+              gone: false, removed: false, cw: null, sinks: [], sunkDone: false, sinkTag: null, Wm: 0, Hm: 0, dx: 0, dy: 0 };
     var rows = [];
     for (var r = 0; r < item.main.length; r++) {
         var tk = trimTk(tokens(bi, item.main[r], st, fam, item.punch ? 1 : 0));
@@ -348,7 +373,42 @@ function build(item) {
     if (item.sub && (transOn || item.by)) addSub(b, item);
     addWave(b);
     blocks.push(b);
+    fit(b);
     return b;
+}
+
+// ---------------------------------------------------------------- 摆放
+// 块在 #lyr 里的外框（舞台像素，不含 fit 偏移）：主句 + 翻译
+function boxOf(b) {
+    var l = -b.Wm, bt = .22 * b.fs;
+    if (b.tr) {
+        l = Math.min(l, b.tr.item.x - b.Wm);
+        bt = Math.max(bt, b.tr.item.y - b.Hm + b.tr.LH);
+    }
+    return { l: l, t: -b.Hm, r: 0, b: bt };
+}
+// 原点（主句右下角）可以拖到屏幕任意处；整块越出屏幕时只把这一块往里挪（多行、带翻译的句子更大）
+function fit(b) {
+    var k = lay.k > 0 ? lay.k : 1, bx = boxOf(b), W = lay.width, H = lay.height, dx = 0, dy = 0;
+    if (W > 0 && H > 0) {
+        var R = lay.ax + bx.r * k, Lx = lay.ax + bx.l * k;
+        if (R > W - EDGE) dx = (W - EDGE - R) / k;
+        if (Lx + dx * k < EDGE) dx = (EDGE - Lx) / k;
+        var B = lay.ay + bx.b * k, Tp = lay.ay + bx.t * k;
+        if (B > H - EDGE) dy = (H - EDGE - B) / k;
+        if (Tp + dy * k < EDGE) dy = (EDGE - Tp) / k;
+    }
+    b.dx = dx; b.dy = dy;
+    b.item.x = -b.Wm + dx;
+    b.item.y = -b.Hm + dy;
+}
+// 重新摆放所有块，并把当前句的外框（含偏移）交给 LyricsLayer 做命中判定
+function place() {
+    for (var i = 0; i < blocks.length; i++) fit(blocks[i]);
+    var b = shown && shown.el;
+    if (!b || b.removed) return;
+    var bx = boxOf(b), x = bx.l + b.dx, y = bx.t + b.dy, w = bx.r - bx.l, h = bx.b - bx.t, o = lay.box;
+    if (o.x !== x || o.y !== y || o.width !== w || o.height !== h) lay.box = Qt.rect(x, y, w, h);
 }
 function addGlyph(b, g, cx, fs, LH, row) {
     var tg = Tgt({ tx: 0, ty: 0, sk: 0 }, function (v) { g.tx = v.tx; g.ty = v.ty; g.sk = v.sk; });
@@ -425,7 +485,7 @@ function writeWave(b, force) {
     if (!wv || b.removed) return;
     if (!force && !wv.blades.length && !wv.dirty) return;
     wv.item.opacity = wv.tg.cur.op;
-    wv.item.baseOp = wv.baseT.cur.op;
+    wv.item.lvl = wv.baseT.cur.op;
     var slots = [], n = wv.blades.length;
     for (var i = Math.max(0, n - 4); i < n; i++) {
         var bl = wv.blades[i], v = bl.tg.cur;
@@ -563,7 +623,7 @@ function exit(b, dur, ease) {
 function show(item, mode) {
     index = item.i;
     var old = shown && shown.el;
-    var k = item.none ? 1 : mode === "seek" ? .6 : item.i >= 0 ? kOf(item.i) : 1;
+    var k = item.none || item.hold ? 1 : mode === "seek" ? .6 : item.i >= 0 ? kOf(item.i) : 1;
     var delay = 0;
     if (old) {
         if (mode === "instant") removeBlock(old);
@@ -583,10 +643,12 @@ function show(item, mode) {
     var b = build(item);
     shown = { key: item.key, kind: item.kind, el: b };
     // 静默之后的第一句：入场浪刃用 --red，像发令；其余用 --main
-    var tone = item.i >= 0 && after && mode !== "seek" ? "red" : "main";
+    var tone = item.i >= 0 && after && mode !== "seek" && !item.hold ? "red" : "main";
     var inDur = 0;
     if (mode !== "instant") inDur = enter(b, k, delay, item.kind === "title" ? 1.15 : 1, tone) || 0;
     else b.glyphs.forEach(function (o) { if (o.row !== 9) { o.tg.base.sk = RIP.stand; o.tg.dirty = true; } });
+    // 调整位置时的样句：浮上来后一直停着，不出第二道浪
+    if (item.hold) return;
     // 停留浪排期：可见时长 = 到下一次退场（或间奏淡出）为止
     var L = song.lines, i = item.i;
     var t0 = i >= 0 ? L[i].t : 0, nt = i + 1 < L.length ? L[i + 1].t : (i >= 0 ? song.end : L[0].t);
@@ -605,7 +667,7 @@ function toggleTrans() {
     var b = shown && shown.el;
     if (!b || b.gone || b.removed || b.it.by || !b.it.sub) return;
     var old = b.tr, cw = b.cw;
-    var relayout = function () { if (!cw && !b.removed) wavePos(b); };
+    var relayout = function () { if (!cw && !b.removed) wavePos(b); place(); };
     if (!transOn && old) {
         // 翻译的沉字不再算进 sunkDone；只看沉字动画（入场动画 fill both 也算播完，不能拿来判断）
         var sunk = b.sunkDone;
@@ -632,7 +694,7 @@ function toggleTrans() {
             var now = cwNow(b), tg = glyphs(b).filter(function (o) { return o.row === 9; });
             var first = Infinity;
             tg.forEach(function (o) { first = Math.min(first, cwStart(b, o.x, true)); });
-            if (first - now < TR_ROOM) { removeTr(b); return; }
+            if (first - now < TR_ROOM) { removeTr(b); place(); return; }
             tg.forEach(function (o) { sinkG(b, o, now); });
             watchSunk(b);
         }
@@ -657,7 +719,9 @@ function frame(dt) {
     var m = lay.music;
     // act：这一层此刻应该有歌词（IPC 没隐藏、在放歌、有歌词、没有暂停太久）
     var act = lay.wanted && m.active && !lay.idleHidden;
-    setPaused(act && !m.playing);
+    // 调整位置时时钟照走（样句要浮上来），不变暗
+    var adj = lay.adjusting;
+    setPaused(act && !m.playing && !adj);
     if (!paused) clk += Math.min(.25, Math.max(0, dt)) * 1000;
 
     var mode = "auto";
@@ -683,6 +747,12 @@ function frame(dt) {
     else if (p > time) time = p;
 
     var item = act && song && song.lines.length ? desired(time) : NONE;
+    if (adj) {
+        if (!held || held.g !== gen) held = sampleItem();
+        item = held;
+    } else {
+        held = null;
+    }
     if (!shown || item.key !== shown.key) {
         // 被隐藏 / 停播 / 没歌词：按切歌的方式顺浪沉下
         if (item.none && item.kind === "none") mode = "song";
@@ -690,6 +760,7 @@ function frame(dt) {
     }
 
     settle();
+    place();
     render();
     lay.busy = !paused && live.length > 0;
     lay.hasContent = blocks.length > 0;
