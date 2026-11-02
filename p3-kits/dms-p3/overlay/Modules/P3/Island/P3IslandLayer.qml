@@ -9,7 +9,7 @@ import "P3IslandLayout.js" as P3L
 
 // 灵动岛气泡串（prototype/island-b.html）的内容层：每个气泡跟着 P3IslandSprings 的弹簧走，里面放时间、音频、
 // 通知计数、电量、通知卡、媒体控制和通知中心面板；点击区按气泡的目标位置摆。形状由 P3IslandShape 在下面一层画。
-// 坐标：气泡 x = 中心相对 centerX，y = 顶边相对岛窗口顶边。
+// 坐标：气泡 x = 中心相对 centerX，y = 顶边相对岛窗口顶边；screenX / screenY = 本层原点在屏幕上的位置。
 Item {
     id: root
 
@@ -20,11 +20,18 @@ Item {
     property bool active: false
     property bool reducedMotion: false
     property real centerX: width / 2
+    property real screenX: 0
+    property real screenY: 0
     property color surfaceColor: P3.isl
 
     readonly property alias springs: springs
-    readonly property bool menuHere: P3Menu.shown && (P3Menu.screen?.name ?? "") === (root.controller.screen?.name ?? "")
+    readonly property bool hovered: hover.hovered
+    readonly property string screenName: root.controller.screen?.name ?? ""
+    // 菜单窗口还在（含收场）时岛保持水滴；收场完才长回来
+    readonly property bool menuHere: P3Menu.present && (P3Menu.screen?.name ?? "") === root.screenName
     readonly property string mode: !root.active ? "" : root.menuHere && root.controller.p3Mode !== "" && !root.controller.expanded ? "menu" : root.controller.p3Mode
+    // P3 菜单从这里的水滴破开（P3Menu.islandOn → drop()）
+    readonly property bool dropReady: root.active && !root.reducedMotion
 
     // 刚到的那条通知滚进计数之前不算数
     property bool arriving: false
@@ -33,7 +40,16 @@ Item {
     readonly property bool unread: NotificationService.unreadCount > 0 && !root.arriving && !root.dnd && root.shownCount > 0
 
     readonly property var player: root.mediaModel?.player ?? null
+    // playing：当前播放器（播放 / 暂停图标）；anyPlaying：任何一个播放器在放（可视化柱子、云朵浮动）
     readonly property bool playing: root.mediaModel?.playing ?? false
+    readonly property bool anyPlaying: {
+        const players = MprisController.availablePlayers;
+        for (let i = 0; i < players.length; i++) {
+            if (players[i]?.isPlaying)
+                return true;
+        }
+        return false;
+    }
     readonly property real progress: {
         const p = root.player;
         if (!p || !(p.length > 0))
@@ -47,11 +63,40 @@ Item {
 
     property string shown: ""
     property bool grown: false
-    property bool rest: false
     property bool dropping: false
     property bool committing: false
+    // 通知卡被点开：收场时卡片原地化掉，不滚进计数
+    property bool opened: false
     property int lastCount: 0
     property var pending: []
+
+    // 有媒体在放：气泡像云一样慢慢浮着（P3IslandSprings.cloudT / cloudA，形状和内容共用这一个相位）
+    readonly property var cloudModes: ["home", "peek", "pw", "media", "mediaOpen", "osd", "state", "charging"]
+    readonly property bool cloudOn: root.active && root.anyPlaying && !root.reducedMotion && root.cloudModes.indexOf(root.shown) !== -1
+    property real cloudA: root.cloudOn ? 1 : 0
+    property real cloudT: 0
+
+    Behavior on cloudA {
+        NumberAnimation {
+            duration: 1400
+            easing.type: Easing.InOutSine
+        }
+    }
+
+    NumberAnimation on cloudT {
+        from: 0
+        to: 1
+        duration: P3L.CLOUD_MS
+        loops: Animation.Infinite
+        running: root.cloudA > 0
+    }
+
+    // 指针下的气泡（悬停时鼓一下、邻居往它那边靠）
+    property string hoverName: ""
+    // 悬停胀开 / 收回让气泡在没动的指针下面换了位置：这时点击算指针原来指着的气泡（aimed()）
+    property bool hoverShifted: false
+    readonly property var hoverOrder: ["prev", "play", "next", "card", "notif", "batt", "audio", "time"]
+    readonly property var rowNames: ["time", "audio", "notif", "batt"]
 
     visible: root.active
 
@@ -161,7 +206,6 @@ Item {
             return;
         }
         root.clearLater();
-        root.rest = false;
         root.shown = m;
         if (!root.grown && m !== "") {
             root.seed();
@@ -197,8 +241,6 @@ Item {
             springs.notif.at += 0.06;
             springs.batt.at += 0.17;
         }
-        if (m === "home")
-            restTimer.restart();
         if (m === "charging" && BatteryService.isPluggedIn)
             root.later(280, () => {
                 root.ring("batt", false, 1);
@@ -326,13 +368,26 @@ Item {
         });
     }
 
-    // 通知卡收成一颗，滚进计数气泡，计数 +1
+    // 通知卡收成一颗，滚进计数气泡，计数 +1；被点开的卡原地化掉
     function afterNotify(m, L) {
+        const card = springs.card;
+        if (root.opened) {
+            root.opened = false;
+            root.commitArrival();
+            if (!root.reducedMotion && m !== "" && m !== "menu") {
+                root.ring("card", false, 1.05);
+                springs.to(card, card.tx, card.ty + 14, 0, 0, {
+                    "k": 420,
+                    "c": 26,
+                    "face": ""
+                });
+            }
+            return;
+        }
         if (m === "" || m === "center" || m === "menu" || root.reducedMotion) {
             root.commitArrival();
             return;
         }
-        const card = springs.card;
         springs.to(card, L.notif.x - 23, 30, 26, 26, {
             "k": 260,
             "c": 20,
@@ -374,10 +429,10 @@ Item {
         root.committing = false;
     }
 
-    // P3 菜单：所有气泡被吸进时间胶囊，缩成一颗水滴，蓄力下坠
+    // P3 菜单：所有气泡被吸进时间胶囊，缩成一颗水滴，蓄力下坠；P3MenuReveal 在 300ms 时从水滴中心破开
     function menuSeq(L) {
         root.placeAll(L);
-        root.later(340, () => {
+        root.later(180, () => {
             for (const n of ["batt", "notif", "audio"])
                 springs.to(springs[n], 0, 20, 0, 0, {
                     "k": 500,
@@ -437,8 +492,14 @@ Item {
             else if (c.mediaAvailable)
                 c.requestActivity("media", true, false);
             return;
-        case "notif":
         case "card":
+            if (m === "notify") {
+                root.openNotification();
+                return;
+            }
+            c.requestNotificationCenter(false);
+            return;
+        case "notif":
             if (m === "center")
                 c.requestCollapse();
             else
@@ -473,6 +534,80 @@ Item {
     function press(name) {
         springs.kick(springs[name], -260, -260);
         root.ring(name, false, 1.2);
+    }
+
+    // 通知卡：一下就去发通知的应用（P3IslandOpen），通知清掉，岛收回
+    function openNotification() {
+        const nm = root.notificationModel;
+        const w = nm?.currentWrapper ?? null;
+        if (!w) {
+            root.controller.requestNotificationCenter(false);
+            return;
+        }
+        root.opened = true;
+        root.committing = true;
+        root.arriving = false;
+        P3IslandOpen.open(w);
+        nm.dismiss();
+        root.committing = false;
+    }
+
+    // ---------------------------------------------------------------- 悬停
+    function bubbleAt(px, py) {
+        const x = px - root.centerX;
+        for (const n of root.hoverOrder) {
+            const b = springs[n];
+            if (b.tw < 4 || b.th < 4 || Math.abs(x - b.tx) > b.tw / 2)
+                continue;
+            if (root.rowNames.indexOf(n) !== -1 ? py <= b.ty + b.th : Math.abs(py - b.ty - b.th / 2) <= b.th / 2)
+                return n;
+        }
+        return "";
+    }
+
+    function aimed(name) {
+        const n = root.hoverName;
+        return root.hoverShifted && n && springs[n].tw > 4 && springs[n].th > 4 ? n : name;
+    }
+
+    // 指针经过的气泡鼓一下，同一排的邻居往它那边靠
+    function lean(name) {
+        if (root.reducedMotion || !name || root.shown === "menu")
+            return;
+        const b = springs[name];
+        springs.kick(b, 90, 60);
+        for (const n of root.rowNames) {
+            const o = springs[n];
+            if (n !== name && o.tw > 2)
+                springs.nudge(o, b.tx > o.tx ? 50 : -50, 0);
+        }
+    }
+
+    // 指针离开：整排一胀一缩地晃一下
+    function wobble() {
+        if (root.reducedMotion || root.shown === "menu" || root.shown === "")
+            return;
+        let s = 1;
+        for (const n of root.rowNames) {
+            const o = springs[n];
+            if (o.tw < 2)
+                continue;
+            springs.kick(o, 70 * s, -50 * s);
+            s = -s;
+        }
+    }
+
+    // ---------------------------------------------------------------- P3 菜单的水滴
+    // 水滴在屏幕上的中心和半径（屏幕逻辑像素）；不在水滴状态时为 null
+    function drop() {
+        const t = springs.time;
+        if (root.shown !== "menu" || t.tw < 2)
+            return null;
+        return {
+            "x": root.screenX + root.centerX + t.tx,
+            "y": root.screenY + t.ty + t.th / 2,
+            "r": Math.max(t.tw, t.th) / 2
+        };
     }
 
     function focusCenter() {
@@ -626,16 +761,26 @@ Item {
         if (root.batteryLow)
             root.lowPulse();
     }
+    // 菜单在这块屏幕上打开时，岛上展开着的东西先收起来，好吸成水滴
+    onMenuHereChanged: {
+        if (root.menuHere && root.active && root.controller.expanded)
+            root.controller.requestCollapse();
+    }
     Component.onCompleted: {
         root.lastCount = root.shownCount;
         root.schedule();
+        P3Menu.registerIsland(root);
     }
+    Component.onDestruction: P3Menu.unregisterIsland(root)
 
     Connections {
         target: root.controller
 
         function onP3DataChanged() {
             root.schedule();
+        }
+        function onP3PeekChanged() {
+            root.hoverShifted = hover.hovered && root.hoverName !== "";
         }
     }
 
@@ -664,18 +809,11 @@ Item {
         precision: SystemClock.Minutes
     }
 
-    // 静置 4s 后可视化柱子落成静态轮廓
-    Timer {
-        id: restTimer
-        interval: 4000
-        onTriggered: root.rest = root.shown === "home"
-    }
-
-    // 呼吸：静置时每 5.2s 给时间胶囊一点速度，弹簧自己回来
+    // 呼吸：静置（没有在放的媒体）时每 5.2s 给时间胶囊一点速度，弹簧自己回来
     Timer {
         interval: 5200
         repeat: true
-        running: root.active && root.shown === "home" && !root.reducedMotion
+        running: root.active && root.shown === "home" && !root.cloudOn && !root.reducedMotion
         onTriggered: springs.kick(springs.time, 30, 10)
     }
 
@@ -727,6 +865,8 @@ Item {
     P3IslandSprings {
         id: springs
         reducedMotion: root.reducedMotion
+        cloudT: root.cloudT
+        cloudA: root.cloudA
     }
 
     // ---------------------------------------------------------------- 组件
@@ -735,8 +875,8 @@ Item {
         required property var b
         required property real originX
 
-        x: originX + b.x - width / 2
-        y: b.y
+        x: originX + b.x + b.fx - width / 2
+        y: b.y + b.fy
         width: Math.max(0, b.w)
         height: Math.max(0, b.h)
         opacity: Math.min(1, Math.min(width, height) / 16)
@@ -861,9 +1001,12 @@ Item {
         property bool column: false
         property real titleSize: 13.5
         property real gap: 9
+        // 窄气泡：歌名先占满，剩下的地方够 artistMin 才露歌手
+        property bool titleFirst: false
+        property real artistMin: 18
 
-        readonly property real artistWant: Math.min(artist.implicitWidth, 60)
-        readonly property real titleWidth: column ? room : Math.min(title.implicitWidth, Math.max(0, room - track.gap - track.artistWant))
+        readonly property real artistWant: titleFirst ? 0 : Math.min(artist.implicitWidth, 60)
+        readonly property real titleWidth: column ? room : Math.min(title.implicitWidth, Math.max(0, room - (titleFirst ? 0 : track.gap) - track.artistWant))
         readonly property real artistWidth: column ? room : Math.max(0, room - track.titleWidth - track.gap)
 
         width: room
@@ -886,7 +1029,7 @@ Item {
             y: track.column ? title.height + track.gap : 0
             anchors.baseline: track.column ? undefined : title.baseline
             width: track.artistWidth
-            visible: track.artistWidth >= 18
+            visible: track.artistWidth >= track.artistMin
             face: "zh"
             size: 12
             color: P3.dim
@@ -1027,6 +1170,51 @@ Item {
         }
     }
 
+    // ---------------------------------------------------------------- 悬停区（= 岛的输入区域：IslandController.targetDescriptor）
+    Item {
+        id: hoverZone
+
+        readonly property var t: root.controller.targetDescriptor
+
+        x: root.centerX - root.controller.alongOffset + (t?.offsetAlong ?? 0) - (t?.width ?? 0) / 2
+        y: 0
+        width: t?.width ?? 0
+        height: (t?.offsetCross ?? 0) + (t?.height ?? 0)
+        enabled: root.active
+
+        HoverHandler {
+            id: hover
+
+            // 指针在窗口里的位置；悬停区自己挪动时 point 也会变，只有这里变了才算指针动过
+            property real px: -1
+            property real py: -1
+
+            onHoveredChanged: {
+                if (hover.hovered)
+                    return;
+                hover.px = -1;
+                root.hoverName = "";
+                root.hoverShifted = false;
+                root.wobble();
+            }
+            onPointChanged: {
+                if (!hover.hovered)
+                    return;
+                const sp = hover.point.scenePosition;
+                if (Math.abs(sp.x - hover.px) < 1 && Math.abs(sp.y - hover.py) < 1)
+                    return;
+                hover.px = sp.x;
+                hover.py = sp.y;
+                root.hoverShifted = false;
+                const n = root.bubbleAt(hoverZone.x + hover.point.position.x, hoverZone.y + hover.point.position.y);
+                if (n === root.hoverName)
+                    return;
+                root.hoverName = n;
+                root.lean(n);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- 点击区（按目标位置；顶栏那一排一直延伸到屏幕边）
     Repeater {
         model: ["time", "audio", "notif", "batt", "card", "prev", "play", "next"]
@@ -1047,7 +1235,7 @@ Item {
             enabled: root.active && root.shown !== "" && root.shown !== "menu" && b.tw > 4 && b.th > 4
             acceptedButtons: Qt.LeftButton
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.tap(modelData)
+            onClicked: root.tap(root.aimed(modelData))
         }
     }
 
@@ -1069,13 +1257,57 @@ Item {
 
                 still: root.reducedMotion
 
-                P3IslandText {
+                // peek：时间右边展开日期
+                Row {
                     anchors.centerIn: parent
                     anchors.verticalCenterOffset: 0.5
-                    face: "d"
-                    size: 21
-                    spacing: 0.005
-                    text: Qt.formatTime(clock.date, SettingsData.use24HourClock ? "HH:mm" : "h:mm")
+
+                    P3IslandText {
+                        id: timeText
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        face: "d"
+                        size: 21
+                        spacing: 0.005
+                        text: Qt.formatTime(clock.date, SettingsData.use24HourClock ? "HH:mm" : "h:mm")
+                    }
+
+                    Item {
+                        id: dateBox
+
+                        readonly property bool on: root.shown === "peek"
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: on ? 10 + Math.min(60, dateText.implicitWidth) : 0
+                        height: dateText.implicitHeight
+                        clip: true
+
+                        Behavior on width {
+                            NumberAnimation {
+                                duration: root.reducedMotion ? 0 : dateBox.on ? 550 : 450
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: dateBox.on ? P3.soft : P3.ease
+                            }
+                        }
+
+                        P3IslandText {
+                            id: dateText
+
+                            x: 10
+                            y: 1.5
+                            opacity: dateBox.on ? 1 : 0
+                            face: "d"
+                            size: 15
+                            color: P3.dim
+                            text: (clock.date.getMonth() + 1) + "/" + clock.date.getDate()
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: root.reducedMotion ? 0 : dateBox.on ? 300 : 200
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1095,9 +1327,37 @@ Item {
 
                 P3IslandViz {
                     anchors.centerIn: parent
-                    playing: root.playing
-                    live: !root.rest
+                    playing: root.anyPlaying
                     reducedMotion: root.reducedMotion
+                }
+            }
+
+            Face {
+                b: springs.audio
+                key: "peek"
+
+                still: root.reducedMotion
+
+                Row {
+                    x: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+
+                    P3IslandViz {
+                        anchors.verticalCenter: parent.verticalCenter
+                        playing: root.anyPlaying
+                        reducedMotion: root.reducedMotion
+                    }
+
+                    TrackText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        media: root.mediaModel
+                        room: springs.audio.tw - 13 - 16 - 8 - 14
+                        titleSize: 13
+                        gap: 8
+                        titleFirst: true
+                        artistMin: 30
+                    }
                 }
             }
 
@@ -1115,7 +1375,7 @@ Item {
 
                     P3IslandViz {
                         anchors.verticalCenter: parent.verticalCenter
-                        playing: root.playing
+                        playing: root.anyPlaying
                         reducedMotion: root.reducedMotion
                     }
 
@@ -1149,7 +1409,7 @@ Item {
 
                     P3IslandViz {
                         anchors.verticalCenter: parent.verticalCenter
-                        playing: root.playing
+                        playing: root.anyPlaying
                         reducedMotion: root.reducedMotion
                     }
 
@@ -1292,7 +1552,7 @@ Item {
                             y: 1
                             opacity: 0
                             face: "d"
-                            size: 17
+                            size: root.shown === "peek" ? 18 : 17
                             color: root.dnd ? P3.dim : P3.fill
                         }
 
@@ -1303,7 +1563,7 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                             y: 1
                             face: "d"
-                            size: 17
+                            size: root.shown === "peek" ? 18 : 17
                             color: root.dnd ? P3.dim : P3.fill
                             text: String(root.shownCount)
                         }
@@ -1316,7 +1576,7 @@ Item {
                     function onShownCountChanged() {
                         const old = notifFace.prevCount;
                         notifFace.prevCount = root.shownCount;
-                        if (root.reducedMotion || old === root.shownCount || !old || !root.shownCount)
+                        if (root.reducedMotion || root.committing || old === root.shownCount || !old || !root.shownCount)
                             return;
                         leaving.text = String(old);
                         roll.restart();

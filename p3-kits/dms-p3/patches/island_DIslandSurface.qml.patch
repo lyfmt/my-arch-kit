@@ -122,7 +122,7 @@
              clipboardCompactComponent: compactClipboardComponent
              clipboardExpandedComponent: expandedClipboardComponent
              powerMenuCompactComponent: compactPowerMenuComponent
-@@ -477,6 +486,22 @@
+@@ -477,8 +486,27 @@
          }
      }
  
@@ -134,18 +134,24 @@
 +        anchors.fill: parent
 +        active: root.p3Layout
 +        centerX: root.alongExtent / 2 + root.controller.alongOffset
++        screenX: root.hostOriginX
++        screenY: root.hostOriginY
 +        surfaceColor: root.effectiveSurfaceColor
 +        controller: root.controller
 +        mediaModel: root.mediaModel
 +        systemModel: root.systemModel
 +        notificationModel: root.notificationModel
 +        reducedMotion: root.reducedMotion
++        onHoveredChanged: root.updateFittsPointerInside()
 +    }
 +
      function updateFittsPointerInside() {
-         root.controller.updatePointerInside(islandHover.hovered || stripHover.hovered);
+-        root.controller.updatePointerInside(islandHover.hovered || stripHover.hovered);
++        root.controller.updatePointerInside(islandHover.hovered || stripHover.hovered || p3Layer.hovered);
      }
-@@ -867,6 +892,26 @@
+ 
+     // Fitts zone from the island edge to the screen edge — hover/click count as island.
+@@ -867,6 +895,26 @@
          }
      }
  

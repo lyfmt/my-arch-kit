@@ -1,15 +1,15 @@
 import QtQuick
 import qs.Modules.P3
 
-// 音频可视化：4 根 2.5px 的柱子安静地起伏（scaleY .34 ↔ .8）；live 关掉后落成静态轮廓，暂停时压到 .22。
+// 音频可视化：有播放器在放就一直安静地起伏（4 根 2.5px 的柱子，scaleY .34 ↔ .8）；
+// 都没在放时压到 .22；减弱动效时停在静态轮廓。
 Row {
     id: root
 
     property bool playing: true
-    property bool live: true
     property bool reducedMotion: false
 
-    readonly property bool animating: root.playing && root.live && !root.reducedMotion && root.visible
+    readonly property bool animating: root.playing && !root.reducedMotion && root.visible
 
     spacing: 2
     height: 13

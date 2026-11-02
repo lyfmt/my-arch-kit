@@ -8,12 +8,16 @@ import "apps"
 // 右侧详情列跟随焦点；托盘应用的详情列出它的托盘菜单（变暗的预览），M / 右键让菜单变成可操作的列表。
 // 数据和动作只经过 P3Sys：Apps（列表、使用次数、搜索、图标、启动）、Tray（托盘项、显示名、对应的应用、菜单、触发），
 // Clash / Ime / Qq（对应托盘项的专属菜单行）、Keybinds（固定入口的快捷键）。
-// 按键
+// 启动应用、激活托盘应用的窗口、执行会打开窗口的托盘菜单条目时关闭整个菜单。
+// 按键（vim 式：应用区和搜索结果里字母不输入，i 或 / 才开始输入）
 //   托盘格        Enter = 激活窗口（只有菜单的托盘项直接打开菜单）；M / 右键 = 托盘菜单
-//   托盘菜单      ↑↓ / W S 选择，Enter 执行（退出要按住），Esc / Backspace / ← / A / M 关闭
-//   固定格、常用格 Enter = 启动；ALL APPS = 全部应用（A–Z）的搜索视图
-//   应用区        输入字母或数字开始搜索（W A S D 也算输入，方向键移动）
-//   搜索          输入过滤，Backspace 删字（空了就退出），Esc 退出，Enter 启动焦点上的应用
+//   托盘菜单      ↑↓ / W S / j k 选择，Enter 执行（退出要按住），Esc / Backspace / ← / h / A / M 关闭
+//   固定格、常用格 Enter = 启动；ALL APPS = 全部应用（A–Z），停在结果里
+//   应用区        方向键、W A S D、h j k l、g g、G 移动（框架翻译）；i 或 / 开始搜索（输入）
+//   搜索（输入）  字母都是输入，Backspace 删字（空了就退出），Enter 启动焦点上的应用；方向键、Ctrl+h/j/k/l、Ctrl+n/p 在结果里移动；
+//                 Esc 离开输入（有结果时）
+//   搜索（结果）  光标隐去，h j k l、g g、G 在结果里移动，Enter / Space 启动；i、/ 回到输入，Backspace 回到输入并删一个字；Esc 退出搜索
+//   右键（合成的 Esc）在搜索里直接退出搜索
 P3Page {
     id: page
     title: "APPS"
@@ -26,6 +30,8 @@ P3Page {
     property string menuOn: ""          // 菜单处于可操作状态的托盘项 id
     property int menuIdx: -1            // 菜单里焦点行的序号（菜单重建后回到同一行）
     property var qText: null            // 搜索文字；null = 应用区
+    property bool qBrowse: false        // 搜索时离开了输入（字母不再输入，h j k l 在结果里移动）
+    textEntry: qText !== null && !qBrowse
     property var hits: []               // 搜索结果的应用 id（最多 35 个）
     property int hitCount: 0
     property string lastRef: ""         // 应用区里最后一个焦点格
@@ -386,7 +392,7 @@ P3Page {
     function activateTile(tile) {
         const ref = tile.ref;
         if (ref === "all") {
-            Qt.callLater(() => setSearch(""));
+            Qt.callLater(() => setSearch("", true));
             return;
         }
         const i = ref.indexOf(":");
@@ -397,15 +403,20 @@ P3Page {
                 openMenu(arg);
                 return;
             }
-            ghost(tile);
-            run(Tray.activate(arg));
+            launch(tile, () => Tray.activate(arg));
         } else if (kind === "pin") {
-            ghost(tile);
-            run(Apps.launch(Apps.state.pinned[arg]));
+            launch(tile, () => Apps.launch(Apps.state.pinned[arg]));
         } else {
-            ghost(tile);
-            run(Apps.launch(arg));
+            launch(tile, () => Apps.launch(arg));
         }
+    }
+    // 会打开窗口的动作：先关菜单（交还键盘焦点），再执行
+    function launch(tile, act) {
+        if (tile)
+            ghost(tile);
+        if (ctx)
+            ctx.close();
+        run(act());
     }
     function rowActivated(id, r) {
         if (r.t === "radio") {
@@ -424,8 +435,10 @@ P3Page {
             });
         } else if (r.t === "node") {
             run(Clash.setNode(nextNode()));
+        } else if (r.t === "act" && (r.app || !r.checkable)) {
+            launch(null, () => r.app ? Apps.launch(r.app) : Tray.trigger(id, r.entryId));
         } else if (r.t === "act") {
-            run(r.app ? Apps.launch(r.app) : Tray.trigger(id, r.entryId), {
+            run(Tray.trigger(id, r.entryId), {
                 "done": () => {
                     if (!still)
                         later(closeMenu, 320);
@@ -619,9 +632,11 @@ P3Page {
     }
 
     // ---------------------------------------------------------------- 搜索
-    function setSearch(text) {
+    // browse：停在结果里（字母不输入），ALL APPS 用
+    function setSearch(text, browse) {
         if (qText === null)
             backRef = lastRef;
+        qBrowse = !!browse;
         const res = searchApps(text);
         hitCount = res.length;
         hits = res.slice(0, 35).map(a => a.id);
@@ -637,6 +652,7 @@ P3Page {
         ctx.refocus();
     }
     function endSearch() {
+        qBrowse = false;
         qText = null;
         hits = [];
         hitCount = 0;
@@ -672,20 +688,27 @@ P3Page {
                 return false;
             return printable && ch !== " ";
         }
+        // i / I / /：进入输入
+        const insert = !e.synthetic && (ch === "/" || k === Qt.Key_I);
         if (qText !== null) {
             const f = ctx ? ctx.focused() : null;
             if (k === Qt.Key_Escape) {
+                if (!qBrowse && !e.synthetic && hitCount > 0) {
+                    qBrowse = true;
+                    return true;
+                }
                 endSearch();
                 return true;
             }
             if (k === Qt.Key_Backspace) {
+                qBrowse = false;
                 if (qText)
                     setSearch(qText.slice(0, -1));
                 else
                     endSearch();
                 return true;
             }
-            if (k === Qt.Key_Left) {
+            if (k === Qt.Key_Left || (qBrowse && k === Qt.Key_A)) {
                 if (!f || !(f.col > 0)) {
                     endSearch();
                     return true;
@@ -693,6 +716,15 @@ P3Page {
                 return false;
             }
             if ((k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) && f && f.ref === "none")
+                return true;
+            if (qBrowse) {
+                if (insert) {
+                    qBrowse = false;
+                    return true;
+                }
+                return false;
+            }
+            if (ch === "/")
                 return true;
             if (k === Qt.Key_Space && !qText)
                 return true;
@@ -708,8 +740,8 @@ P3Page {
             openMenu(f.ref.slice(5));
             return true;
         }
-        if (printable && ch !== " ") {
-            setSearch(ch);
+        if (insert) {
+            setSearch("");
             return true;
         }
         return false;
@@ -966,6 +998,7 @@ P3Page {
                 width: 5
                 height: srch.q !== "" ? 62 : 30
                 color: P3.fill
+                visible: !page.qBrowse
             }
             P3Text {
                 id: countText

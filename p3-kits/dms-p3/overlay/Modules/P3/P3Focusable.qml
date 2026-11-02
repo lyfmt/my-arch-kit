@@ -1,17 +1,20 @@
 import QtQuick
 
 // 页面里一切可聚焦元素的基类（对应原型的 [data-focus]）。框架负责：
-//   ↑↓←→ / WASD 空间导航、点击聚焦并激活、焦点指示（tide 光点 / wedge 楔形）、进入时的果冻动画。
+//   ↑↓←→ / WASD / hjkl 空间导航、指针跟随、点击聚焦并激活、焦点指示（tide 光点 / wedge 楔形）、进入时的果冻动画。
 // 页面只需要：
 //   P3Focusable { cursor: "tide"; onActivated: … }      Enter / Space / 单击
 //   focused   只读：当前是否有焦点（用来改颜色：焦点时文字用 P3.fill）
 //   wob       只读：刚获得焦点的 380ms 内为 true（cursor: "none" 的元素可以自己做动画）
 //   pressed   只读：刚被激活的 260ms 内为 true
 //   autofocus 进入页面时的初始焦点（没有就取第一个）
-//   disabled  导航时跳过、不响应点击
+//   disabled  导航时跳过、不响应点击和指针
+//   textEntry 输入框（搜索框、密码框）。拿到焦点时不输入（h j k l 照常移动）；i 或单击进入输入（editing），
+//             输入时字母、h j k l g G 原样交给页面，Esc 退出输入；Ctrl+h/j/k/l、Ctrl+n/p 照常移动焦点（离开即退出输入）
+//   editing   输入框是否在输入，由框架写入；页面要直接进入输入时用 ctx.edit(item)
 //   cursor    "tide"（默认，左上角光点 + 文字变 fill）| "wedge"（白色楔形垫底 + 红色残影，文字变 ink）| "none"
 //   fg / dimColor   按焦点状态算好的前景色，内部 Text 直接绑定即可
-// 不做 hover 效果：鼠标只有点击才会改变焦点。
+// 指针移到元素上就把焦点移过来（和键盘同一套焦点指示，没有单独的 hover 样式）；框架只认真实的指针移动，见 P3MenuWindow 的「指针」一节。
 Item {
     id: root
 
@@ -19,8 +22,10 @@ Item {
     property string cursor: "tide"
     property bool autofocus: false
     property bool disabled: false
+    property bool textEntry: false
     // 由框架写入
     property bool focused: false
+    property bool editing: false
     property bool wob: false
     property bool pressed: false
 

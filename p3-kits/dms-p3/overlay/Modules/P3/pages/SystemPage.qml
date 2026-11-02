@@ -10,10 +10,12 @@ import "../../../Common/KeyUtils.js" as KeyUtils
 //   TOP   NETWORK · BLUETOOTH · SOUND · DISPLAY · MODE，底部 MORE（详情是 MORE 各分类的入口块）
 //   MORE  INPUT · KEYBINDS · LOOK · POWER · NOTICES · GENERAL
 // 按键
-//   分类栏  ↑↓ 换分类（详情即时换）· → / Enter 进详情（MORE 上 Enter 进 MORE 层）· Esc / ←：TOP 离开页面，MORE 回 TOP
-//   详情    ↑↓←→ 只在详情里移动 · Enter 激活 · Esc / Backspace，或最左侧再按 ← 回分类栏
+//   （h j k l 和方向键相同，由框架翻译）
+//   分类栏  ↑↓ 换分类（详情即时换）· g g / G 第一个 / 最后一个分类 · → / Enter 进详情（MORE 上 Enter 进 MORE 层）·
+//           Esc / ←：TOP 离开页面，MORE 回 TOP
+//   详情    ↑↓←→ 只在详情里移动 · g g / G / Ctrl+d / Ctrl+u 由框架沿当前列走 · Enter 激活 · Esc / Backspace，或最左侧再按 ← 回分类栏
 //           滑块 / 循环选择 ←→ 调值 · 按键行 Enter 录键（必须带修饰键，Esc 取消，冲突时继续录）
-//   搜索    （KEYBINDS）直接输入过滤 · ⌫ 删字 · ↓ / Enter 到结果
+//   搜索    （KEYBINDS）直接输入过滤（字母都是输入）· ⌫ 删字 · ↓ / Ctrl+j / Enter 到结果
 //   密码    输入 · ⌫ · Enter 连接 · Esc 收起
 // 状态（层级、当前分类、各分类最后的焦点）在页面实例之间保留（memo.js）。
 // 截图 / 调试：P3_SYSTEM_VIEW=network|bluetooth|sound|display|mode|more|more:<input|keys|look|power|notify|general>
@@ -320,6 +322,8 @@ P3Page {
         endCapture(false);
         const from = lvl;
         const fin = () => {
+            // 淡出动画可能比计时器晚一帧结束，先停掉，免得它把下面复位的 opacity / dx 又写回终值
+            levelOut.stop();
             // 先把焦点放到常驻的 MORE 入口，旧分类 / 入口块随后被销毁
             if (ctx)
                 ctx.focus(moreCat);
@@ -434,12 +438,16 @@ P3Page {
             ctx.focus(n);
         return n;
     }
+    // 选了要密码的网络：密码行展开并直接进入输入
     function openPw(ssid) {
         pwSsid = ssid;
         pwVal = "";
         Qt.callLater(() => {
-            if (live && pwSsid === ssid)
-                focusKey("pw");
+            if (!live || pwSsid !== ssid || !ctx)
+                return;
+            const n = findKey(detail.item, "pw");
+            if (n)
+                ctx.edit(n);
         });
     }
     function closePw() {
@@ -474,9 +482,10 @@ P3Page {
         else
             openPw(w.ssid);
     }
-    function pwKey(e) {
+    // typing：密码框在输入（Esc 先由框架退出输入；不在输入时 Esc / Backspace 收起密码行，字母不输入）
+    function pwKey(e, typing) {
         const k = e.key;
-        if (k === Qt.Key_Escape) {
+        if (k === Qt.Key_Escape || (!typing && k === Qt.Key_Backspace)) {
             closePw();
             return true;
         }
@@ -485,6 +494,8 @@ P3Page {
                 connectAp(pwSsid, pwVal);
             return true;
         }
+        if (!typing)
+            return false;
         if (k === Qt.Key_Backspace) {
             pwVal = pwVal.slice(0, -1);
             return true;
@@ -503,7 +514,8 @@ P3Page {
         const all = focusIn(detail.item);
         return all.find(x => x.syKey.indexOf("bind:") === 0) || null;
     }
-    function searchKey(e) {
+    // typing：搜索框在输入；不在输入时字母不输入（i 或单击进入输入，任意处 / 直接跳到这里输入）
+    function searchKey(e, typing) {
         const k = e.key;
         if (k === Qt.Key_Down || k === Qt.Key_Return || k === Qt.Key_Enter) {
             const f = firstBind();
@@ -511,6 +523,8 @@ P3Page {
                 ctx.focus(f);
             return true;
         }
+        if (!typing)
+            return false;
         if (k === Qt.Key_Backspace) {
             if (!bq)
                 return false;
@@ -599,9 +613,17 @@ P3Page {
         }
         const f = ctx ? ctx.focused() : null;
         const sk = f && f.syKey ? f.syKey : "";
-        if (sk === "pw" && pwSsid && pwKey(e))
+        const typing = !!f && f.textEntry === true && f.editing === true;
+        if (!typing && !e.synthetic && e.text === "/") {
+            const s = findKey(detail.item, "search");
+            if (s) {
+                ctx.edit(s);
+                return true;
+            }
+        }
+        if (sk === "pw" && pwSsid && pwKey(e, typing))
             return true;
-        if (sk === "search" && searchKey(e))
+        if (sk === "search" && searchKey(e, typing))
             return true;
         return keyNav(e, f);
     }
@@ -614,6 +636,16 @@ P3Page {
         if (!f || f.syCat === true) {
             if (!f)
                 return false;
+            if (e.motion) {
+                const list = railItems(), i = list.indexOf(f), h = Math.ceil(list.length / 2);
+                const j = e.motion === "first" ? 0 : e.motion === "last" ? list.length - 1 : i + (e.motion === "halfDown" ? h : -h);
+                const n = list[Math.max(0, Math.min(list.length - 1, j))];
+                if (n && n !== f) {
+                    ctx.focus(n);
+                    showCat(n.catId);
+                }
+                return true;
+            }
             if (up || dn) {
                 const list = railItems(), i = list.indexOf(f);
                 const n = list[Math.max(0, Math.min(list.length - 1, i + (up ? -1 : 1)))];

@@ -1,13 +1,25 @@
 import QtQuick
+import "P3IslandLayout.js" as P3L
 
 // 气泡的弹簧（原型 to() / kick() / step()）。每个气泡 4 个通道：x（中心）、y（顶边）、w、h，岛的逻辑像素。
 // 位置用 c 阻尼，宽高用 cs = max(c, 1.7√k)（ζ≈.85，只轻微过冲）；d 毫秒后才开始动。全部静止就停帧。
+// fx / fy：云朵浮动的偏移（P3L.cloudX / cloudY，cloudA = 0 时为 0），叠在弹簧位置上，不参与弹簧。
 Item {
     id: root
 
     property bool reducedMotion: false
     property real clock: 0
     property bool awake: false
+    property real cloudT: 0
+    property real cloudA: 0
+
+    function cx(i) {
+        return root.cloudA > 0 ? P3L.cloudX(i, root.cloudT, root.cloudA) : 0;
+    }
+
+    function cy(i) {
+        return root.cloudA > 0 ? P3L.cloudY(i, root.cloudT, root.cloudA) : 0;
+    }
 
     component Bubble: QtObject {
         property string name
@@ -30,31 +42,47 @@ Item {
         property string face: ""
         property int fd: 60
         property real r: 1e5
+        property real fx: 0
+        property real fy: 0
     }
 
     readonly property Bubble time: Bubble {
         name: "time"
+        fx: root.cx(0)
+        fy: root.cy(0)
     }
     readonly property Bubble audio: Bubble {
         name: "audio"
+        fx: root.cx(1)
+        fy: root.cy(1)
     }
     readonly property Bubble notif: Bubble {
         name: "notif"
+        fx: root.cx(2)
+        fy: root.cy(2)
     }
     readonly property Bubble batt: Bubble {
         name: "batt"
+        fx: root.cx(3)
+        fy: root.cy(3)
     }
     readonly property Bubble card: Bubble {
         name: "card"
     }
     readonly property Bubble prev: Bubble {
         name: "prev"
+        fx: root.cx(5)
+        fy: root.cy(5)
     }
     readonly property Bubble play: Bubble {
         name: "play"
+        fx: root.cx(6)
+        fy: root.cy(6)
     }
     readonly property Bubble next: Bubble {
         name: "next"
+        fx: root.cx(7)
+        fy: root.cy(7)
     }
     readonly property Bubble panel: Bubble {
         name: "panel"

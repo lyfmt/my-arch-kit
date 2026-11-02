@@ -303,12 +303,18 @@ Item {
     }
 
     MouseArea {
+        id: hitArea
         x: -30
         y: -20
         width: root.width + 60
         height: root.height + 40
         acceptedButtons: Qt.LeftButton
         onClicked: root.clicked()
+    }
+    // 点 (x, y)（item 的坐标）是否落在单击区里；框架用它让主列表跟随指针
+    function hitAt(item, x, y) {
+        const p = hitArea.mapFromItem(item, x, y);
+        return hitArea.contains(p);
     }
 
     // 确认时白碎片弹一下（.hit：40% 处 scale(1.12, 1.25)）

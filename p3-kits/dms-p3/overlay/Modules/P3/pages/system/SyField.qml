@@ -2,7 +2,7 @@ import QtQuick
 import qs.Modules.P3
 
 // 密码框（原型 .sy-field）：36px 高 1px 细线框；每个字符一个菱形点，后跟闪烁光标；空时光标 + PASSWORD。
-// 输入由页面的 handleKey 处理（焦点在这里时），count = 已输入的字符数。
+// 输入由页面的 handleKey 处理（输入状态 editing 时字母原样送来），count = 已输入的字符数；光标只在输入时闪。
 SyFocus {
     id: root
 
@@ -11,6 +11,7 @@ SyFocus {
 
     line: false
     clickActivates: false
+    textEntry: true
     height: 36
 
     Rectangle {
@@ -52,8 +53,9 @@ SyFocus {
             width: 2
             height: 20
             color: P3.fill
+            visible: root.editing
             SequentialAnimation on opacity {
-                running: !root.still
+                running: root.editing && !root.still
                 loops: Animation.Infinite
                 PropertyAction {
                     value: 1

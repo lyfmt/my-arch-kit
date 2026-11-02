@@ -283,6 +283,8 @@ P3Page {
         }
         if (!holding)
             return false;
+        if (e.motion)
+            return true;
         switch (k) {
         case Qt.Key_Up:
         case Qt.Key_Down:

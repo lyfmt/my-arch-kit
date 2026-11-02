@@ -119,9 +119,17 @@ P3Focusable {
         }
     }
     WheelHandler {
+        // Wayland 上滚轮事件常被标成 TouchPad 设备；120 = 一格 = 一步
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        property real acc: 0
         onWheel: e => {
+            acc += e.angleDelta.y;
+            const n = Math.trunc(acc / 120);
+            if (!n)
+                return;
+            acc -= n * 120;
             root.requestFocus();
-            root.setValue(root.value + (e.angleDelta.y > 0 ? root.step : -root.step));
+            root.setValue(root.value + n * root.step);
         }
     }
 }

@@ -4,7 +4,7 @@ import QtQuick
 import Quickshell
 
 // dms-p3 设计令牌，对应 prototype/shared/tokens.css + menu.css 的 :root。
-// 只有 P3 蓝一套：水下背景是唯一的渐变，其余平涂；不做 hover 效果；焦点 = 元素左上角脉动的天蓝光点。
+// 只有 P3 蓝一套：水下背景是唯一的渐变，其余平涂；没有单独的 hover 样式（指针移到元素上 = 焦点移过去）；焦点 = 元素左上角脉动的天蓝光点。
 // 尺寸都是原型舞台像素（1920×1080，cover 缩放），菜单窗口统一乘 stageScale。
 Singleton {
     id: root

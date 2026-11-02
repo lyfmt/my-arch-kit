@@ -132,21 +132,11 @@ FocusScope {
         root.select(Math.min(root.selected, root.liveRows().length - 1));
     }
 
+    // 点一行：默认动作 / 聚焦或启动发通知的应用（P3IslandOpen），这一行清掉，岛收起
     function activate(row) {
         if (!row || row.gone)
             return;
-        const w = row.wrapper;
-        const actions = w?.actions ?? [];
-        let action = null;
-        for (const a of actions) {
-            if (a && a.identifier === "default") {
-                action = a;
-                break;
-            }
-        }
-        action = action || actions[0] || null;
-        if (action)
-            action.invoke();
+        P3IslandOpen.open(row.wrapper);
         root.dismiss(row, 0);
         closeTimer.restart();
     }

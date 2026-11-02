@@ -55,6 +55,8 @@ ShaderEffect {
     readonly property real smoothK: P3L.K
     readonly property real borderWidth: 1.5
     readonly property real bodyWeight: root.weight
+    readonly property real cloudT: root.springs.cloudT
+    readonly property real cloudA: root.springs.cloudA
     readonly property vector4d frame: Qt.vector4d(root.x, root.y, root.width, root.height)
     readonly property vector4d fillColor: Qt.vector4d(root.fill.r, root.fill.g, root.fill.b, root.fill.a)
     readonly property vector4d shadowColor: Qt.vector4d(0, 4 / 255, 40 / 255, 0.30 * root.fill.a)

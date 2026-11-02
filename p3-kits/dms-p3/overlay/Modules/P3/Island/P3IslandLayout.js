@@ -176,12 +176,50 @@ function mediaRow(L, d) {
         }], [notifBubble(d), battBubble(d)]);
 }
 
-// mode：home pw media mediaOpen osd state charging notify center level menu，空串 = 不画气泡串（DMS 自己的面板）
+// mode：home peek pw media mediaOpen osd state charging notify center level menu，空串 = 不画气泡串（DMS 自己的面板）
 function layout(mode, d) {
     var L = {};
     switch (mode) {
     case "home":
         base(L, d);
+        break;
+    case "peek":
+        // 悬停：整串胀开，时间旁边露出日期，音频气泡里是歌名，电量带 %
+        row(L, d, {
+            "w": 182,
+            "h": 36,
+            "o": {
+                "k": 260,
+                "c": 18
+            }
+        }, [{
+                "n": "audio",
+                "w": 150,
+                "h": 32,
+                "o": {
+                    "face": "peek",
+                    "k": 240,
+                    "c": 18
+                }
+            }], [{
+                "n": "notif",
+                "w": d.count ? 60 : notifWidth(d) + 8,
+                "h": 32,
+                "o": {
+                    "face": "n",
+                    "k": 240,
+                    "c": 18
+                }
+            }, {
+                "n": "batt",
+                "w": 58,
+                "h": 30,
+                "o": {
+                    "face": "pct",
+                    "k": 230,
+                    "c": 17
+                }
+            }]);
         break;
     case "pw":
         row(L, d, {
@@ -416,6 +454,21 @@ function layout(mode, d) {
             "r": PANEL_RADIUS
         });
     return L;
+}
+
+// 云朵浮动（有媒体在放时）：第 i 颗气泡（NAMES 的下标）的偏移。t ∈ [0, 1) 是 CLOUD_MS 一圈的相位，a 是 0‥1 的幅度。
+// 每颗气泡的频率是一圈里的整数个周期（绕回时无缝），相位错开，邻居一上一下，颈子跟着轻轻抻。
+// shaders/p3island.frag 的 cloud() 用同一组数，另外让形状的宽高跟着呼吸 ±1.2px（内容不跟着缩放）。
+var CLOUD_MS = 24000;
+var CLOUD_X = 0.8;
+var CLOUD_Y = 1.4;
+
+function cloudX(i, t, a) {
+    return a * CLOUD_X * Math.sin(6.283185307 * t * (3 + i % 2) + i * 2.7);
+}
+
+function cloudY(i, t, a) {
+    return a * CLOUD_Y * Math.sin(6.283185307 * t * (5 + i % 3) + i * 1.9);
 }
 
 // 可见气泡的外框

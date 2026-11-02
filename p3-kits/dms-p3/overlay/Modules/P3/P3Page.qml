@@ -10,17 +10,25 @@ import QtQuick
 //                                                       // 返回 false 时按返回处理（先以合成 Esc 交给 handleKey）
 //       keyCapture: capturing                    // true 时所有按键（含 Ctrl / Alt / Super 组合）原样交给 handleKey，
 //                                                // 框架不导航，合成器快捷键被抑制（录键用）
+//       textEntry: typing                        // true 时字母是输入：h j k l g G 原样交给 handleKey（APPS 搜索的输入状态）；
+//                                                // 输入框元素的 textEntry 要先进入输入（i / 单击 / ctx.edit）才算，见 P3Focusable
 //       onEntered: …                            // 页面构建完成并成为当前页之后
 //       onLeaving: …                            // 返回 / 切页、页面销毁之前
 //       onFocusMoved: item => …                 // 焦点移到 item 之后（键盘、点击或 ctx.focus）
 //   }
+//
+// vim 键由框架翻译：h j k l 到达 handleKey 时已是 Qt.Key_Left / Down / Up / Right（对象带 vim: true、text 为空），
+// Ctrl+h/j/k/l、Ctrl+n/p 同样翻成方向键。g g / G / Ctrl+d / Ctrl+u 先以 { key: Qt.Key_unknown, motion } 交给 handleKey，
+// motion = "first" | "last" | "halfDown" | "halfUp"；返回 false 时框架沿焦点所在的列走（到头，或走过半个视口）。
 //
 // ctx（进入后由框架写入；页面离开后所有调用都变成空操作，focused() 返回 null）：
 //   ctx.back()                 离开页面（等同顶层 Esc）
 //   ctx.focus(item)            把焦点移到 item（播放进入果冻）
 //   ctx.focused()              当前焦点元素或 null
 //   ctx.refocus()              布局变化后重新测量焦点指示
-//   ctx.run(promise, opts)     统一处理 P3Sys 动作结果：成功时 msg 非空就弹提示；失败弹红色提示并调用 opts.revert()；
+//   ctx.edit(item)             把焦点移到输入框 item 并进入输入
+//   ctx.close()                关闭整个菜单（启动应用、打开窗口之后）
+//   ctx.run(promise, opts)     统一处理 P3Sys 动作结果：成功不提示（结果看控件本身）；失败弹红色提示并调用 opts.revert()；
 //                              opts.done(ok) 无论成败都会调用。返回原 promise。
 //   ctx.toast(text, bad)       直接弹一条提示
 //   ctx.overlay                全舞台层（1920×1080 舞台坐标，盖住主列表、页面和日期，在提示条之下）；
@@ -34,6 +42,7 @@ Item {
     property string title: ""
     property var ctx: null
     property bool keyCapture: false
+    property bool textEntry: false
 
     signal entered
     signal leaving

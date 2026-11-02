@@ -13,7 +13,33 @@ PanelWindow {
     property bool shouldShow: false
     // "closed" | "opening" | "open" | "closing"
     property string phase: "closed"
-    readonly property bool busy: phase === "opening" || phase === "closing"
+    readonly property bool closing: phase === "closing"
+    // 入场动画期间（还没开页面）的按键、对主列表的单击和右键不丢：先记下，动画结束（phase 变 "open"）时按顺序补上。
+    // 只补给主列表：补上的按键打开了页面，剩下的丢掉（不把 Enter 补进页面，免得在 POWER 上开始按住确认）
+    // 函数而不是绑定：onPhaseChanged 里补按键时绑定还没更新
+    function gated() {
+        return phase === "opening" && !page;
+    }
+    property var held: ({
+            "q": []
+        })
+    function holdInput(fn) {
+        held.q.push(fn);
+    }
+    function dropHeld() {
+        held.q = [];
+    }
+    function flushHeld() {
+        const q = held.q;
+        held.q = [];
+        for (const fn of q) {
+            if (!shouldShow || page)
+                break;
+            fn();
+        }
+    }
+    onPhaseChanged: if (phase === "open")
+        flushHeld()
     readonly property bool still: Quickshell.env("P3_STILL") === "1"
 
     readonly property var items: [
@@ -105,6 +131,7 @@ PanelWindow {
         visible = true;
         keys.forceActiveFocus();
         if (!wasShown) {
+            dropHeld();
             if (page)
                 dropPage(true);
             select(pageId ? Math.max(0, indexOf(pageId)) : 0, true);
@@ -124,6 +151,7 @@ PanelWindow {
         id: pageOpenT
         interval: 650
         onTriggered: {
+            win.dropHeld();
             win.phase = "open";
             win.openPage(win.pendingPage);
         }
@@ -135,6 +163,7 @@ PanelWindow {
         if (page)
             leaveHook();
         shouldShow = false;
+        dropHeld();
         pageOpenT.stop();
         openT.stop();
         phase = "closing";
@@ -143,7 +172,9 @@ PanelWindow {
         page = "";
         dateOut.restart();
         tideOut.restart();
-        closeT.interval = still ? 0 : 720;
+        // 从水滴破开的：缩回水滴（reveal.close() 的毫秒数）；否则水位渐隐
+        const shrink = reveal.close(P3Menu.islandOn(win.screen?.name ?? ""));
+        closeT.interval = still ? 0 : shrink > 0 ? shrink : 720;
         closeT.restart();
     }
     function toggle() {
@@ -158,6 +189,7 @@ PanelWindow {
             win.phase = "closed";
             win.dropPage(true);
             win.visible = false;
+            reveal.finish();
         }
     }
 
@@ -165,6 +197,7 @@ PanelWindow {
         dateOut.stop();
         tideOut.stop();
         if (still) {
+            reveal.finish();
             water.tide = 1;
             water.rise = 0;
             dateIn.opacity = 1;
@@ -175,6 +208,8 @@ PanelWindow {
             return;
         }
         phase = "opening";
+        // 屏幕上有灵动岛：岛吸成水滴，菜单从水滴中心破开（P3MenuReveal）；内容的入场照常，在圆里进行
+        reveal.open(P3Menu.islandOn(win.screen?.name ?? ""));
         water.tide = 0;
         water.rise = 1;
         dateIn.opacity = 0;
@@ -199,6 +234,10 @@ PanelWindow {
             return;
         cur = i;
     }
+    function pickItem(i) {
+        select(i, true);
+        confirmItem();
+    }
     function confirmItem() {
         const it = items[cur];
         const el = menuRep.itemAt(cur);
@@ -214,6 +253,7 @@ PanelWindow {
         const i = indexOf(id);
         if (i < 0)
             return false;
+        pageOpenT.stop();
         select(i, true);
         const swap = page !== "";
         if (swap)
@@ -260,9 +300,20 @@ PanelWindow {
             if (live())
                 closePage();
         };
+        c.close = () => {
+            if (live())
+                close();
+        };
         c.focus = el => {
             if (live())
                 setFocus(el, false);
+        };
+        c.edit = el => {
+            if (!live() || !el || el.textEntry !== true)
+                return;
+            setFocus(el, false);
+            if (focusEl === el)
+                el.editing = true;
         };
         c.focused = () => live() ? focusEl : null;
         c.refocus = () => {
@@ -281,8 +332,6 @@ PanelWindow {
                 return p;
             }
             p.then(r => {
-                if (live() && r && r.msg)
-                    toast.show(r.msg, false);
                 if (opts.done)
                     opts.done(true, r);
             }, err => {
@@ -364,8 +413,10 @@ PanelWindow {
         pageBox.dx = 0;
     }
     function clearFocus() {
-        if (focusEl)
+        if (focusEl) {
             focusEl.focused = false;
+            focusEl.editing = false;
+        }
         focusEl = null;
         tide.on = false;
         wedge.on = false;
@@ -420,6 +471,24 @@ PanelWindow {
             }
         }
     }
+    // el 外面最近的、内容比视口高的 Flickable；没有为 null
+    function scroller(el) {
+        for (let n = el ? el.parent : null; n && n !== pageLoader.item; n = n.parent)
+            if (n.contentItem !== undefined && n.contentY !== undefined && n.flickableDirection !== undefined && n.contentHeight > n.height)
+                return n;
+        return null;
+    }
+    // el 的左上角（焦点光点所在处）是否在页面内所有裁剪祖先之内；滚出列表视口时不画焦点指示
+    function cornerShown(el) {
+        for (let n = el.parent; n && n !== bodyRoot; n = n.parent) {
+            if (!n.clip)
+                continue;
+            const p = el.mapToItem(n, 0, 0);
+            if (p.x < -2 || p.y < -2 || p.x >= n.width || p.y >= n.height)
+                return false;
+        }
+        return true;
+    }
     function placeCursor(instant) {
         if (!focusEl || !page) {
             tide.on = false;
@@ -440,7 +509,7 @@ PanelWindow {
         use.y = b.y;
         use.width = b.w;
         use.height = b.h;
-        use.on = true;
+        use.on = cornerShown(focusEl);
         cursorSnap = false;
     }
     property bool cursorSnap: false
@@ -468,7 +537,8 @@ PanelWindow {
         }
     }
 
-    function setFocus(el, instant) {
+    // noScroll：指针给的焦点不滚动列表（元素已经在指针下；滚动会让内容在指针下移动）
+    function setFocus(el, instant, noScroll) {
         if (!el) {
             return;
         }
@@ -476,11 +546,14 @@ PanelWindow {
             placeCursor(instant);
             return;
         }
-        if (focusEl)
+        if (focusEl) {
             focusEl.focused = false;
+            focusEl.editing = false;
+        }
         focusEl = el;
         el.focused = true;
-        ensureVisible(el);
+        if (!noScroll)
+            ensureVisible(el);
         if (!instant && !still) {
             wedge.moving = true;
             wedge.moving = false;
@@ -497,35 +570,28 @@ PanelWindow {
         }
     }
 
-    function move(dir) {
-        const all = focusables();
-        if (!all.length)
-            return false;
-        if (!focusEl || all.indexOf(focusEl) < 0) {
-            setFocus(all[0], false);
-            return true;
-        }
-        const a = boxOf(focusEl);
+    // 候选 cands（[{ el, b }]）里离盒子 a 最近的一个（原型的打分：主方向距离 + 3 × 侧向距离），skip 除外；没有为 null
+    function pick(dir, a, cands, skip) {
         const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
         let best = null, bestS = Infinity;
-        for (const el of all) {
-            if (el === focusEl)
+        for (const c of cands) {
+            if (c.el === skip)
                 continue;
-            const b = boxOf(el);
+            const b = c.b;
             const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
             let prim, orth;
             if (dir === "down" || dir === "up") {
                 prim = dir === "down" ? b.y - (a.y + a.h) : a.y - (b.y + b.h);
-                const c = dir === "down" ? bcy - acy : acy - bcy;
-                if (c <= 2)
+                const d = dir === "down" ? bcy - acy : acy - bcy;
+                if (d <= 2)
                     continue;
                 prim = Math.max(prim, 0);
                 orth = Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.w, b.x + b.w));
                 orth += Math.abs(bcx - acx) * 0.1;
             } else {
                 prim = dir === "right" ? b.x - (a.x + a.w) : a.x - (b.x + b.w);
-                const c = dir === "right" ? bcx - acx : acx - bcx;
-                if (c <= 2)
+                const d = dir === "right" ? bcx - acx : acx - bcx;
+                if (d <= 2)
                     continue;
                 prim = Math.max(prim, 0);
                 orth = Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.h, b.y + b.h));
@@ -534,14 +600,77 @@ PanelWindow {
             const s = prim + orth * 3;
             if (s < bestS) {
                 bestS = s;
-                best = el;
+                best = c;
             }
         }
+        return best;
+    }
+
+    function move(dir) {
+        const all = focusables();
+        if (!all.length)
+            return false;
+        if (!focusEl || all.indexOf(focusEl) < 0) {
+            setFocus(all[0], false);
+            return true;
+        }
+        const best = pick(dir, boxOf(focusEl), all.map(el => ({
+                    "el": el,
+                    "b": boxOf(el)
+                })), focusEl);
         if (best) {
-            setFocus(best, false);
+            setFocus(best.el, false);
             return true;
         }
         return false;
+    }
+
+    // g g / G / Ctrl+u / Ctrl+d 的默认走法：只在焦点所在的列里（与焦点元素横向重叠的元素）沿 ↑ / ↓ 一格格走，
+    // first / last 走到头，halfUp / halfDown 走过半个视口（焦点在可滚动列表里时是列表视口，否则是页面）就停；
+    // 半页时列表跟着滚同样的距离，焦点停在视口里的同一高度。
+    function motion(kind) {
+        const all = focusables();
+        if (!all.length)
+            return false;
+        const f = focusEl;
+        if (!f || all.indexOf(f) < 0) {
+            setFocus(all[0], false);
+            return true;
+        }
+        const up = kind === "first" || kind === "halfUp";
+        const half = kind === "halfUp" || kind === "halfDown";
+        const sc = half ? scroller(f) : null;
+        const span = (sc ? sc.height : P3.pageH) / 2;
+        const a0 = boxOf(f);
+        const col = [];
+        for (const el of all) {
+            if (el === f)
+                continue;
+            const b = boxOf(el);
+            if (Math.min(a0.x + a0.w, b.x + b.w) - Math.max(a0.x, b.x) > 0)
+                col.push({
+                    "el": el,
+                    "b": b
+                });
+        }
+        let cur = {
+            "el": f,
+            "b": a0
+        };
+        for (let n = 0; n < col.length; n++) {
+            const nx = pick(up ? "up" : "down", cur.b, col, cur.el);
+            if (!nx)
+                break;
+            cur = nx;
+            if (half && Math.abs(cur.b.y - a0.y) >= span)
+                break;
+        }
+        if (cur.el === f)
+            return false;
+        if (sc && scroller(cur.el) === sc)
+            sc.contentY = Math.max(0, Math.min(sc.contentHeight - sc.height, sc.contentY + cur.b.y - a0.y));
+        setFocus(cur.el, false);
+        return true;
     }
 
     function activate(el) {
@@ -574,9 +703,183 @@ PanelWindow {
             return;
         if (focusEl && focusEl.p3hold === true && focusEl !== el)
             focusEl.cancel();
+        ptr.el = el;
         setFocus(el, false);
+        if (el.textEntry === true) {
+            el.editing = true;
+            return;
+        }
         if (doActivate)
             activate(el);
+    }
+
+    // ================================================================ 指针
+    // 指针移到可聚焦元素上就把焦点移过去（原型 mouseover → setFocus，播放进入果冻和光点弹跳）；
+    // 指针离开焦点元素再移回来时再抖一下。主列表上只移动选中项，不打开页面；页面打开后左侧 rail 不跟随指针。
+    // 只认真实的指针移动：坐标没变的悬停事件（内容在静止的指针下滚动、切页、开菜单时合成器补发的）不算；
+    // 键盘按键之后指针要离开按键时的位置 6px 才重新接管，所以键盘导航总是从当前焦点继续。
+    // 按着鼠标键、按住 Enter / Space（按住确认）、录键、菜单开合期间不跟随；指针给的焦点不滚动列表。
+    property var ptr: ({
+            "last": null,
+            "anchor": null,
+            "armed": false,
+            "el": null,
+            "pending": false
+        })
+    property bool keyHeld: false
+    function pointerReset() {
+        ptr.last = null;
+        ptr.anchor = null;
+        ptr.armed = false;
+        ptr.el = null;
+        ptr.pending = false;
+        ptrT.stop();
+    }
+    // 键盘按下：指针先交出控制
+    function pointerDisarm() {
+        ptr.armed = false;
+        ptr.anchor = ptr.last;
+    }
+    function pointerMoved(x, y, buttons) {
+        const last = ptr.last;
+        ptr.last = {
+            "x": x,
+            "y": y
+        };
+        if (!last || (Math.abs(x - last.x) < 0.5 && Math.abs(y - last.y) < 0.5))
+            return;
+        if (buttons)
+            return;
+        if (!ptr.armed) {
+            if (!ptr.anchor)
+                ptr.anchor = last;
+            if (Math.hypot(x - ptr.anchor.x, y - ptr.anchor.y) < 6)
+                return;
+            ptr.armed = true;
+        }
+        ptr.pending = true;
+        if (!ptrT.running) {
+            pointerFlush();
+            ptrT.start();
+        }
+    }
+    // 一帧最多处理一次
+    Timer {
+        id: ptrT
+        interval: 16
+        onTriggered: if (win.ptr.pending) {
+            win.pointerFlush();
+            start();
+        }
+    }
+    function pointerFlush() {
+        ptr.pending = false;
+        if (!visible || !shouldShow || closing || gated() || capturing || keyHeld || !ptr.last)
+            return;
+        const s = stage.mapFromItem(ptrLayer, ptr.last.x, ptr.last.y);
+        if (!page) {
+            for (let i = 0; i < menuRep.count; i++) {
+                const it = menuRep.itemAt(i);
+                if (it && it.hitAt(stage, s.x, s.y)) {
+                    select(i);
+                    return;
+                }
+            }
+            return;
+        }
+        const el = hoverTarget(s.x, s.y);
+        const prev = ptr.el;
+        ptr.el = el;
+        if (!el)
+            return;
+        if (el !== focusEl)
+            setFocus(el, false, true);
+        else if (prev !== el)
+            wob(el);
+    }
+    // a 是否画在 b 上面（同一父项下比 z、再比子项顺序；后代画在祖先上面）
+    function above(a, b) {
+        const ca = [], cb = [];
+        for (let n = a; n; n = n.parent)
+            ca.unshift(n);
+        for (let n = b; n; n = n.parent)
+            cb.unshift(n);
+        let i = 0;
+        while (i < ca.length && i < cb.length && ca[i] === cb[i])
+            i++;
+        if (i === ca.length)
+            return false;
+        if (i === cb.length)
+            return true;
+        const x = ca[i], y = cb[i];
+        if (x.z !== y.z)
+            return x.z > y.z;
+        const kids = ca[i - 1] ? ca[i - 1].children : [];
+        let ix = -1, iy = -1;
+        for (let k = 0; k < kids.length; k++) {
+            if (kids[k] === x)
+                ix = k;
+            else if (kids[k] === y)
+                iy = k;
+        }
+        return ix > iy;
+    }
+    // 舞台坐标 (sx, sy) 下最上层的可交互元素（可聚焦元素或接左键的 MouseArea，按绘制顺序，裁剪区外的不算），
+    // 再取它所在的可聚焦元素；盖在上面、不属于任何可聚焦元素的 MouseArea（托盘菜单的点击关闭区、录键遮罩、ctx.overlay 上的幕布）挡住下面的元素。
+    function hoverTarget(sx, sy) {
+        const pg = pageLoader.item;
+        if (!pg || !ctx)
+            return null;
+        let top = null;
+        const walk = n => {
+            const kids = n.children;
+            for (let i = 0; i < kids.length; i++) {
+                const c = kids[i];
+                if (!c || !c.visible || c.opacity <= 0)
+                    continue;
+                const fo = c.p3focusable === true;
+                const ma = !fo && c.pressAndHoldInterval !== undefined && c.acceptedButtons !== undefined;
+                if (c.clip || fo || ma) {
+                    const p = c.mapFromItem(stage, sx, sy);
+                    const inside = p.x >= 0 && p.y >= 0 && p.x < c.width && p.y < c.height;
+                    if (c.clip && !inside)
+                        continue;
+                    if (inside && ((fo && !c.disabled) || (ma && c.enabled && (c.acceptedButtons & Qt.LeftButton))) && (!top || above(c, top)))
+                        top = c;
+                }
+                walk(c);
+            }
+        };
+        const pb = bodyClip.mapFromItem(stage, sx, sy);
+        if (pb.x >= 0 && pb.y >= 0 && pb.x < bodyClip.width && pb.y < bodyClip.height)
+            walk(pg);
+        walk(overlay);
+        for (let n = top; n && n !== pg && n !== overlay; n = n.parent)
+            if (n.p3focusable === true)
+                return n.disabled ? null : n;
+        return null;
+    }
+    Connections {
+        target: win
+        function onShouldShowChanged() {
+            win.pointerReset();
+            win.keyHeld = false;
+            gWait.stop();
+        }
+    }
+
+    // 调试（p3menu focus）：焦点元素的名字、页面坐标里的盒子，输入状态和光点是否显示
+    function describeFocus() {
+        if (!shouldShow)
+            return "closed";
+        if (!page)
+            return "list " + items[cur].id;
+        const f = focusEl;
+        if (!f)
+            return page + " none";
+        const name = [f.ref, f.syKey, f.key, f.act ? f.act.id : "", f.label, f.title, f.pid >= 0 ? "pid:" + f.pid : ""].find(v => typeof v === "string" && v !== "") || String(f).replace(/(_QMLTYPE_\d+)?\(.*$/, "");
+        const b = boxOf(f);
+        return page + " " + name + " @" + Math.round(b.x) + "," + Math.round(b.y) + " " + Math.round(b.w) + "x" + Math.round(b.h) + (typingNow() ? " typing" : "") + (tide.on ? " tide" : "");
     }
 
     // 页面打开期间定时重测焦点框（入场动画、滚动、布局变化后指示器跟上）
@@ -619,90 +922,234 @@ PanelWindow {
     // 页面 keyCapture 为 true 时：所有按下（含 Ctrl / Alt / Meta 组合、单独的修饰键、自动重复）原样交给 handleKey，
     // 框架不导航；松开全部吞掉；ShortcutInhibitor 让合成器把 Mod 组合也交给窗口。
     readonly property bool capturing: paged && !!pageLoader.item && pageLoader.item.keyCapture === true
+    // 字母是输入：页面 textEntry（APPS 搜索的输入状态），或焦点在输入框上且处于输入状态（editing）。
+    // 输入框（textEntry 元素）拿到焦点时不输入，h j k l 照常移动；i 或单击进入输入，Esc 退出输入（焦点留在框上）
+    function typingNow() {
+        const pg = pageLoader.item;
+        return paged && !!pg && (pg.textEntry === true || (!!focusEl && focusEl.textEntry === true && focusEl.editing === true));
+    }
+
+    // vim 键（在页面 handleKey 之前翻译，所有页面、keyHandler 都按方向键处理）：
+    //   h j k l = ← ↓ ↑ →；Ctrl+h/j/k/l、Ctrl+n/p 也是方向键，输入时照样可用
+    //   g g / G = 第一个 / 最后一个，Ctrl+d / Ctrl+u = 下 / 上半页：先以 { key: Qt.Key_unknown, motion } 交给 handleKey，
+    //   页面不处理时 motion() 沿当前列走；主列表上 g g / G 选第一项 / 最后一项
+    // 输入时（typingNow()）h j k l g G 原样交给页面。单独一个 g 等第二个键 1 秒：等来的不是 g 时先把 g 当普通按键补上。
+    function arrowOf(k, ctrl) {
+        switch (k) {
+        case Qt.Key_H:
+            return Qt.Key_Left;
+        case Qt.Key_J:
+            return Qt.Key_Down;
+        case Qt.Key_K:
+            return Qt.Key_Up;
+        case Qt.Key_L:
+            return Qt.Key_Right;
+        case Qt.Key_N:
+            return ctrl ? Qt.Key_Down : 0;
+        case Qt.Key_P:
+            return ctrl ? Qt.Key_Up : 0;
+        }
+        return 0;
+    }
+    // 合成的按键对象（和 back() 里合成的 Escape 同一形状）
+    function synthKey(key, text, auto, extra) {
+        const o = {
+            "key": key,
+            "text": text,
+            "modifiers": 0,
+            "isAutoRepeat": !!auto,
+            "nativeScanCode": 0,
+            "synthetic": true,
+            "vim": true,
+            "accepted": false
+        };
+        return extra ? Object.assign(o, extra) : o;
+    }
+    function isModifierKey(k) {
+        return k === Qt.Key_Shift || k === Qt.Key_Control || k === Qt.Key_Alt || k === Qt.Key_AltGr || k === Qt.Key_Meta || k === Qt.Key_Super_L || k === Qt.Key_Super_R || k === Qt.Key_Hyper_L || k === Qt.Key_Hyper_R || k === Qt.Key_CapsLock;
+    }
+    Timer {
+        id: gWait
+        interval: 1000
+        onTriggered: win.dispatchKey(win.synthKey(Qt.Key_G, "g", false))
+    }
+    function runMotion(kind, auto) {
+        if (!page) {
+            if (closing)
+                return;
+            if (kind === "first")
+                select(0);
+            else if (kind === "last")
+                select(items.length - 1);
+            return;
+        }
+        if (pageKey(synthKey(Qt.Key_unknown, "", auto, {
+            "motion": kind
+        })))
+            return;
+        motion(kind);
+    }
+
     function onKeyPressed(e) {
         if (capturing) {
             e.accepted = true;
             pageKey(e);
             return;
         }
-        if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
-            return;
-        if (page && pageKey(e)) {
-            e.accepted = true;
-            return;
-        }
         const k = e.key;
-        if (busy && !page) {
+        if (isModifierKey(k))
+            return;
+        if (gated()) {
             e.accepted = true;
+            if (!e.isAutoRepeat) {
+                const c = {
+                    "key": k,
+                    "text": e.text,
+                    "modifiers": e.modifiers,
+                    "isAutoRepeat": false,
+                    "nativeScanCode": e.nativeScanCode,
+                    "replay": true,
+                    "accepted": false
+                };
+                holdInput(() => onKeyPressed(c));
+            }
             return;
         }
-        e.accepted = true;
+        pointerDisarm();
+        if ((k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) && !e.isAutoRepeat && !e.replay)
+            keyHeld = true;
+        const mods = e.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+        if (gWait.running) {
+            gWait.stop();
+            if (k === Qt.Key_G && !mods && !typingNow()) {
+                e.accepted = true;
+                runMotion("first", false);
+                return;
+            }
+            dispatchKey(synthKey(Qt.Key_G, "g", false));
+        }
+        const typing = typingNow();
+        let ev = e;
+        if (mods === Qt.ControlModifier) {
+            if (k === Qt.Key_D || k === Qt.Key_U) {
+                e.accepted = true;
+                runMotion(k === Qt.Key_D ? "halfDown" : "halfUp", e.isAutoRepeat);
+                return;
+            }
+            const a = arrowOf(k, true);
+            if (a)
+                ev = synthKey(a, "", e.isAutoRepeat);
+        } else if (!typing && !mods) {
+            const a = arrowOf(k, false);
+            if (a) {
+                ev = synthKey(a, "", e.isAutoRepeat);
+            } else if (k === Qt.Key_G) {
+                e.accepted = true;
+                if (!e.isAutoRepeat)
+                    gWait.restart();
+                return;
+            }
+        } else if (!typing && mods === Qt.ShiftModifier && k === Qt.Key_G) {
+            e.accepted = true;
+            runMotion("last", e.isAutoRepeat);
+            return;
+        }
+        e.accepted = dispatchKey(ev);
+    }
+    // 一次按下的处理（真实事件或上面合成的对象）；返回是否已处理
+    function dispatchKey(e) {
+        if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+            return false;
+        if (page && fieldKey(e))
+            return true;
+        if (page && pageKey(e))
+            return true;
+        const k = e.key;
+        if (closing && !page)
+            return true;
         if (page) {
             const f = focusEl;
             if (f && f.keyHandler && f.keyHandler(e))
-                return;
+                return true;
             switch (k) {
             case Qt.Key_Escape:
             case Qt.Key_Backspace:
                 closePage();
-                return;
+                return true;
             case Qt.Key_Up:
             case Qt.Key_W:
                 move("up");
-                return;
+                return true;
             case Qt.Key_Down:
             case Qt.Key_S:
                 move("down");
-                return;
+                return true;
             case Qt.Key_Left:
             case Qt.Key_A:
                 if (!move("left"))
                     closePage();
-                return;
+                return true;
             case Qt.Key_Right:
             case Qt.Key_D:
                 move("right");
-                return;
+                return true;
             case Qt.Key_Return:
             case Qt.Key_Enter:
             case Qt.Key_Space:
                 if (!f || e.isAutoRepeat)
-                    return;
+                    return true;
                 if (f.p3hold === true) {
                     f.start();
-                    return;
+                    return true;
                 }
                 activate(f);
-                return;
+                return true;
             }
-            e.accepted = false;
-            return;
+            return false;
         }
         switch (k) {
         case Qt.Key_Down:
         case Qt.Key_S:
         case Qt.Key_Tab:
             select(cur + 1);
-            return;
+            return true;
         case Qt.Key_Up:
         case Qt.Key_W:
         case Qt.Key_Backtab:
             select(cur - 1);
-            return;
+            return true;
         case Qt.Key_Return:
         case Qt.Key_Enter:
         case Qt.Key_Space:
         case Qt.Key_Right:
         case Qt.Key_D:
             confirmItem();
-            return;
+            return true;
         case Qt.Key_Escape:
             close();
-            return;
+            return true;
         }
-        e.accepted = false;
+        return false;
+    }
+    // 输入框的两种状态（先于页面）：不在输入时 i 进入输入；输入时 Esc 退出输入、焦点留在框上
+    function fieldKey(e) {
+        const f = focusEl;
+        if (!f || f.textEntry !== true || e.synthetic)
+            return false;
+        if (!f.editing && e.key === Qt.Key_I) {
+            if (!e.isAutoRepeat)
+                f.editing = true;
+            return true;
+        }
+        if (f.editing && e.key === Qt.Key_Escape) {
+            f.editing = false;
+            return true;
+        }
+        return false;
     }
     function onKeyReleased(e) {
+        if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) && !e.isAutoRepeat)
+            keyHeld = false;
         if (capturing) {
             e.accepted = true;
             return;
@@ -738,8 +1185,12 @@ PanelWindow {
         back();
     }
     function back() {
-        if (busy && !page)
+        if (closing && !page)
             return;
+        if (gated()) {
+            holdInput(() => back());
+            return;
+        }
         if (page) {
             if (pageKey({
                 "key": Qt.Key_Escape,
@@ -757,10 +1208,18 @@ PanelWindow {
     }
 
     // ================================================================ 画面
+    // 出场 / 收场的圆形开口期间底色由 reveal 在圆里画
     Rectangle {
         anchors.fill: parent
         color: P3.stageBg
         opacity: water.tide
+        visible: !reveal.active
+    }
+
+    P3MenuReveal {
+        id: reveal
+        anchors.fill: parent
+        baseA: water.tide
     }
 
     ShortcutInhibitor {
@@ -772,6 +1231,8 @@ PanelWindow {
         id: keys
         anchors.fill: parent
         focus: true
+        layer.enabled: reveal.active
+        layer.effect: reveal.effect
         Keys.onPressed: e => win.onKeyPressed(e)
         Keys.onReleased: e => win.onKeyReleased(e)
 
@@ -995,10 +1456,13 @@ PanelWindow {
                         paged: win.paged
                         still: win.still
                         onClicked: {
-                            if (win.busy)
+                            if (win.closing)
                                 return;
-                            win.select(index, true);
-                            win.confirmItem();
+                            const i = index;
+                            if (win.gated())
+                                win.holdInput(() => win.pickItem(i));
+                            else
+                                win.pickItem(i);
                         }
                     }
                 }
@@ -1171,7 +1635,7 @@ PanelWindow {
                 anchors.fill: parent
             }
 
-            // 提示条（ctx.run / ctx.toast），在全舞台层之上
+            // 提示条（ctx.run 的失败 / ctx.toast），在全舞台层之上
             Rectangle {
                 id: toast
                 z: 9
@@ -1222,17 +1686,37 @@ PanelWindow {
                 acceptedButtons: Qt.RightButton
                 onClicked: e => win.rightClick(e.x, e.y)
             }
-            // 主列表滚轮切换
+            // 主列表滚轮切换：Wayland 上滚轮事件常被标成 TouchPad 设备；120 = 一格，触摸板的小增量攒满一格才换
             WheelHandler {
-                enabled: !win.paged && !win.busy
+                enabled: !win.paged && win.phase === "open"
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                 property real lock: 0
+                property real acc: 0
                 onWheel: e => {
+                    acc += e.angleDelta.y;
+                    const n = Math.trunc(acc / 120);
+                    if (!n)
+                        return;
+                    acc -= n * 120;
                     const now = Date.now();
                     if (now < lock)
                         return;
                     lock = now + 90;
-                    win.select(win.cur + (e.angleDelta.y < 0 ? 1 : -1));
+                    win.select(win.cur + (n < 0 ? 1 : -1));
                 }
+            }
+        }
+
+        // 指针跟随（见「指针」一节）：最上层的空层，HoverHandler 不挡点击、滚轮和下面的悬停
+        Item {
+            id: ptrLayer
+            anchors.fill: parent
+            z: 100
+            HoverHandler {
+                onPointChanged: if (hovered)
+                    win.pointerMoved(point.position.x, point.position.y, point.pressedButtons)
+                onHoveredChanged: if (!hovered)
+                    win.ptr.last = null
             }
         }
     }

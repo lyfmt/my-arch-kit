@@ -80,7 +80,11 @@ SyPane {
                         icon: "reboot"
                         label: d.up.running ? "更新中" : d.up.count ? "UPDATE " + d.up.count : "UP TO DATE"
                         disabled: !(d.up.count > 0 && !d.up.running)
-                        onConfirmed: upd.run(Update.run())
+                        // 更新在终端里跑：关掉菜单让出终端窗口
+                        onConfirmed: {
+                            P3Menu.close();
+                            upd.run(Update.run());
+                        }
                     }
                 }
             }

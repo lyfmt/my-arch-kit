@@ -7,7 +7,8 @@ import "calendar"
 // CALENDAR 页（原型 prototype/pages/calendar.js）。
 //   左：月历（周一开头）。选中日跟随键盘和单击；右栏显示选中日的大号日期、星期、农历 / 节气 / 节日、相对今天的天数和日程。
 //   数据：P3Sys/Calendar（农历 1900–2100、节气、holiday-cn 休/班、CalendarService 日程）；日程按月缓存在本页。
-//   按键：←→ 一天，↑↓ 一周（跨月时翻页），PageUp/PageDown 或 [ ] 翻月，T / Home 回到今天；滚轮在月历上翻月。
+//   按键：←→ / h l 一天，↑↓ / k j 一周（跨月时翻页），PageUp/PageDown、[ ] 或 Ctrl+u / Ctrl+d 翻月，g g / G 本月第一天 / 最后一天，
+//   T / Home 回到今天；滚轮在月历上翻月。指针移到格子上就选中那一天（不翻月）。
 //   单击或 Enter 选中相邻月份的日期时翻到那个月。P3_CAL_DAY=YYYY-MM-DD 预选一天（截图用）。
 P3Page {
     id: page
@@ -179,6 +180,15 @@ P3Page {
     }
 
     function handleKey(e) {
+        if (e.motion) {
+            if (e.motion === "first")
+                select(new Date(viewY, viewM, 1));
+            else if (e.motion === "last")
+                select(new Date(viewY, viewM + 1, 0));
+            else
+                shiftMonth(e.motion === "halfDown" ? 1 : -1);
+            return true;
+        }
         const k = e.key;
         const step = k === Qt.Key_Left || k === Qt.Key_A ? -1 : k === Qt.Key_Right || k === Qt.Key_D ? 1 : k === Qt.Key_Up || k === Qt.Key_W ? -7 : k === Qt.Key_Down || k === Qt.Key_S ? 7 : 0;
         if (step) {
@@ -354,15 +364,20 @@ P3Page {
 
         WheelHandler {
             target: null
+            // Wayland 上滚轮事件常被标成 TouchPad 设备；120 = 一格，触摸板的小增量攒满一格才翻
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            property real acc: 0
             onWheel: e => {
-                const dy = e.angleDelta.y;
-                if (!dy)
+                acc += e.angleDelta.y;
+                const n = Math.trunc(acc / 120);
+                if (!n)
                     return;
+                acc -= n * 120;
                 const t = Date.now();
                 if (t < page.wheelLock)
                     return;
                 page.wheelLock = t + 280;
-                page.shiftMonth(dy < 0 ? 1 : -1);
+                page.shiftMonth(n < 0 ? 1 : -1);
             }
         }
     }

@@ -11,7 +11,7 @@
 | `dux-shell` 2.0.0（`dms`） | 上游 UI 的来源（`build.sh` 从 `/usr/bin/dms` 解出）和运行时；升级后要先按新版本重新适配 `patches/` |
 | `quickshell-git`、`niri` | 运行；`Mod+Z` 绑定和输出信息来自 niri |
 | `python3`、`patch` | `build.sh` / `enable.sh` / `disable.sh` |
-| 可选：`fcitx5`、`khal`（或 dankcal）、Clash Verge（mihomo） | 输入法、日历事件、代理。缺了对应的行显示未连接 |
+| 可选：`fcitx5`、日历后端、Clash Verge（mihomo） | 输入法、日历事件、代理。缺了对应的行显示未连接。日历后端二选一：Dux Calendar（AUR `dux-calendar-bin`，提供 `dcal`，本地 / Google / Microsoft / CalDAV；不是 AUR 里同名的 `dcal` 包）或 `khal`（extra，要自己配好日历目录，远端日历配 `vdirsyncer` 同步）。DMS 设置里 `calendarBackend` 默认 `auto`：`dcal` 在跑就用它，否则装了 `khal` 就用 `khal`。月历、农历、节气、节假日（holiday-cn，联网拉取后缓存在 `~/.cache/p3/`）不依赖后端 |
 | 自测：`sway`、`grim` | `scripts/qmlcheck.sh` 的无头会话和截图 |
 
 ## 构建、启用、停用
@@ -36,8 +36,9 @@
 
 ### 启用后
 
-- 菜单：`Mod+Z`，或 `dms ipc call p3menu toggle | open <apps|status|calendar|system|power> | close | status`。
-- 灵动岛：顶栏横放、独立岛（不是竖栏、不是 free / dot / notch / 嵌入模式）时画成 P3 气泡串，只响应点击、不悬停展开。调试：`dms ipc call island status`、`island open notificationcenter`、`island show media`、`island close`。
+- 菜单：`Mod+Z`，或 `dms ipc call p3menu toggle | open <apps|status|calendar|system|power> | close | status | focus`（`focus` 返回当前焦点元素，调试用）。
+- 菜单按键：方向键 / WASD / `h j k l` 移动，`g g` / `G` 第一个 / 最后一个，`Ctrl+d` / `Ctrl+u` 半页，`Enter` / `Space` / `l`（→）进入或激活，`Esc` / `Backspace` / 右键 / 最左侧的 `h`（←）返回；打开动画期间的按键和对主列表的点击不丢，动画结束时按顺序生效（只作用于主列表，打开了页面后剩下的丢掉）。输入是 vim 式的，不在输入时字母不输入：APPS 应用区按 `i` 或 `/` 开始搜索，`Esc` 停到结果里（`h j k l` 走，`i` / `/` 回到输入），再按一次退出搜索；ALL APPS 直接停在结果里。搜索框、密码框拿到焦点时不输入，`i` 或单击进入输入，`Esc` 退出输入（选了要密码的 Wi-Fi 时密码框直接在输入；KEYBINDS 里任意处 `/` 跳到搜索框输入）；输入时 `Ctrl+j/k`、`Ctrl+n/p` 进结果。启动应用、激活托盘应用的窗口、执行托盘菜单里非勾选的条目、开始系统更新后菜单直接关闭；操作成功不弹提示，失败才弹红色提示。指针移到元素上即聚焦，单击激活，滚轮在主列表换项、在日历翻月、在滑块上调值。完整说明在 `docs/PAGE_CONTRACT.md` 第 3 节。
+- 灵动岛：顶栏横放、独立岛（不是竖栏、不是 free / dot / notch / 嵌入模式）时画成 P3 气泡串。悬停（岛的交互模式为 hybrid，顶栏岛默认如此）：home 时整串胀开成 peek（时间旁露出日期、音频气泡里是歌名），播放中悬停音频则展开媒体卡，指针离开 140ms 后收回；指针下的气泡鼓一下、邻居往它那边靠，离开时整排晃一下。有播放器在播时气泡像云一样缓慢漂浮。点通知卡或通知中心的一行直接调通知的默认动作、聚焦发通知应用的窗口（没有动作和窗口时启动该应用），点计数气泡打开通知中心。打开菜单时岛吸成水滴，菜单从水滴中心破开（`P3MenuReveal`），关闭时缩回水滴。调试：`dms ipc call island status`、`island open notificationcenter`、`island show media`、`island close`。
 - 只要岛、不要两侧的卫星胶囊：DMS 设置 → 顶栏外观里关掉 island satellites，即 `settings.json` 的 `barConfigs` 中 id 为 `default` 的那一项设 `"islandSatellitesEnabled": false`。`enable.sh` 不改这个设置；手改文件要在 DMS 停下时改。
 - 只重启 dms-p3：`scripts/dev.sh restart`，或带锚定路径的 `pkill -f '[q]s -p .*/dms-p3/shell'`。不要用宽泛的 `pkill qs`。
 
@@ -52,31 +53,40 @@ P3_CHECK_DIR=/tmp/p3check-isl P3_IPC="island open notificationcenter" P3_SHOT=/t
 
 `qmlcheck.sh` 在无头 sway 里跑（虚拟输出 HEADLESS-1，1920×1080），独立 dbus 会话、临时 XDG 目录，不碰在跑的 DMS，也不在桌面上开窗口；不要为测试启动嵌套 niri。输出里 P3 文件和打过补丁的文件不能有警告；壁纸、缓存文件、`TrayMenuManager`、portal 这几类上游警告是沙箱造成的。子层截图用的环境变量（`P3_SYSTEM_VIEW`、`P3_POWER_*`、`P3_CAL_DAY` 等）见 `docs/PAGE_CONTRACT.md` 第 6 节。截图只存 `/tmp`。
 
+按键和指针用 `P3_INPUT` 在无头 sway 里发（虚拟键盘 + 虚拟指针，`scripts/vinput.c`），配合 `ipc p3menu focus` 看焦点，步骤写法见 `docs/PAGE_CONTRACT.md` 第 6 节：
+
+```sh
+P3_CHECK_DIR=/tmp/p3check-keys P3_IPC="p3menu toggle" P3_INPUT="key j;key g;key g;ipc p3menu focus;ptr 1250 520;ipc p3menu focus" scripts/qmlcheck.sh /tmp/p3build 3
+```
+
+无头会话里 PipeWire 和系统总线（网络、蓝牙、logind、性能模式）连的是真机：不要在这些控件上激活、调值或滚轮，POWER 页不要按住。
+
 ## 文件
 
 | 路径 | 说明 |
 |---|---|
 | `build.sh`、`enable.sh`、`disable.sh` | 构建、启用、停用（见上） |
 | `patches/` | 对上游文件的补丁，`BASE_VERSION` = v2.0.0。`DMSShell.qml.patch` 让 `P3Menu` 单例和 `p3menu` IPC 启动时就绪；`island_DIslandSurface.qml.patch`、`island_IslandController.qml.patch` 把横向独立岛换成 P3 气泡串 |
-| `overlay/Modules/P3/` | 菜单框架和控件：`P3`（令牌）、`P3Menu`（单例 + IPC）、`P3MenuWindow`（窗口、焦点引擎、页面切换）、`P3MenuItem`、`P3Page`、`P3Water` / `P3Bubbles`（水下背景）、`P3Tide` / `P3Wedge`（焦点指示）、`P3Text` `P3Row` `P3Toggle` `P3Slider` `P3Hold` `P3Button` … |
+| `overlay/Modules/P3/` | 菜单框架和控件：`P3`（令牌）、`P3Menu`（单例 + IPC）、`P3MenuWindow`（窗口、焦点引擎、页面切换）、`P3MenuReveal` + `shaders/p3reveal.frag`（从岛的水滴破开 / 缩回的过场）、`P3MenuItem`、`P3Page`、`P3Water` / `P3Bubbles`（水下背景）、`P3Tide` / `P3Wedge`（焦点指示）、`P3Text` `P3Row` `P3Toggle` `P3Slider` `P3Hold` `P3Button` … |
 | `overlay/Modules/P3/pages/` | 五个页面 `<Name>Page.qml`，各自的组件在 `apps/` `calendar/` `status/` `system/` `power/` 子目录 |
-| `overlay/Modules/P3/Island/` | 灵动岛：`P3IslandLayer`（气泡内容、点击区）、`P3IslandShape` + `shaders/p3island.frag`（SDF 平滑并集）、`P3IslandSprings`（弹簧）、`P3IslandLayout.js`（几何，控制器和内容层共用）、`P3IslandCenter`（通知中心）… |
+| `overlay/Modules/P3/Island/` | 灵动岛：`P3IslandLayer`（气泡内容、点击区、悬停区）、`P3IslandShape` + `shaders/p3island.frag`（SDF 平滑并集）、`P3IslandSprings`（弹簧、云浮偏移）、`P3IslandLayout.js`（几何和云浮曲线，控制器和内容层共用）、`P3IslandCenter`（通知中心）、`P3IslandOpen`（点通知直达）… |
 | `overlay/Modules/P3/assets/fonts/` | `P3Display.ttf`（`scripts/mkfont.py` 由原型 woff2 合成）、`BarlowCondensed-Bold.ttf` |
 | `overlay/P3Sys/` | 页面唯一的系统接口：一个命名空间一个单例，对 DMS Service 的薄封装（`import qs.P3Sys`） |
 | `niri/dms-p3.kdl` | `Mod+Z` 绑定（`enable.sh` 安装） |
 | `docs/PAGE_CONTRACT.md` | 页面契约：骨架、ctx、焦点与按键、控件、P3Sys 一览、自测 |
 | `docs/ISLAND_PLAN.md` | 灵动岛的实现方式 |
-| `scripts/qmlcheck.sh` | 无头自测 |
+| `scripts/qmlcheck.sh`、`scripts/vinput.c` | 无头自测；`vinput.c` 是 `P3_INPUT` 用的虚拟键盘 / 指针（qmlcheck 自动编译，只在无头 sway 里运行） |
 | `scripts/dev.sh` | 开发：`init` 建上游工作副本 `work/shell`、`export` 导出补丁、`check`、`restart` |
 | `scripts/extract-embedded.py` | 从 `/usr/bin/dms` 解出内置 UI（`build.sh` 调用） |
 | `scripts/mkfont.py`、`mkglyphs.py`、`mklunar.js` | 生成字体、图标表、农历表 |
 | `scripts/grab.sh`、`preview/grab/` | 截取真实输出（开发用） |
 | `prototype/` | 浏览器原型（见下） |
 
-改 `shaders/p3island.frag` 后重新生成 `.qsb`：
+改 `shaders/p3island.frag` 或 `shaders/p3reveal.frag` 后重新生成 `.qsb`：
 
 ```sh
 /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o overlay/Modules/P3/Island/shaders/p3island.frag.qsb overlay/Modules/P3/Island/shaders/p3island.frag
+/usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o overlay/Modules/P3/shaders/p3reveal.frag.qsb overlay/Modules/P3/shaders/p3reveal.frag
 ```
 
 ## 原型
@@ -99,7 +109,9 @@ P3_CHECK_DIR=/tmp/p3check-isl P3_IPC="island open notificationcenter" P3_SHOT=/t
 
 ## 设计约定
 
-- 只有 P3 蓝一套色板。除菜单的水下背景外不用渐变，不做 hover 效果，只响应点击。
+- 只有 P3 蓝一套色板。除菜单的水下背景外不用渐变。
+- 灵动岛的悬停只用形状和运动回应（peek 胀开、气泡鼓起、邻居靠拢、离开时一晃），不加高亮色块或描边。
+- 菜单跟随指针：指针移到可聚焦元素上，焦点（同一个光点和进入动画）就移过去，没有单独的 hover 样式；主列表在没打开页面时只选中、不打开。只认真实的指针移动，按键之后指针要再移动才重新接管。
 - 展示字（Nunito Sans 900 斜体，`P3 Display`）只给名词和数字，其余标签用 Barlow Condensed。
 - 界面里不写解释性小字（不重复标题的副标题、不写提示行）。
 - 灵动岛颜色 `#14306e`，通知中心是平铺的行。菜单焦点是元素左上角一个脉动的天蓝光点。

@@ -50,10 +50,12 @@ P3Page {
 | 调用 | 作用 |
 |---|---|
 | `ctx.back()` | 离开页面（等于顶层 Esc） |
+| `ctx.close()` | 关闭整个菜单。启动应用、激活窗口、打开终端这类会出现新窗口的动作先调它，再执行动作 |
+| `ctx.edit(item)` | 把焦点移到输入框 item（`textEntry: true`）并进入输入，例如选了要密码的 Wi-Fi 后的密码框 |
 | `ctx.focus(item)` | 把焦点移到 item，播放进入动画 |
 | `ctx.focused()` | 当前焦点元素或 null |
 | `ctx.refocus()` | 布局变了以后重新放置焦点指示（框架每 120ms 也会自查一次） |
-| `ctx.run(promise, { revert, done })` | 统一处理动作结果：成功且 msg 非空时弹提示；失败时弹红色提示（中文 message）并调 `revert(err)`；`done(ok, r)` 总会调用。返回原 promise |
+| `ctx.run(promise, { revert, done })` | 统一处理动作结果：成功不弹提示（结果由控件自己的状态体现）；失败时弹红色提示（中文 message）并调 `revert(err)`；`done(ok, r)` 总会调用。返回原 promise |
 | `ctx.toast(text, bad)` | 直接弹一条提示 |
 | `ctx.overlay` | 全舞台层：1920×1080 舞台坐标，盖住主列表、页面和日期，在提示条之下。页面把自己声明的元素挂上去（`curtain.parent = ctx.overlay`），元素随页面一起销毁。页面离开后为 null |
 | `ctx.still` | 截图模式 |
@@ -62,18 +64,44 @@ P3Page {
 ## 3. 焦点与按键（框架负责，页面只标记）
 
 - 可聚焦 = 继承 `P3Focusable` 的元素（下面的 P3Row、P3Toggle、P3Slider、P3Button、P3Hold、P3Card 都是）。自定义控件写成 `P3Focusable { … }`。
-- `↑↓←→` / `WASD` 按空间位置找最近的元素（主方向距离 + 3 × 侧向距离），和原型算法相同。被 `visible: false`、`opacity: 0`、`disabled: true` 或尺寸为 0 的元素会被跳过。
-- `Enter` / `Space` / 单击 = `activated()`。不做 hover：鼠标只有单击才移动焦点。
-- `Esc` / `Backspace` / 右键 / 左边没有元素时按 `←` = 返回。有内层子页的页面在 `handleKey` 里吞掉 `Qt.Key_Escape`。
+- `↑↓←→` / `WASD` / `h j k l` 按空间位置找最近的元素（主方向距离 + 3 × 侧向距离），和原型算法相同。被 `visible: false`、`opacity: 0`、`disabled: true` 或尺寸为 0 的元素会被跳过。
+- `Enter` / `Space` / 单击 = `activated()`。
+- `Esc` / `Backspace` / 右键 / 左边没有元素时按 `←`（`h`）= 返回。有内层子页的页面在 `handleKey` 里吞掉 `Qt.Key_Escape`。`q` 不绑定。
+- vim 键由框架在 `handleKey` 之前翻译，页面和 `keyHandler` 照方向键处理即可：
+
+  | 键 | 作用 |
+  |---|---|
+  | `h` `j` `k` `l` | ← ↓ ↑ →。到达页面时是 `Qt.Key_Left/Down/Up/Right`，`text` 为空，带 `vim: true`、`synthetic: true` |
+  | `Ctrl+h/j/k/l`、`Ctrl+n` / `Ctrl+p` | 同上（↓ / ↑），在输入状态下也是方向键：从搜索框进结果用它们 |
+  | `g g` / `G` | 第一个 / 最后一个 |
+  | `Ctrl+d` / `Ctrl+u` | 下 / 上半页（可滚动区域的半个可视高度，没有滚动区域时半个页面高） |
+  | `l` / `Enter` / `Space` | 进入、激活（和 `→` / `Enter` 原有的含义相同） |
+
+  - 主列表：`j` `k` 换项，`g g` / `G` 第一项 / 最后一项，`l` 打开。
+  - `g g` / `G` / `Ctrl+d` / `Ctrl+u` 先以 `{ key: Qt.Key_unknown, text: "", motion: "first" | "last" | "halfDown" | "halfUp" }` 交给 `handleKey`；页面有自己的含义时处理掉返回 true（SYSTEM 分类栏按分类走，CALENDAR 是本月第一天 / 最后一天和翻月），返回 false 时框架沿焦点所在的列走（只在和焦点元素水平重叠的元素里找）。页面里判断按键的代码要放过 `e.motion`，或者先处理它。
+  - 单独一个 `g` 等第二个键 1 秒：等来的不是 `g`（或超时）时，先把 `g` 当普通按键交给页面，所以 APPS 里输入以 g 开头的名字照常搜索。
+  - 输入是 vim 式的：不在输入时字母不输入，`h j k l` 照常移动。
+    - 输入框（焦点元素 `textEntry: true`）拿到焦点时不在输入；`i`（先于 `handleKey`，由框架处理）、单击或页面调 `ctx.edit(item)` 进入输入，元素的 `editing` 变为 true；输入时 `Esc` 由框架退出输入（不交给页面，焦点留在框上），焦点移走也退出。页面判断字母要不要进框时看 `focused.editing`。
+    - 页面 `textEntry: true`（APPS 搜索的输入状态）由页面自己切换：APPS 应用区 `i` / `/` 开始搜索，`Esc` 停到结果里，结果里 `i` / `/` 回到输入。
+    - 输入状态（页面 `textEntry` 或输入框 `editing`）：`h j k l g G` 都是字母，原样交给 `handleKey`；带 Ctrl 的方向键和半页照常。
+- 指针：真实的指针移动把焦点移到指针下最上层的可聚焦元素，用的是同一套焦点指示和进入动画（`wob`），没有单独的 hover 样式；单击照常激活。
+  - 主列表（没有打开页面时）指针移到项上只选中、不打开；打开页面后左边的列表不跟指针。
+  - 只认真实移动：内容在静止的指针下面滚动、翻页、重排时焦点不动；按过键以后，指针要再移动 6px 以上才重新接管，键盘从当前焦点继续。
+  - 指针跟随不滚动 `Flickable`（焦点元素只在可视部分里换）；焦点元素被滚出可视区时光点隐藏。
+  - 按住 Enter / Space、鼠标按键按下、录键（`keyCapture`）期间不跟指针。
+  - 指针下面最上层是一个启用的左键 `MouseArea`（例如菜单打开时挡住下层点击的遮罩）而它不在可聚焦元素里时，焦点不动。
+  - 页面不用做任何事；`disabled` 的元素不接指针。
 - 右键先交给 `handleRightClick(e)`：`e.x` / `e.y` 是页面坐标，`e.item` 是指针下最上层的可聚焦元素（没有则为 null）。返回 true 表示已处理（例如在托盘格上右键打开它的菜单）；返回 false 时按返回处理，先以合成的 Escape 交给 `handleKey`（对象带 `synthetic: true`）。
-- 带 Ctrl / Alt / Super 的按键平时被框架丢掉。页面 `keyCapture: true` 期间（录快捷键），所有按下——包括这些组合、单独的修饰键和自动重复——原样交给 `handleKey`，框架不做导航，松开全部吞掉；菜单窗口同时打开 `ShortcutInhibitor`，niri 的 Mod 组合也会送进来。录键结束时页面把 `keyCapture` 改回 false。右键在录键期间照常走上一条（页面可以在合成的 Escape 里取消录键）。
+- 带 Ctrl / Alt / Super 的按键（除了上面翻译的 Ctrl 组合）平时被框架丢掉。页面 `keyCapture: true` 期间（录快捷键），所有按下——包括这些组合、单独的修饰键和自动重复——原样交给 `handleKey`，框架不做导航，松开全部吞掉；菜单窗口同时打开 `ShortcutInhibitor`，niri 的 Mod 组合也会送进来。录键结束时页面把 `keyCapture` 改回 false。右键在录键期间照常走上一条（页面可以在合成的 Escape 里取消录键）。
 - 焦点元素在 `Flickable` / `ListView` 里时，框架会把它滚进可视区。
 - 元素属性：
   - `cursor: "tide"`（默认）：左上角脉动的天蓝光点，文字变 `P3.fill`。
   - `cursor: "wedge"`：白色楔形垫底 + 红色残影，文字变 `P3.ink`。只给像主列表那样的竖排列表用，元素自身要透明。
   - `cursor: "none"`：框架只改 `focused` / `wob`，页面自己画。
   - `autofocus: true`：初始焦点，没有就取第一个。
-  - `disabled: true`：跳过、不响应、半透明。
+  - `disabled: true`：跳过、不响应点击和指针、半透明。
+  - `textEntry: true`：输入框（搜索框、密码框），`i` / 单击 / `ctx.edit` 进入输入后字母才是输入，见上面的 vim 键。整页都在输入时用页面的 `textEntry`（APPS 的搜索）。
+  - 只读：`editing`（输入框是否在输入）。
   - 只读：`focused`、`wob`（刚获得焦点的 380ms）、`pressed`（刚激活的 260ms）。
   - 颜色绑定：`fg`、`dimColor`、`trackColor`、`onColor`，按焦点和 cursor 模式算好，内部文字直接用。
   - `keyHandler: e => bool`：焦点在自己身上时先收到按键（滑块用它处理 ←→）。
@@ -97,7 +125,7 @@ P3Page {
 | `P3Chip { text; hot; ghost }` | 小标签 |
 | `P3Card { padding }` | panel 底卡片（可聚焦） |
 
-规则：只用 P3 蓝一套；除了框架的水下背景不用渐变；不写 hover；危险动作用 `P3Hold`。
+规则：只用 P3 蓝一套；除了框架的水下背景不用渐变；不写单独的 hover 样式（指针跟随由框架移动焦点）；危险动作用 `P3Hold`；`WheelHandler` 要写 `acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad`（Wayland 上滚轮事件常被标成 TouchPad 设备，默认只收 Mouse 会收不到），按 `angleDelta.y` 累计满 120 算一格。
 
 ## 5. P3Sys 单例（`overlay/P3Sys/`，`import qs.P3Sys`）
 
@@ -105,7 +133,7 @@ P3Page {
 
 - `X.state` 是只读快照，直接绑定。
 - 动作返回 Promise：成功 `{ ok: true, msg }`（msg 为中文或 null），失败 `{ code, message }`。同时每个结果都发 `done(ok, msg, "ns.action")`。
-- 交给 `page.ctx.run(...)` 处理提示和回滚。
+- 交给 `page.ctx.run(...)` 处理失败提示和回滚（成功的 msg 不显示）。
 - `changed()` 信号等同原型的 `P3Sys.on(ns, fn)`。
 - 需要轮询的命名空间要引用计数：在 `onEntered` 里 `addRef()` 或 `const release = X.watch()`，在 `onLeaving` 里 `removeRef()` 或 `release()`。
 
@@ -149,9 +177,32 @@ P3_CHECK_DIR=/tmp/p3check-x P3_IPC="p3menu open status" P3_SHOT=/tmp/p3shots/sta
 - `qmlcheck.sh` 在无头 sway 里跑（虚拟输出 HEADLESS-1，1920×1080，`grim` 截图），自带 dbus 会话和临时的 XDG 目录，不碰正在运行的 DMS，也不在桌面上开窗口。不要为了测试启动嵌套 niri。
 - 几个检查并行跑时，每个用自己的 `P3_CHECK_DIR`。
 - 输出里只要出现 P3 文件的警告或错误（`@Modules/P3/…`、`@P3Sys/…`），就必须修掉。壁纸、缓存文件、`TrayMenuManager`、portal 这几类上游警告是沙箱造成的，可以忽略。
-- 无头会话没有 niri、没有键盘、没有 DMS 后端（`DMS_SOCKET` 未设置），依赖它们的读数显示为空态；托盘、MPRIS、通知也是独立 dbus 里的空列表。
-- 自测只读：不要调用会改系统状态的动作（Wi-Fi、蓝牙、音量、亮度、夜间模式、快捷键、自启动、电源动作、结束真实进程）。
+- 无头会话没有 niri、没有 DMS 后端（`DMS_SOCKET` 未设置），依赖它们的读数显示为空态（KEYBINDS 列表也是空的）；托盘、MPRIS、通知也是独立 dbus 里的空列表。没有真键盘和真指针，需要输入时用下面的 `P3_INPUT`。
+- 自测只读：不要调用会改系统状态的动作（Wi-Fi、蓝牙、音量、亮度、夜间模式、快捷键、自启动、电源动作、结束真实进程）。PipeWire 和系统总线（NetworkManager、BlueZ、logind、power-profiles）连的是真机：`P3_INPUT` 里不要在这些控件上按 Enter / Space、点击、←→ / h l、滚轮，POWER 页不要按住。DMS 自己的设置写在临时的 XDG 目录里，可以动。
+- `ipc p3menu focus` 返回当前焦点：`closed`、`list <页>`（主列表），或 `<页> <名字> @x,y wxh [typing] [tide]`（页面坐标；`typing` = 字母是输入）。
 - 截图只存 `/tmp`，不要提交图片。
+
+### 输入（`P3_INPUT`）
+
+`P3_INPUT` 在 `P3_IPC` 之后，在无头 sway 里用虚拟键盘和虚拟指针（`scripts/vinput.c`，qmlcheck 自动编译）依次发输入，`;` 分隔，每步之后等 `P3_STEP` 秒（默认 0.3）。结果（含 `ipc` 步骤的返回值）在输出的「输入」一节和 `$P3_CHECK_DIR/input.log`。
+
+| 步骤 | 作用 |
+|---|---|
+| `key <键>` | 按一下：`j`、`G`（= `shift+g`）、`ctrl+d`、`esc`、`enter`、`space`、`backspace`、`slash`、`tab`、`up` … |
+| `down <键>` / `up <键>` | 只按下 / 只松开 |
+| `type <文字>` | 逐个字符按键 |
+| `ptr <x> <y>` | 指针分 4 步滑到输出坐标（1920×1080），像真实移动 |
+| `warp <x> <y>` | 指针一步跳过去（测 6px 阈值、静止指针） |
+| `click [right]`、`press [right]`、`release [right]` | 鼠标按键 |
+| `wheel <n>` | 滚轮 n 格，正数向下 |
+| `ipc <target fn …>` | 调一次 IPC，返回值记进日志 |
+| `shot <路径>` / `sleep <秒>` | 截图 / 等待 |
+
+```sh
+P3_CHECK_DIR=/tmp/p3check-x P3_IPC="p3menu toggle" \
+P3_INPUT="key j;ipc p3menu focus;key g;key g;ipc p3menu focus;ptr 1250 520;ipc p3menu focus;key l;sleep 1.5;shot /tmp/p3shots/x.png" \
+    scripts/qmlcheck.sh /tmp/p3build-x 3
+```
 
 ### 截图模式与直达子层
 

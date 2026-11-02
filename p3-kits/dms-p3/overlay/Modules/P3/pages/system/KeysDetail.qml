@@ -3,7 +3,7 @@ import qs.Modules.P3
 import qs.P3Sys
 import "util.js" as U
 
-// KEYBINDS：搜索框（直接输入过滤）、niri 快捷键列表（504px 可滚动；Enter 录新组合键）、全部重置
+// KEYBINDS：搜索框（i、单击或任意处 / 进入输入，输入即过滤）、niri 快捷键列表（504px 可滚动；Enter 录新组合键）、全部重置
 SyPane {
     id: d
 
@@ -40,6 +40,7 @@ SyPane {
             width: d.width
             line: false
             syKey: "search"
+            textEntry: true
             onActivated: {
                 const f = d.sys.firstBind();
                 if (f)
@@ -80,9 +81,10 @@ SyPane {
                     width: 2
                     height: 22
                     color: P3.fill
-                    opacity: search.focused ? 1 : 0
+                    visible: search.editing
+                    opacity: search.editing ? 1 : 0
                     SequentialAnimation on opacity {
-                        running: search.focused && !d.still
+                        running: search.editing && !d.still
                         loops: Animation.Infinite
                         PropertyAction {
                             value: 1
@@ -104,7 +106,7 @@ SyPane {
                     kind: "label"
                     font.pixelSize: 15
                     font.letterSpacing: 15 * 0.14
-                    text: "TYPE TO SEARCH"
+                    text: "SEARCH"
                     color: P3.dim
                 }
             }
