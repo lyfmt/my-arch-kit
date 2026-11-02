@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Shell 设计稿</title>
+<style>
+@font-face { font-family: "P3"; src: url("../p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+:root { --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff; --dim: rgba(163,240,255,.62); --line: rgba(163,240,255,.22);
+  --panel: rgba(2,10,60,.55); --red: #e3121b; --cut: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; color: var(--tx); font-family: "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+  background: #0123b9; }
+.d { font-family: "P3", sans-serif; font-style: italic; font-weight: 900; line-height: .86; }
+.l { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+main { max-width: 1180px; margin: 0 auto; padding: 56px 16px 80px; }
+h1 { margin: 0; font-size: clamp(56px, 9vw, 112px); color: var(--ink); }
+.lead { margin: 14px 0 42px; line-height: 1.8; color: var(--tx); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+a.card { display: block; text-decoration: none; color: inherit; background: var(--panel); border-top: 1px solid var(--line);
+  clip-path: var(--cut); padding: 22px 24px 20px; transition: background .15s; }
+a.card:hover { background: var(--fill); color: var(--ink); }
+.card .t { font-size: 44px; margin: 0 0 12px; }
+.card p { margin: 0; font-size: 14px; line-height: 1.7; }
+.dim { color: var(--dim); }
+code { font-family: ui-monospace, monospace; font-size: 13px; background: rgba(163,240,255,.12); padding: 1px 5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="d">P3 SHELL</h1>
+  <p class="lead">加 <code>?static</code> 关动画，加 <code>&amp;theme=lavender</code> 看淡紫版。</p>
+
+  <div class="grid">
+    <a class="card" href="menu.html"><div class="d t">MENU</div><p>主菜单列</p></a>
+    <a class="card" href="menu.html?open=apps"><div class="d t">APPS</div><p>托盘应用</p></a>
+    <a class="card" href="menu.html?open=system"><div class="d t">SYSTEM</div><p>状态与控制</p></a>
+    <a class="card" href="menu.html?open=calendar"><div class="d t">CALENDAR</div><p>月历与日程</p></a>
+    <a class="card" href="menu.html?open=power"><div class="d t">POWER</div><p>锁屏与关机</p></a>
+    <a class="card" href="topbar.html"><div class="d t">TOP BAR</div><p>顶栏精简对比</p></a>
+    <a class="card" href="topbar-v2/index.html"><div class="d t">TOP BAR V2</div><p>顶栏方案</p></a>
+  </div>
+</main>
+</body>
+</html>

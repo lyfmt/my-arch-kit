@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slab Lyrics</title>
+<style>
+@property --off{syntax:"<length>";inherits:true;initial-value:8px}
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");font-weight:900;font-style:italic}
+:root{--ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--un:#3f8fd6;--red:#e3121b}
+:root[data-theme="lavender"]{--ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--un:#7b5fd4;--red:#ff3d6e}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#04103c}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;margin:-540px 0 0 -960px;overflow:hidden;user-select:none;-webkit-user-select:none}
+.bg{position:absolute;inset:0}
+.bg img{width:100%;height:100%;object-fit:cover;display:block}
+:root[data-theme="lavender"] .bg img{filter:hue-rotate(38deg) saturate(.55) brightness(.92)}
+:root[data-bg="light"] .bg{background:#e8edf1}
+:root[data-bg="light"] .bg img{display:none}
+/* 浅底：唱过色换成 ink 平涂，未唱换中蓝，翻译换靛蓝，白字只在深底上出现 */
+:root[data-bg="light"]{--tx:var(--ink);--un:#4f8fd0;--fill:#1d3f9a}
+:root[data-bg="light"][data-theme="lavender"]{--un:#8a72d8;--fill:#3b2479}
+
+/* 锚点放在壁纸右下的深蓝区（x≥740），避开左下的白/浅青区 */
+#lyr{position:absolute;left:740px;bottom:132px;width:0;height:0;transition:transform .34s cubic-bezier(.3,1.6,.45,1)}
+.paused #lyr{transform:translateX(12px);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.blk{position:absolute;left:0;bottom:0;transform-origin:0 100%;transform:skewX(-10deg) scaleX(.9)}
+.blk.lat{transform:skewX(-10deg) scaleX(.92)}
+.main{position:relative;width:max-content;isolation:isolate}
+.row{white-space:nowrap;line-height:.94;font-size:var(--fs,84px)}
+.ln{position:relative;width:max-content}
+/* 长句拆成两行：第二行右错 .4em，配合斜体形成错落；两行都 nowrap */
+.ln+.ln{margin-left:calc(var(--fs,84px)*.4);margin-top:calc(var(--fs,84px)*-.02)}
+.main{transition:--off .36s cubic-bezier(.3,1.9,.45,1)}
+.paused .main{--off:0px;transition:--off .2s cubic-bezier(.2,.8,.2,1)}
+.row.b{position:relative;z-index:1;color:var(--un)}
+/* 硬投影主要往右：未唱 4px 2px，唱过跳到 8px 4px */
+.b .c{text-shadow:calc(var(--off)*.5) calc(var(--off)*.25) 0 var(--ink)}
+.b .c.s{text-shadow:var(--off) calc(var(--off)*.5) 0 var(--ink)}
+/* 浅底时字本身是 ink，同色投影减半，免得糊成一团 */
+:root[data-bg="light"] .b .c{text-shadow:calc(var(--off)*.25) calc(var(--off)*.125) 0 var(--ink)}
+:root[data-bg="light"] .b .c.s{text-shadow:calc(var(--off)*.45) calc(var(--off)*.22) 0 var(--ink)}
+.row.f{position:absolute;left:0;top:0;z-index:2;color:var(--tx)}
+.ln>.row.b{position:relative}
+.w{display:inline-block;white-space:nowrap}
+.c{display:inline-block}
+.k{font-family:"Noto Sans CJK SC","Source Han Sans CN",sans-serif;font-weight:900;font-style:normal;font-synthesis:none;letter-spacing:-.02em}
+.k.up{translate:0 -.04em}.k.dn{translate:0 .04em}
+.k.big{font-size:1.18em;letter-spacing:-.01em}
+.blk:lang(ja) .k{font-family:"Noto Sans CJK JP","Noto Sans CJK SC",sans-serif}
+.l{font-family:"P3","Noto Sans CJK SC",sans-serif;font-weight:900;font-style:italic;font-size:1.14em;letter-spacing:-.035em;transform:skewX(6deg);transform-origin:50% 80%}
+.p{letter-spacing:-.2em}
+.f .c{clip-path:inset(-30% 100% -30% -15%)}
+.f .c.on{clip-path:inset(-30% -35% -30% -15%)}
+.f .c.red,.b .c.red{color:var(--red)}
+.tr{position:relative;margin-top:calc(var(--fs)*.05);width:max-content;white-space:nowrap;font-family:"Noto Sans CJK SC",sans-serif;font-weight:900;font-size:36px;line-height:1.08;letter-spacing:.01em;color:var(--fill);text-shadow:3px 2px 0 var(--ink);transform:skewX(-7deg);transform-origin:0 100%;font-synthesis:none}
+.tr.lt{font-family:"P3","Noto Sans CJK SC",sans-serif;font-style:italic;font-size:42px;letter-spacing:-.02em;transform:none}
+.tr.off{display:none}
+@media (prefers-reduced-motion:reduce){#lyr,.main{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="stage"><div class="bg"><img src="../../../../p5-reference/p3-miku/bg.png" alt=""></div><div id="lyr"></div></div>
+<script>
+(()=>{
+const Q=new URLSearchParams(location.search);
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const D=RM?0:1;
+const root=document.documentElement,stage=document.getElementById('stage'),lyr=document.getElementById('lyr');
+if(Q.get('bg')==='light')root.dataset.bg='light';
+if(Q.get('theme')==='lavender')root.dataset.theme='lavender';
+const EZ={out:'cubic-bezier(.16,1,.3,1)',snap:'cubic-bezier(.3,1.55,.45,1)',in:'cubic-bezier(.6,0,.85,.35)',wipe:'cubic-bezier(.3,.85,.35,1)',io:'cubic-bezier(.65,0,.35,1)'};
+const A=(el,kf,dur,ease,delay=0,fill='both')=>el.animate(kf,{duration:Math.max(0,dur*D),delay:delay*D,easing:EZ[ease]||ease,fill});
+
+/* 原创假歌，行级时间戳 */
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ---------- 分词与权重 ---------- */
+const LAT=/[A-Za-z0-9'’]/, PUN=/[，。、！？・…「」『』,.!?~～—\-]/, SMALL=/[ぁぃぅぇぉっゃゅょゎァィゥェォッャュョー]/, KANA=/[぀-ヿ]/;
+function tokenize(text){
+ const out=[];const s=[...text];let i=0;
+ while(i<s.length){
+  const ch=s[i];
+  if(ch==='|'){out.push({br:1});i++;continue}
+  if(ch===' '||ch==='　'){out.push({sp:1});i++;continue}
+  if(LAT.test(ch)){let w='';while(i<s.length&&(LAT.test(s[i])||(/[,.!?]/.test(s[i])&&w)))w+=s[i++];out.push({w});continue}
+  out.push({k:ch});i++;
+ }
+ return out;
+}
+const unitsOf=tokens=>tokens.filter(t=>!t.sp&&!t.br).map(t=>t.w?{lat:1,len:t.w.length,ch:t.w,pun:0,w:Math.min(2.2,Math.max(.6,t.w.length*.34))}:{lat:0,len:1,ch:t.k,pun:PUN.test(t.k)?1:0,w:wt(t.k)});
+const wt=ch=>PUN.test(ch)?.15:LAT.test(ch)?.34:SMALL.test(ch)?.55:KANA.test(ch)?.85:1;
+
+/* ---------- 红字规则 ----------
+   红只做「落定色」：字被擦到的那一刻直接是红，之后一直红。没有反相、没有闪烁、不随机。
+   唯一的动作：红字擦满时向上顶 .13em 再落回（300ms），硬投影从 8px 拉到 16px 再回弹（340ms）。
+   1 单拍短句（≤2 个单位，且汉字/假名 ≤4 或全是英文词）：整句落红，像军鼓重拍。
+     连续的单拍短句（中间没有间奏）只让最后一个整句红，前面的保持白色。
+   2 段落尾句（后面是 ≥6.5s 的间奏，或歌曲最后一行）：最后一个单位落红，收句。
+   3 乐句（被 ≥6.5s 间奏隔开的行组）内第 2 行（pos===1）：一个重音单位落红；
+     英文取最长的词，CJK 取 62% 处的汉字（跳过假名、标点）。
+     冷却：上一行或下一行已经因规则 1/2 带红时，这一行跳过规则 3，红字不连发。
+   其余行全白。实际结果：铁皮屋顶 跑/见/你（第 3、6、8 行），硝子の月 ねえ/け/う（第 3、6、8 行），
+   Paper Satellites night/Fall/Stay loud/Still here（第 2、4、7、9 行）。 */
+const GAP=6.5;
+const shortLine=u=>{const n=u.length,cjk=u.filter(x=>!x.lat&&!x.pun).length;return n>0&&n<=2&&(u.every(x=>x.lat||x.pun)||cjk<=4)&&u.filter(x=>!x.pun).length<=2};
+/* 乐句 = 被 ≥6.5s 间奏隔开的连续行；pos 为行在乐句内的序号 */
+function phrasePos(song,i){let p=0;for(let j=i;j>0;j--){if(song.lines[j].t-song.lines[j-1].t>=GAP)break;p++}return p}
+const lastReal=u=>{for(let j=u.length-1;j>=0;j--)if(!u[j].pun)return j;return u.length-1};
+/* 返回每行 Map<单位序号,'all'> */
+function redPlan(song){
+ if(song.plan)return song.plan;
+ const L=song.lines,U=L.map(l=>unitsOf(tokenize(l.text)));
+ const gapAfter=i=>(L[i+1]?L[i+1].t:song.end)-L[i].t;
+ const base=L.map((l,i)=>{
+  const u=U[i],m=new Map();if(!u.length)return m;
+  if(shortLine(u)){
+   if(!(L[i+1]&&gapAfter(i)<GAP&&shortLine(U[i+1])))u.forEach((x,j)=>{if(!x.pun)m.set(j,'all')});
+   return m;
+  }
+  if(!L[i+1]||gapAfter(i)>=GAP)m.set(lastReal(u),'all');
+  return m;
+ });
+ const plan=[];
+ L.forEach((l,i)=>{
+  let m=base[i];
+  if(!m.size&&phrasePos(song,i)===1&&!(plan[i-1]&&plan[i-1].size)&&!(base[i+1]&&base[i+1].size)){
+   const u=U[i];m=new Map();
+   const lat=u.map((x,j)=>[x,j]).filter(([x])=>x.lat);
+   if(lat.length){let b=lat[0];for(const x of lat)if(x[0].len>b[0].len)b=x;m.set(b[1],'all')}
+   else{let best=-1,bd=1e9;u.forEach((x,j)=>{if(x.pun||KANA.test(x.ch))return;const d=Math.abs(j-(u.length-1)*.62);if(d<bd){bd=d;best=j}});m.set(best<0?lastReal(u):best,'all')}
+  }
+  plan.push(m);
+ });
+ return song.plan=plan;
+}
+
+/* ---------- 构建 ---------- */
+/* 锚点 x=740，右侧留 60px 余量：可用宽 1920-740-60-斜切偏移 ≈ 1060 */
+const MAXW=1060,EXIT_GAP=6.5;
+const isLatinLine=s=>{const c=[...s.replace(/[\s|]/g,'')];return c.length&&c.filter(ch=>LAT.test(ch)).length/c.length>.6};
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function buildRow(tokens,cls){
+ const row=el('div','row '+cls),cells=[];let kc=0;
+ for(const tk of tokens){
+  if(tk.sp){row.appendChild(document.createTextNode(' '));continue}
+  if(tk.w){const w=el('span','w');const letters=[];for(const ch of tk.w){const c=el('span','c l'+(PUN.test(ch)?' p':''),ch);w.appendChild(c);letters.push(c)}row.appendChild(w);cells.push(letters);continue}
+  const pu=PUN.test(tk.k);
+  const c=el('span','c k'+(pu?' p':(!kc?' big':(kc%2?' up':' dn'))),tk.k);if(!pu)kc++;row.appendChild(c);cells.push([c]);
+ }
+ return {row,cells};
+}
+/* 一个 .ln = 底层未唱行 .b + 上层擦填行 .f，两行都 nowrap */
+function buildLn(tokens){
+ const ln=el('div','ln'),B=buildRow(tokens,'b'),F=buildRow(tokens,'f');
+ ln.append(B.row,F.row);return {ln,B,F};
+}
+const trimSp=t=>{let a=0,b=t.length;while(a<b&&t[a].sp)a++;while(b>a&&t[b-1].sp)b--;return t.slice(a,b)};
+/* 按单词/断点拆成两段：有 | 提示用提示，否则取离中点最近的空格 */
+function splitTokens(tokens){
+ const bi=tokens.findIndex(t=>t.br);
+ if(bi>=0)return [trimSp(tokens.slice(0,bi)),trimSp(tokens.slice(bi+1))];
+ const len=t=>t.reduce((a,x)=>a+(x.w?x.w.length:x.sp?1:x.k?2:0),0),tot=len(tokens);
+ let best=-1,bd=1e9;tokens.forEach((t,j)=>{if(!t.sp)return;const d=Math.abs(len(tokens.slice(0,j))-tot/2);if(d<bd){bd=d;best=j}});
+ if(best<0){const cut=Math.ceil(tokens.length/2);return [tokens.slice(0,cut),tokens.slice(cut)]}
+ return [trimSp(tokens.slice(0,best)),trimSp(tokens.slice(best+1))];
+}
+function build(text,trans,opt={}){
+ const tokens=tokenize(text),flat=tokens.filter(t=>!t.br);
+ const units=unitsOf(tokens);
+ const lat=isLatinLine(text),sc=lat?.92:.9;
+ const blk=el('div','blk'+(opt.title?' title':'')+(lat?' lat':''));blk.lang=song.lang;
+ const main=el('div','main');blk.appendChild(main);
+ const tr=el('div','tr'+(trans&&isLatinLine(trans)?' lt':''),trans||'');
+ if(!trans||(!opt.title&&!transOn))tr.classList.add('off');
+ blk.appendChild(tr);lyr.appendChild(blk);
+ // 字号适配：先排一行，放不下且缩到 min 以下就拆两行（第二行右错 .4em）
+ const base=opt.title?100:84,min=opt.title?72:64;
+ blk.style.setProperty('--fs',base+'px');
+ let lines=[buildLn(flat)];main.appendChild(lines[0].ln);
+ let w=lines[0].B.row.scrollWidth*sc;
+ if(w>MAXW&&Math.floor(base*MAXW/w)<min){
+  main.textContent='';
+  lines=splitTokens(tokens).map(t=>buildLn(t.filter(x=>!x.br)));
+  lines.forEach(l=>main.appendChild(l.ln));
+  w=Math.max(...lines.map((l,j)=>l.B.row.scrollWidth+(j?base*.4:0)))*sc;
+ }
+ if(w>MAXW)blk.style.setProperty('--fs',Math.floor(base*MAXW/w)+'px');
+ const bc=lines.flatMap(l=>l.B.cells),fc=lines.flatMap(l=>l.F.cells);
+ units.forEach((u,j)=>{u.b=bc[j];u.f=fc[j];u.done=false});
+ return {blk,main,tr,units,trans,title:!!opt.title,base:'skewX(-10deg) scaleX('+sc+')'};
+}
+/* 行内逐字时间：只在一行时长内插值 */
+function schedule(c,i){
+ const L=song.lines,t0=L[i].t,next=L[i+1]?L[i+1].t:song.end,dur=next-t0;
+ const W=c.units.reduce((a,u)=>a+u.w,0)||1;
+ const span=Math.max(.2,Math.min(dur*.84-.12,W*(dur>=EXIT_GAP?.4:.48)));
+ let acc=0;const lead=.06;
+ c.units.forEach(u=>{u.t=t0+lead+acc/W*span;acc+=u.w});
+ const reds=redPlan(song)[i]||new Map();c.units.forEach((u,j)=>u.red=reds.get(j)||'');
+ c.singEnd=t0+lead+span;
+ c.exitAt=dur>=EXIT_GAP?c.singEnd+2.4:null;
+}
+
+/* ---------- 擦填 ----------
+   逐单位离散跳变：时钟越过单位的时间点，该单位被硬边从左到右擦满，单位之间没有过渡。
+   CJK：每字 95ms（红字 70ms），缓动 cubic-bezier(.5,.1,.5,.9)。
+   英文：逐字母错开 62%，每字母 26~48ms（170ms/字母数，红字 40ms），缓动 cubic-bezier(.3,.85,.35,1)。
+   颜色：未唱 --un #3f8fd6，唱过 --tx #ecfcff，红 --red #e3121b；浅底时唱过换 --ink，未唱换 #4f8fd0。 */
+const CLIP0='inset(-30% 100% -30% -15%)',CLIP1='inset(-30% -40% -30% -15%)';
+const WIPE_CJK='cubic-bezier(.5,.1,.5,.9)';
+function wipe(u,instant){
+ u.done=true;
+ const n=u.f.length,red=!!u.red;
+ const per=u.lat?(red?40:Math.max(26,Math.min(48,170/n))):(red?70:95);
+ const step=u.lat?per*.62:0;
+ const isRed=k=>red&&(u.red==='all'||k===n-1);
+ u.b.forEach(c=>c.classList.add('s'));
+ u.f.forEach((c,k)=>{
+  if(isRed(k)){c.classList.add('red')}
+  if(instant||!D){c.style.clipPath=CLIP1;return}
+  const a=c.animate([{clipPath:CLIP0},{clipPath:CLIP1}],{duration:per,delay:k*step,easing:u.lat?EZ.wipe:WIPE_CJK,fill:'both'});
+  a.onfinish=()=>{c.style.clipPath=CLIP1;a.cancel()};
+ });
+ if(red&&!instant&&D){
+  const lift=u.lat?'skewX(6deg) ':'';
+  const ks=[...Array(n).keys()].filter(isRed);
+  ks.forEach(k=>{const d=k*step;
+   [u.b[k],u.f[k]].forEach(c=>c.animate([{transform:lift+'translateY(0)'},{transform:lift+'translateY(-.13em)',offset:.32},{transform:lift+'translateY(0)'}],{duration:300,delay:d,easing:'cubic-bezier(.2,.9,.3,1.25)'}));
+   u.b[k].animate([{'--off':'8px'},{'--off':'16px',offset:.3},{'--off':'8px'}],{duration:340,delay:d,easing:EZ.out});
+  });
+ }
+}
+function catchUp(c){c.units.forEach(u=>{if(!u.done&&u.t<=time)wipe(u,true)})}
+
+/* ---------- 编排 ---------- */
+let si=0,song=SONGS[0],time=0,idx=-1,cur=null,paused=false,transOn=Q.get('trans')!=='0',token=0,lastIn=-1e9,hold=Q.has('hold');
+const OUT='inset(-80px -120px -80px calc(100% + 120px))',SHOW='inset(-80px -120px -80px -60px)',HIDE_L='inset(-80px calc(100% + 120px) -80px -60px)';
+function exitBlk(c,mode){
+ if(!c||c.gone)return;c.gone=true;
+ const b=c.blk;
+ const T=c.base;let a;
+ b.getAnimations().forEach(x=>x.cancel());
+ /* 先在前 28%（fast 42ms / up 59ms）收掉 clip，再做位移，避免与新行首字重叠 */
+ const DROP='inset(calc(100% + 80px) -120px -80px -60px)';
+ if(mode==='drop')a=A(b,[{transform:T,clipPath:SHOW,easing:EZ.in},{transform:'translateY(20px) '+T,clipPath:DROP,offset:.35},{transform:'translateY(70px) '+T,clipPath:DROP}],230,'linear');
+ else if(mode==='fade')a=A(b,[{transform:T,clipPath:SHOW},{transform:'translateX(-36px) '+T,clipPath:OUT}],420,'io');
+ else a=A(b,[{transform:T,clipPath:SHOW,easing:EZ.in},{transform:'translate(-6px,-12px) '+T,clipPath:OUT,offset:.28},{transform:'translate(-26px,-46px) '+T,clipPath:OUT}],mode==='fast'?150:210,'linear');
+ a.onfinish=()=>b.remove();
+}
+function enterBlk(c,fast){
+ const b=c.blk,dur=fast?170:300;
+ /* delay ≥ 旧行 clip 收完的时间（fast 42ms、up 59ms） */
+ A(b,[{transform:'translateX(64px) skewX(-19deg) scaleX(.8)',clipPath:HIDE_L},{transform:c.base,clipPath:SHOW}],dur,'snap',fast?48:66);
+ A(c.main,[{'--off':'0px'},{'--off':'8px'}],fast?120:220,'snap',fast?40:110,'backwards');
+ if(!c.tr.classList.contains('off'))A(c.tr,[{transform:'translateX(-30px) skewX(-7deg)',clipPath:'inset(-20px 100% -20px -20px)'},{transform:'skewX(-7deg)',clipPath:'inset(-20px -40px -20px -20px)'}],fast?160:260,'out',fast?30:90);
+}
+function showLine(k,seek){
+ const L=song.lines[k];
+ const fast=!seek&&performance.now()-lastIn<1100;
+ exitBlk(cur,fast?'fast':'up');
+ cur=build(L.text,L.trans);schedule(cur,k);
+ enterBlk(cur,fast);lastIn=performance.now();
+ if(seek)catchUp(cur);
+}
+function showTitle(){
+ const c=build(song.title,song.artist,{title:true});
+ c.units.forEach((u,j)=>{u.t=.25+j*.07;u.red=j===c.units.length-1&&!u.pun?'all':''});
+ c.titleCard=true;cur=c;enterBlk(c,false);lastIn=performance.now();
+}
+function startSong(i,at){
+ const my=++token;
+ si=(i+SONGS.length)%SONGS.length;song=SONGS[si];time=at||0;idx=-1;
+ [...lyr.children].forEach(b=>{if(cur&&b===cur.blk)return;b.remove()});
+ exitBlk(cur,'drop');cur=null;
+ if(time<song.lines[0].t-.4){const go=()=>{if(my===token&&!cur)showTitle()};D?setTimeout(go,150):go()}
+}
+function step(d){
+ const n=song.lines.length;let k=idx+d;
+ if(k>=n){startSong(si+1);return}
+ if(k<0)k=0;
+ time=song.lines[k].t;idx=k;showLine(k,true);
+}
+function togglePause(){paused=!paused;stage.classList.toggle('paused',paused)}
+function toggleTrans(){
+ transOn=!transOn;const c=cur;if(!c||c.title||!c.trans||c.gone)return;
+ const tr=c.tr;tr.getAnimations().forEach(a=>a.cancel());
+ if(transOn){
+  tr.classList.remove('off');const h=tr.offsetHeight;
+  A(c.main,[{transform:`translateY(${h}px)`},{transform:'none'}],320,'snap',0,'none');
+  A(tr,[{transform:'translateY(-14px) skewX(-7deg)',clipPath:'inset(-20px -40px 100% -20px)'},{transform:'skewX(-7deg)',clipPath:'inset(-20px -40px -20px -20px)'}],300,'out',40,'backwards');
+ }else{
+  const h=tr.offsetHeight;
+  const a=A(tr,[{clipPath:'inset(-20px -40px -20px -20px)'},{clipPath:'inset(-20px -40px 100% -20px)'}],140,'in',0,'forwards');
+  const fin=()=>{if(transOn)return;tr.classList.add('off');a.cancel();A(c.main,[{transform:`translateY(${-h}px)`},{transform:'none'}],260,'snap',0,'none')};
+  D?a.onfinish=fin:fin();
+ }
+}
+function cmd(c){
+ if(c==='pause')togglePause();else if(c==='trans')toggleTrans();
+ else if(c==='song')startSong(si+1);
+ else if(c==='lineNext')step(1);else if(c==='linePrev')step(-1);
+ else if(c==='theme')root.dataset.theme=root.dataset.theme==='lavender'?'p3':'lavender';
+ else if(c==='bg')root.dataset.bg=root.dataset.bg==='light'?'':'light';
+}
+addEventListener('keydown',e=>{
+ const map={' ':'pause',t:'trans',n:'song',arrowright:'lineNext',arrowleft:'linePrev',l:'theme',b:'bg'};
+ const c=map[e.key.toLowerCase()];if(c){e.preventDefault();cmd(c)}
+});
+addEventListener('message',e=>{const c=e.data&&e.data.cmd;if(typeof c==='string')cmd(c)});
+
+let last=performance.now();
+function tick(now){
+ const dt=Math.min(now-last,100);last=now;
+ if(!paused&&!hold)time+=dt/1000;
+ if(!paused){
+  const L=song.lines,n=L.length;
+  if(time>=song.end)startSong(si+1);
+  else{
+   let k=-1;for(let i=0;i<n;i++)if(L[i].t<=time)k=i;
+   if(k!==idx&&k>=0){idx=k;showLine(k,false)}
+   if(cur&&!cur.gone){
+    for(const u of cur.units)if(!u.done&&time>=u.t)wipe(u,false);
+    if(cur.exitAt&&time>=cur.exitAt){exitBlk(cur,'fade')}
+   }
+  }
+ }
+ requestAnimationFrame(tick);
+}
+function fitStage(){stage.style.transform='scale('+Math.min(innerWidth/1920,innerHeight/1080)+')'}
+addEventListener('resize',fitStage);fitStage();
+Promise.all(['900 italic 96px P3','900 84px "Noto Sans CJK SC"','900 84px "Noto Sans CJK JP"'].map(f=>document.fonts.load(f,'あ字A'))).catch(()=>{}).then(()=>{
+ const s=Q.has('song')?+Q.get('song'):0,t=Q.has('t')?+Q.get('t'):0;
+ startSong(s,t);
+ if(t>0){let k=-1;song.lines.forEach((l,i)=>{if(l.t<=time)k=i});if(k>=0){idx=k;showLine(k,true)}}
+ last=performance.now();requestAnimationFrame(tick);
+});
+})();
+
+</script>
+</body>
+</html>

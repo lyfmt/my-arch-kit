@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<!--
+  CLIPBOARD · direction B "WEDGE 斜切"
+  ------------------------------------------------------------------------------------------
+  Aggressive Persona composition anchored to the RIGHT side of the screen: a slab with a slanted
+  left edge (x = 660 - y/6) that shows the menu's miku water through a deep veil (.62), plus a --sea
+  band behind it (30px wide at the top, 80px at the bottom) and a white shard. The left half of the
+  screen stays desktop (blurred 14px, tint .5, like the menu's bg=none).
+  Rows are parallelogram strips stacked along that slant (each slot shifts ~15px left) and all end
+  on a slanted cut at x 1790, so the meta column lines up on x 1760. The selected row sits on the
+  white wedge cursor (ends at x 1520) with a separate red twin that lags behind on moves, a red
+  sliver behind the type word, and a red echo copy of the type word. Every row leads with a tilted
+  .d type word (TEXT / LONG / CODE / LINK / COLOR / IMAGE) in the --c1..c5 rotation.
+  Red appears only as: the wedge echo / sliver / word echo, the delete flash, the hold-to-confirm
+  fill and wipe (clear / delete saved).
+
+  Files: b-wedge.html (markup) · b-wedge.css · b-wedge.js (mock data + all behavior)
+  URL:   ?static=1  ?tab=saved  ?sel=N  ?mode=preview|editor|confirm|empty|offline|menu|copied|closed
+         ?q=text  ?filter=all|text|long_text|image  ?hints=1  ?enterPaste=1  ?fail=1 (editor load error)
+         ?hold=0..1 (confirm: preset hold progress)
+  Keys:  see ClipboardKeyboardController mapping below; F10 shows the hint line (keys without a button).
+         ←/→ step the type filter while the search field is empty; Shift+F10 / ContextMenu open the menu.
+  Mouse: click focuses a row, a second click on the focused row (or a double-click) copies; right-click
+         opens the context menu; wheel over the slab steps one row per 100 delta units (max 1 / 70ms).
+         No hover anywhere.
+
+  PORTING MAP  (/tmp/dms-src/dux-shell/quickshell/Modals/Clipboard)
+    #cb root / open+close ........ ClipboardHistoryModal.qml (650×550 modal) / ClipboardHistoryPopout.qml.
+                                   P3 version: full-screen layer; slab = miku water Image clipped by a
+                                   4-point ShapePath + veil Rectangle; band and shard are two more Shapes.
+    .hd (title, count, rule) ..... ClipboardHeader.qml + ClipboardHistoryContent.qml (activeTab recents|saved,
+                                   saved empty → recents). Header shows hd-n = visible count + per-tab
+                                   counts; DMS "Clipboard History (N)" text dropped. Context line =
+                                   SAVED / SEARCH "q" / FILTER · TYPE.
+    .tabs / .srch / .flt ......... ClipboardContent.qml search field (ignores Tab) + type filter
+                                   (all/text/long_text/image = ClipboardService.getEntryType, >200 chars = long).
+                                   One sliding indicator per group (.tab-ind / .fc-ind).
+    .row ......................... ClipboardEntry.qml (type word, preview 1 line / 2 lines / code first line
+                                   + "+N LINES", time · app). Rows are Items positioned by slot:
+                                   x = edge(y)+34, width to x 1790 (right cut parallel to the slab).
+    .th / .sw .................... ClipboardThumbnail.qml (100×56 after the text, missing → IMAGE block)
+    .acts (action strip) ......... ClipboardActions.qml; fixed slots PREVIEW COPY PASTE PIN EDIT DELETE · CLEAR ALL
+                                   (unavailable ones dim, nothing reflows)
+    .cm (context menu) ........... ClipboardContextMenu.qml (Copy, Copy Text if altMimeType, Paste, Pin/Unpin,
+                                   Edit, Delete) — items reordered to the strip order; mini wedge cursor.
+    .pv (preview layer) .......... ClipboardImagePreview.qml (up/down still switch entries)
+    .ed (editor layer) ........... ClipboardEditor.qml (Cancel + split Save: Save / Save and close / Save and paste;
+                                   Ctrl+S, Ctrl+Shift+S, Ctrl+Shift+V; loading (long text only) + failure texts)
+    .cf (hold-to-confirm curtain)  clearConfirmDialog in ClipboardHistoryContent.qml + ClipboardService delete-pinned
+                                   confirm; replaced by POWER-page style 1s hold (Enter or pointer). Curtain is
+                                   clipped to the slab; after it lifts the rows are wiped.
+    .hints ....................... ClipboardKeyboardHints.qml (F10)
+    key handling (onKey in .js) .. ClipboardKeyboardController.qml handleKey / handlePreviewKey, same order
+                                   (editor → preview → context menu → clear search → close)
+    data helpers ................. Services/ClipboardService.qml (unpinnedEntries, pinnedEntries,
+                                   getPinnedEntryByHash for Ctrl+S on duplicates)
+  QML notes: every animation touches only transform / opacity / clip (Shape). Wedge = white Shape behind the
+  ListView delegate + a separate red twin (offset 6,5) whose Behavior has a longer duration and a 70ms delay,
+  plus the .sr-style red sliver; the focused type word gets a red echo Text at (5,4).
+  Input: click focuses, second click / double-click copies (no hover focus).
+  ------------------------------------------------------------------------------------------
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Wedge</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="b-wedge.css">
+</head>
+<body>
+<div id="stage">
+  <div class="desk"><img src="../shared/desk.jpg" alt="" onerror="this.remove()"></div>
+  <div class="desk-blur"><img src="../shared/desk.jpg" alt="" onerror="this.remove()"></div>
+  <div class="tint"></div>
+
+  <div id="cb">
+    <div class="band"></div>
+    <div class="slab-bg"><img src="../shared/miku-bg.png" alt="" onerror="this.remove()"><div class="bubbles" id="bubbles"></div></div>
+    <div class="slab"></div>
+    <div class="hd-bk"><i></i></div>
+    <div class="shard"></div>
+    <div class="wipe-bar" id="wipeBar"></div>
+
+    <div class="hd">
+      <div class="d hd-t" id="hdT">CLIPBOARD</div>
+      <div class="hd-rule" id="hdRule"><i class="tabm"></i><span class="l hd-ctx" id="hdCtx" data-in style="--i:1"></span><i class="hair"></i></div>
+      <div class="hd-n" data-in style="--i:0"><span class="d" id="hdN">0</span><span class="l">ENTRIES</span></div>
+    </div>
+
+    <div class="tabs" id="tabs" data-in style="--i:2">
+      <i class="tab-ind" id="tabInd"></i>
+      <div class="tab l" data-tab="recents">HISTORY <b class="d" id="nRec">0</b></div>
+      <div class="tab l" data-tab="saved">SAVED <b class="d" id="nSav">0</b></div>
+    </div>
+    <label class="srch" id="srch" data-in style="--i:3">
+      <svg width="22" height="22" viewBox="0 0 24 24"><path fill="currentColor" d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+      <input id="q" class="zh" placeholder="SEARCH" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="flt" id="flt" data-in style="--i:4">
+      <i class="fc-ind" id="fcInd"></i>
+      <span class="fc l" data-f="all">ALL</span><span class="fc l" data-f="text">TEXT</span>
+      <span class="fc l" data-f="long_text">LONG TEXT</span><span class="fc l" data-f="image">IMAGE</span>
+    </div>
+    <div class="l range" id="range" data-in style="--i:5"></div>
+
+    <div class="list" id="list"><div class="wecho" id="wecho"></div><div class="wcur" id="wcur"><i></i></div></div>
+    <div class="empty" id="empty"></div>
+
+    <div class="acts" id="acts"></div>
+    <div class="l hints" id="hints">↑↓ MOVE · TAB / SHIFT+TAB · ←→ FILTER · CTRL+TAB TABS · ESC CLOSE · F10 HINTS</div>
+
+    <div class="cm" id="cm"></div>
+  </div>
+
+  <div class="pv" id="pv"></div>
+  <div class="ed" id="ed"></div>
+  <div class="cf" id="cf"></div>
+
+  <div class="toast l" id="toast"></div>
+  <div class="reopen l" id="reopen"><span class="p3k">MOD+ALT+V</span> CLIPBOARD</div>
+</div>
+<script src="b-wedge.js"></script>
+</body>
+</html>

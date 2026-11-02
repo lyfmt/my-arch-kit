@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P3 歌词 v2</title>
+<style>
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");font-weight:900;font-style:italic}
+:root{--ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--dim:rgba(163,240,255,.62);--panel:rgba(2,10,60,.62);--red:#e3121b;--ease:cubic-bezier(.22,.9,.24,1)}
+:root[data-theme="lavender"]{--ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--dim:rgba(208,188,255,.62);--panel:rgba(20,10,50,.66);--red:#ff3d6e}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#000510}
+body{color:var(--tx);user-select:none;-webkit-user-select:none}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+#bar{position:fixed;left:0;top:28px;display:flex;align-items:stretch;gap:0;
+  background:var(--panel);padding:10px 34px 10px 24px;
+  clip-path:polygon(0 0,100% 0,calc(100% - 22px) 100%,0 100%);
+  transition:transform .32s var(--ease),opacity .2s;max-width:calc(100vw - 16px)}
+#bar.off{transform:translateX(-110%);opacity:0;pointer-events:none}
+#tabs{display:flex;gap:4px}
+.tab{position:relative;border:0;background:none;padding:6px 14px 4px;cursor:pointer;color:var(--dim);
+  font:italic 900 30px/.86 "P3",sans-serif;letter-spacing:-.01em;transition:color .15s}
+.tab::before,.tab::after{content:"";position:absolute;inset:0;z-index:-1;transform:skewX(-14deg) scaleX(0);transform-origin:left;
+  transition:transform .22s var(--ease)}
+.tab::before{background:var(--red);transform:skewX(-14deg) translate(5px,4px) scaleX(0)}
+.tab::after{background:var(--fill)}
+.tab{isolation:isolate}
+.tab:hover{color:var(--tx)}
+.tab.on{color:var(--ink)}
+.tab.on::after{transform:skewX(-14deg) scaleX(1)}
+.tab.on::before{transform:skewX(-14deg) translate(5px,4px) scaleX(1);transition-delay:.05s}
+.tab:focus-visible{outline:2px solid var(--fill);outline-offset:3px}
+#pitch{align-self:center;margin-left:22px;font:500 14px/1.4 "Noto Sans CJK SC","Noto Sans SC",sans-serif;letter-spacing:.08em;
+  color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media (max-width:900px){#bar{flex-direction:column;padding-right:30px}#pitch{margin:8px 0 0 14px;white-space:normal}.tab{font-size:22px}}
+</style>
+</head>
+<body>
+<iframe id="frame" title="歌词预览"></iframe>
+<nav id="bar">
+  <div id="tabs"></div>
+  <div id="pitch"></div>
+</nav>
+<script>
+const V=[
+  {key:'slab',label:'SLAB',name:'Slab Lyrics',file:'slab.html',pitch:'粗体平涂的斜体歌词放在壁纸右下的深蓝区，翻译紧贴在下面；逐字硬边擦填，红字按节拍落下、不扎堆不闪，长英文句正常折成错落两行。'},
+  {key:'tilt',label:'TILT',name:'Tilt Lyrics（倾斜单行 + 错落换行）',file:'tilt.html',pitch:'画面上只有歌词。粗斜体的 P3 字压在壁纸右侧的深蓝区域，整行向右上倾斜 5°。长句拆成两行错落排列，翻译斜体，紧贴在主句下方约 8% 字号处。逐字从左到右硬边填色。每四句的最后一个字落成红色，间奏后第一句的首字闪一下红。'},
+  {key:'stagger',label:'STAGGER',name:'Stagger Lyrics（台阶错落歌词）',file:'stagger.html',pitch:'只有字的 P3 台阶歌词：主句斜切成 1~3 级错落台阶，首字放大，压在壁纸的深蓝区域；逐字硬边擦填，红字只在短句重拍和句尾落定；斜体翻译紧贴在最后一级下方。'},
+];
+const root=document.documentElement,frame=document.getElementById('frame'),bar=document.getElementById('bar'),
+  tabs=document.getElementById('tabs'),pitch=document.getElementById('pitch');
+const Q=new URLSearchParams(location.search);
+const st={i:0,theme:Q.get('theme')==='lavender'?'lavender':'p3',light:Q.get('bg')==='light'};
+try{const k=localStorage.getItem('p3lyrics.v2');const j=V.findIndex(v=>v.key===(Q.get('v')||k));if(j>=0)st.i=j}catch(e){}
+
+V.forEach((v,i)=>{const b=document.createElement('button');b.className='tab';b.textContent=v.label;b.title=v.name;
+  b.onclick=()=>{show(i);b.blur()};tabs.appendChild(b)});
+
+function src(v){const p=new URLSearchParams();if(st.theme==='lavender')p.set('theme','lavender');if(st.light)p.set('bg','light');
+  const s=p.toString();return v.file+(s?'?'+s:'')}
+function show(i){
+  st.i=(i+V.length)%V.length;const v=V[st.i];
+  [...tabs.children].forEach((b,j)=>b.classList.toggle('on',j===st.i));
+  pitch.textContent=v.pitch;pitch.title=v.name+'：'+v.pitch;frame.src=src(v);
+  try{localStorage.setItem('p3lyrics.v2',v.key)}catch(e){}
+}
+function send(cmd){try{frame.contentWindow.postMessage({cmd},'*')}catch(e){}}
+
+/* 外层统一按键 → 各方案。N/←/→ 用统一指令 song/lineNext/linePrev，
+   因为各方案的 next/prev 含义不一致（有的是下一首，有的是下一句）。 */
+function key(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return false;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  const n='1234567890'.indexOf(k);if(n>=0&&n<V.length){show(n);return true}
+  switch(k){
+    case 'h':bar.classList.toggle('off');return true;
+    case ' ':if(!e.repeat)send('pause');return true;
+    case 't':send('trans');return true;
+    case 'n':send('song');return true;
+    case 'ArrowRight':send('lineNext');return true;
+    case 'ArrowLeft':send('linePrev');return true;
+    case 'l':st.theme=st.theme==='p3'?'lavender':'p3';root.dataset.theme=st.theme;send('theme');return true;
+    case 'b':st.light=!st.light;send('bg');return true;
+  }
+  return false;
+}
+addEventListener('keydown',e=>{if(key(e))e.preventDefault()});
+
+/* iframe 获焦时：同源则在其 window 捕获阶段截获按键，压住方案自带的按键处理，避免触发两次；
+   跨源（如 file:// 下）则把焦点拉回外层。 */
+frame.addEventListener('load',()=>{
+  let hooked=false;
+  try{frame.contentWindow.addEventListener('keydown',e=>{if(key(e)){e.preventDefault();e.stopImmediatePropagation()}},true);hooked=true}catch(e){}
+  if(!hooked)setTimeout(()=>window.focus(),0);
+});
+addEventListener('blur',()=>setTimeout(()=>{
+  if(document.activeElement!==frame)return;
+  try{void frame.contentWindow.document}catch(e){window.focus()}
+},0));
+
+root.dataset.theme=st.theme;
+show(st.i);
+</script>
+</body>
+</html>

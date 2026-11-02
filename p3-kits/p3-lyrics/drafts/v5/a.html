@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lyrics Stagger</title>
+<style>
+@font-face { font-family: "P3"; src: url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* 颜色只取 p3.css 的两套 token；浅背景时主句用 --ink，翻译用 --sea（tokens.css 的深海蓝） */
+:root, [data-theme="p3"] {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff; --sea: #0626c4; --c3: #7ccdf4; --red: #e3121b;
+}
+[data-theme="lavender"] {
+  --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff; --sea: #4b2f9e; --c3: #b39dfa; --red: #ff3d6e;
+}
+:root { --main: var(--tx); --sub: var(--fill); --page: #000510; }
+[data-bg="light"] { --main: var(--ink); --sub: var(--sea); --page: #e8edf1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #000510; } }
+:root[data-bg="light"] { --page: #e8edf1; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--page); }
+body { user-select: none; -webkit-user-select: none; cursor: default; }
+
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  margin: -540px 0 0 -960px; overflow: hidden; transform-origin: 50% 50%; }
+#bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+[data-theme="lavender"] #bg { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+[data-bg="light"] #bg { display: none; }
+#stage { background: var(--page); }
+
+/* 歌词层：主句底边固定在 y=844，右缘固定在 x=1800（bg.png 右下的深海区） */
+#lyr { position: absolute; right: 120px; bottom: 236px; width: 0; height: 0;
+  transition: opacity .32s cubic-bezier(.22,.9,.24,1); }
+#lyr.paused { opacity: .42; }
+.blk { position: absolute; right: 0; bottom: 0; text-align: right; white-space: nowrap; }
+
+/* 每一行有自己的「水面」：.msk 的下沿。.in 从水面下浮上来，沉回去 */
+.msk { display: block; position: relative; overflow: hidden; padding: .1em .3em .22em; margin: -.1em -.3em -.22em; }
+.in { display: inline-block; will-change: transform; }
+
+.m { color: var(--main); }
+.m .msk + .msk { margin-top: calc(-.22em + 2px); }
+/* 中文 / 日文主句：P3 shell 的 .zh 调性，加重到 Bold、放大，字距收紧一点 */
+.cjk .m { font-family: "Noto Sans CJK SC", "Source Han Sans CN", sans-serif; font-weight: 700;
+  font-size: 52px; line-height: 1.22; letter-spacing: .04em; }
+.cjk[lang="ja"] .m { font-family: "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; }
+/* 英文主句：其余词用正体窄字 BarlowC，只有主词换成 P3R 斜体展示字 */
+.lat .m { font-family: "BarlowC", "Noto Sans CJK SC", sans-serif; font-weight: 700;
+  font-size: 58px; line-height: 1.02; letter-spacing: .01em; }
+
+/* 翻译：.zh 原样（Medium 500，.08em），用 --fill；挂在主句下方，不参与主句布局 */
+.tr { position: absolute; top: 100%; right: 0; margin-top: 34px; color: var(--sub);
+  font-family: "Noto Sans CJK SC", sans-serif; font-style: normal; font-weight: 500; font-size: 26px;
+  line-height: 1.3; letter-spacing: .08em; }
+.lat .tr { margin-top: 36px; }
+
+/* 词组排版「顶出水面」：一句按词组（日文按文节）切开，整句只有一个主词 hero，其余词统一字号。
+   hero 放到 2.15em，中日文用 Black 900 + 静态 -12° 斜切，英文换 P3R 斜体；其余词一律正体。
+   hero 整体下沉 .2em：它的底边压过这一行的水面（.msk 的裁切下沿），被水面裁掉一截，
+   主句最后一行的水面就是可见的水线，所以大字像踩在线上、从水里顶出来。
+   .ph 负责浮出 / 沉下（transform），.pw 负责静态斜切（transform）和波峰抬起（translate），互不覆盖。 */
+.ph { display: inline-block; will-change: transform; transform-origin: 0 100%; line-height: 1.04; }
+.pw { display: inline-block; }
+.ph.hero { font-size: 2.15em; position: relative; top: .2em; margin: 0 .05em 0 .08em; line-height: .96; }
+.cjk .ph.hero { font-weight: 900; letter-spacing: .01em; }
+.ph.hero .pw { transform: skewX(-12deg); }
+.lat .ph.hero { font-family: "P3", "Noto Sans CJK SC", sans-serif; font-style: italic; font-weight: 900;
+  font-size: 2.05em; letter-spacing: -.01em; margin: 0 .04em; }
+/* 独立助词（の/が/に/を…）退一档：.66em、--sub，和正文同一条基线，不上浮 */
+.ph.sm { font-size: .66em; color: var(--sub); margin: 0 .04em; letter-spacing: 0; }
+.ph.red { color: var(--red); }
+.tr .ph { font-size: 1em; line-height: inherit; }
+/* 水线：整块歌词底部一条与块同宽的 1.2px 平涂细线，常驻、很淡；
+   波纹经过时只在波峰处局部隆起。两端用遮罩淡出（遮罩在线的容器上，不在字上） */
+.wvc { position: absolute; right: 0; top: 100%; height: 26px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
+/* 底线常驻偏暗；.hi 是同形的亮线，只露出波峰附近一段（遮罩随波峰移动），波峰最亮、两侧渐暗 */
+.wv { display: block; overflow: hidden; position: absolute; left: 0; top: 0; opacity: .34; }
+.wv.hi { opacity: 1; -webkit-mask: linear-gradient(90deg, transparent, #000 50%, transparent) 0 0 / var(--spot, 180px) 100% no-repeat;
+  mask: linear-gradient(90deg, transparent, #000 50%, transparent) 0 0 / var(--spot, 180px) 100% no-repeat;
+  -webkit-mask-position: -9999px 0; mask-position: -9999px 0; }
+[data-bg="light"] .wv { opacity: .4; }
+[data-bg="light"] .wv.hi { opacity: 1; }
+.wv path { fill: none; stroke: var(--sub); stroke-width: 1.6; stroke-linecap: round; }
+.wv.hi path { stroke: var(--main); stroke-width: 2.2; }
+/* 歌名下的歌手：BarlowC 标签字，中文歌手名回落到 Noto 500 */
+.tr.by { font-family: "BarlowC", "Noto Sans CJK SC", sans-serif; font-weight: 700; font-size: 24px;
+  letter-spacing: .2em; text-transform: uppercase; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <img id="bg" src="../../../../p5-reference/p3-miku/bg.png" alt="">
+  <div id="lyr"></div>
+</div>
+<script>
+const Q = new URLSearchParams(location.search);
+const root = document.documentElement;
+if (Q.get('bg') === 'light') root.dataset.bg = 'light';
+root.dataset.theme = Q.get('theme') === 'lavender' ? 'lavender' : 'p3';
+const SLOW = Math.max(.05, +Q.get('slow') || 1);
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+
+/* 原创假歌，行级时间戳（照搬 v2/slab.html） */
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ============================================================
+   动效编排「浮出水面」
+   每一行文字下沿有一条看不见的水面（.msk 的 overflow 裁切）。
+   入场：文字从水面下 108% 处浮上来，out-expo，主句多行时自上而下错开，翻译最后浮出。
+   退场：先沉翻译，再自下而上沉主句，ease-in，比入场快一倍多。
+   交接：严格先出后进。旧行完全沉没后再隔 40ms，新行才开始浮出，
+        两行共用同一条水面，任何时刻水面上只有一行。
+   提前量：退场从下一行时间戳前 LEAD 开始，使新行恰好在时间戳附近露出。
+   快歌：k = 行间隔 / 1.5s，夹在 [.42, 1]；所有时长、错开、提前量都乘 k。
+   间奏：行后间隔 ≥ 6s 时，这一行停留 HOLD 后单独、缓慢地沉下（不急着腾位置），屏幕留空。
+   ============================================================ */
+const EZ = {
+  up:   'cubic-bezier(.16,1,.3,1)',      // 浮出：快起慢停
+  down: 'cubic-bezier(.6,0,.86,.4)',     // 沉下：慢起快走
+  calm: 'cubic-bezier(.45,0,.75,.45)',   // 间奏退场：更平的 ease-in
+};
+const T = { enter: 700, exit: 300, row: 70, trans: 100, exitRow: 28, calmExit: 620, lead: .14 };
+const INTERLUDE = 6, HOLD = 4.2;
+/* 词组级错开：step 入场间隔，exitStep 退场间隔。
+   skew 是 hero 起跳时在静态 -12° 之上多出的斜切：-8 + -12 = -20°，落定回到 -12°，方向不翻转 */
+const PH = { enter: 540, step: 38, exitStep: 18, skew: -8 };
+/* 每首歌只有一句「钩子」的主词用 --red，其余全是 --main。
+   SONGS 里可写 hook: 行号 指定；没写就取最长的一句 */
+const hookOf = sg => {
+  if (sg._hook == null && Number.isInteger(sg.hook) && sg.lines[sg.hook]) sg._hook = sg.hook;
+  if (sg._hook == null) { let m = -1; sg.lines.forEach((l, i) => { if (m < 0 || l.text.length > sg.lines[m].text.length) m = i; }); sg._hook = m; }
+  return sg._hook;
+};
+/* 沉没深度按像素量：从 .in 顶到水面（.msk 下沿，含 padding）的距离，再多沉 .35em，
+   盖住斜体/假名超出行框的笔画顶，保证沉到底时字形顶端在水面之下。 */
+const depth = (el, sk = 0) => {
+  const fs = parseFloat(getComputedStyle(el).fontSize) || 60;
+  return `translateY(${Math.ceil(el.closest('.msk').clientHeight - el.offsetTop + .35 * fs)}px)` + (sk ? ` skewX(${sk}deg)` : '');
+};
+
+const lyr = document.getElementById('lyr');
+const anims = new Set();
+let si = 0, song = SONGS[0], time = 0, paused = false, transOn = Q.get('trans') !== '0';
+let shown = null;        // {key, el}
+let index = -1;
+
+const isLat = s => !/[　-鿿＀-￯]/.test(s);
+const kOf = (s, i) => {
+  const L = s.lines, nt = i + 1 < L.length ? L[i + 1].t : s.end;
+  return Math.min(1, Math.max(.42, (nt - L[i].t) / 1.5));
+};
+
+function anim(el, kf, dur, ease, delay = 0) {
+  const a = el.animate(kf, { duration: Math.max(1, dur * SLOW), delay: delay * SLOW, easing: ease, fill: 'both' });
+  anims.add(a);
+  a.finished.then(() => anims.delete(a), () => anims.delete(a));
+  if (paused) a.pause();
+  return a;
+}
+const curY = el => { const m = new DOMMatrix(getComputedStyle(el).transform); return m.m42 + 'px'; };
+
+/* 切词：拉丁按空格，中日文用 Intl.Segmenter，标点并进前一个词。
+   日文再合成文节：含汉字/片假名的词把后面跟着的平假名吞进来（離れ+て+も → 離れても，消+え+ない → 消えない），
+   只有单字格助词（の/が/に/を/は/へ/と/で）留成独立的 sm。
+   中文把 着/了 并进前一个词（骑着），其余照 Segmenter。 */
+const PART = new Set([...'のがにをはへとで']);
+const ZPART = new Set([...'的也和与在把']);
+const FN = new Set('a an the of in on at to and but or over like until our we i\'m it its could my your i you by for'.split(' '));
+const KAN = /[\p{Script=Han}\p{Script=Katakana}ー々]/u, HIRA = /^[\p{Script=Hiragana}ー]+$/u;
+const coreOf = w => w.replace(/[^\p{L}\p{N}']/gu, '');
+function segs(text, lat, lang) {
+  if (lat) return text.split(/\s+/).filter(Boolean);
+  let out = [];
+  try {
+    for (const s of new Intl.Segmenter(lang || 'zh', { granularity: 'word' }).segment(text)) {
+      if (!s.isWordLike && out.length && !/\s/.test(s.segment)) out[out.length - 1] += s.segment;
+      else if (!/^\s+$/.test(s.segment)) out.push(s.segment);
+    }
+  } catch (e) { out = [...text]; }
+  const ja = /^ja/.test(lang || '');
+  const res = [];
+  out.forEach(w => {
+    const prev = res[res.length - 1], c = coreOf(w);
+    if (prev != null && ja && HIRA.test(c) && !(c.length === 1 && PART.has(c)) && KAN.test(prev) && !/[、。！？!?]$/.test(prev)) res[res.length - 1] += w;
+    else if (prev != null && !ja && /^[着了]$/.test(c)) res[res.length - 1] += w;
+    else res.push(w);
+  });
+  return res;
+}
+/* 分档只有两档半：独立助词 sm、其余正文、整句唯一的 hero（hero 在 build() 里跨行挑） */
+function grade(ws, lat, lang) {
+  const ja = /^ja/.test(lang || '');
+  return ws.map(w => {
+    const c = coreOf(w);
+    if (lat || ws.length < 2 || [...c].length !== 1) return '';
+    return (ja ? PART : ZPART).has(c) ? 'sm' : '';
+  });
+}
+/* 整句只挑一个 hero：按字数（拉丁按字母数、跳过功能词），并列取靠后的；日文优先含汉字的文节 */
+function pickHero(rows, lat, lang) {
+  const ja = /^ja/.test(lang || '');
+  let best = null, bs = 0;
+  rows.forEach((r, ri) => r.ws.forEach((w, n) => {
+    if (r.cls[n] === 'sm') return;
+    const c = coreOf(w);
+    if (lat && FN.has(c.toLowerCase())) return;
+    const sc = [...c].length + (ja && KAN.test(c) ? 100 : 0);
+    if (sc >= bs) { bs = sc; best = [ri, n]; }
+  }));
+  const len = best ? [...coreOf(rows[best[0]].ws[best[1]])].length : 0;
+  return best && (lat ? len >= 3 : len >= 1) ? best : null;
+}
+/* opt: {lat, lang, flat, hero, red} ；flat = 翻译行，只切词不分档；hero = 本行里主词的序号 */
+function row(ws, cls, opt = {}) {
+  const m = document.createElement('span'); m.className = 'msk';
+  const i = document.createElement('span'); i.className = 'in';
+  ws.forEach((w, n) => {
+    if (n && (opt.lat || opt.flat)) i.appendChild(document.createTextNode(' '));
+    const h = n === opt.hero;
+    const p = document.createElement('span'); p.className = 'ph' + (h ? ' hero' : cls[n] ? ' ' + cls[n] : '') + (h && opt.red ? ' red' : '');
+    const q = document.createElement('span'); q.className = 'pw'; q.textContent = w;
+    p.appendChild(q); i.appendChild(p);
+  });
+  if (opt.hero != null) m.classList.add('hr');
+  m.appendChild(i); return m;
+}
+const flatRow = text => { const ws = text.split(/\s+/).filter(Boolean); return row(ws, ws.map(() => ''), { flat: true }); };
+
+/* item: {key, main:[rows], sub, lat, lang, by} */
+function build(item) {
+  const b = document.createElement('div');
+  b.className = 'blk ' + (item.lat ? 'lat' : 'cjk');
+  if (item.lang) b.lang = item.lang;
+  const m = document.createElement('div'); m.className = 'm';
+  const rows = item.main.map(t => { const ws = segs(t, item.lat, item.lang); return { ws, cls: grade(ws, item.lat, item.lang) }; });
+  const hp = item.by ? null : pickHero(rows, item.lat, item.lang);
+  rows.forEach((r, ri) => m.appendChild(row(r.ws, r.cls,
+    { lat: item.lat, lang: item.lang, red: item.red, hero: hp && hp[0] === ri ? hp[1] : null })));
+  b.appendChild(m);
+  if (item.sub && (transOn || item.by)) addSub(b, item);
+  b._item = item;
+  lyr.appendChild(b);
+  addWave(b);
+  return b;
+}
+function addSub(b, item) {
+  const s = document.createElement('div'); s.className = 'tr' + (item.by ? ' by' : '');
+  s.appendChild(flatRow(item.sub));
+  b.querySelector('.m').appendChild(s);
+  return s;
+}
+const mainPhs = b => [...b.querySelectorAll('.m > .msk .ph')];
+const subIn = b => b.querySelector('.tr .in');
+
+/* ============================================================
+   波纹「穿过」
+   一道波峰从块的右缘（锚点 x=1800）往左扫过整块歌词，方向与阅读顺序相反，
+   不会被读成进度。每个字在波峰到达时先抬起 A、再落下 .42A、回到原位（阻尼一次），
+   A = 字号 × .095（58px 主句约 5.5px，翻译约 2.5px）。dur 1100ms、SPEED 320px/s（波长约 350px），
+   同一时刻有 4~5 个相邻字在抬起，读起来是一道浪而不是单字抖动。
+   字只移动，不变色、不模糊。
+   水线（.wvc）常驻在整块底部，波纹经过时同一条 path 的 d 在波峰处局部隆起，
+   隆起的形状与字的位移曲线逐点对应（同一组缓动、同一速度）。
+   每条歌词最多两道：浮出时一道（行间隔 ≥ 1.2s；1.2~2.2s 的短行用 .6A、800ms），
+   停留够长（≥ 4.6s）时中途再一道。第二道挂在歌曲时间上，暂停时不会触发；
+   进行中的波纹在 anims 里，随暂停冻结；?slow 经 anim() 同样放慢。
+   reduced-motion 下不出波纹，水线只随整块淡入淡出。
+   ============================================================ */
+const RIP = { speed: 320, dur: 1100, crest: .28, dip: .62, minEnter: 1.2, full: 2.2, minDwell: 4.6,
+  small: { a: .6, dur: 800 } };
+const WY = 20, WH = 26, WAMP = 3.4, WHERO = 2.6, WSIG = 200, SPOT = 180;
+/* 水线基线、容器高、隆起基础高度（px）；WHERO：hero 正下方隆起放大到 (1+WHERO) 倍，
+   按离 hero 中心的距离做高斯衰减（σ≈WSIG px）；SPOT：亮斑宽度 */
+const flatD = w => `M0 ${WY} L${w} ${WY}`;
+function addWave(b) {
+  const c = document.createElement('div'); c.className = 'wvc';
+  const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'wv');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  sv.appendChild(p); c.appendChild(sv);
+  const hv = sv.cloneNode(true); hv.setAttribute('class', 'wv hi'); c.appendChild(hv);
+  b.appendChild(c);
+  wavePos(b, !!b.querySelector('.tr'));
+  if (document.fonts && document.fonts.status !== 'loaded')
+    document.fonts.ready.then(() => b.isConnected && wavePos(b, !!b.querySelector('.tr')));
+}
+/* 宽度 = 主句与翻译中较宽者 */
+function wavePos(b, withTr) {
+  const c = b.querySelector('.wvc'); if (!c) return 0;
+  const tr = withTr ? b.querySelector('.tr') : null;
+  /* 水线放在主句最后一行的水面（.msk 裁切下沿）上：hero 的底边压过它、被它裁掉；翻译在水线下方 */
+  const lm = [...b.querySelectorAll('.m > .msk')].pop();
+  const br = b.getBoundingClientRect(), sc = br.height / b.offsetHeight || 1;
+  const top = Math.round(lm ? (lm.getBoundingClientRect().bottom - br.top) / sc - WY : b.offsetHeight - WY);
+  const w = Math.ceil(Math.max(b.offsetWidth, tr ? tr.offsetWidth : 0));
+  const old = c.offsetTop;
+  c.style.top = top + 'px'; c.style.width = w + 'px';
+  c.querySelectorAll('svg').forEach(sv => {
+    sv.setAttribute('width', w); sv.setAttribute('height', WH); sv.setAttribute('viewBox', `0 0 ${w} ${WH}`);
+    sv.firstChild.setAttribute('d', flatD(w));
+  });
+  c._w = w;
+  return old - top;
+}
+/* 波峰在 x 处的水线：与字的关键帧一一对应（空间 = 时间 × 速度）。
+   波峰左侧 .28L 处开始隆起，右侧 .34L 处是 .42h 的回落，.72L 处回平。L = dur × speed。 */
+/* 隆起高度随波峰位置变化：越靠近 hero 中心越高（hx = hero 中心 x，没有 hero 时为 null） */
+const bumpH = (x, h, hx) => hx == null ? h : h * (1 + WHERO * Math.exp(-((x - hx) ** 2) / (2 * WSIG * WSIG)));
+function bumpD(w, x, L, h) {
+  const y = WY, x0 = x - RIP.crest * L, x2 = x + (RIP.dip - RIP.crest) * L, x3 = x + (1 - RIP.crest) * L;
+  const seg = (a, ya, b2, yb) => { const d = b2 - a; return `C${(a + .37 * d).toFixed(1)} ${ya} ${(a + .63 * d).toFixed(1)} ${yb} ${b2.toFixed(1)} ${yb}`; };
+  const yc = (y - h).toFixed(2), yd = (y + h * .42).toFixed(2);
+  return `path("M0 ${y} L${x0.toFixed(1)} ${y} ${seg(x0, y, x, yc)} ${seg(x, yc, x2, yd)} ${seg(x2, yd, x3, y)} L${w} ${y}")`;
+}
+/* 从左往右一道浪，走完整句的时间 = 这一句在屏上的时长 room（ms）：浪头跟着这一句的节奏走。
+   浪的形状宽度固定（RIP.dur × RIP.speed ≈ 350px），速度按 room 反推。 */
+function ripple(b, delay = 0, small = false, room = 0) {
+  if (RM.matches || !b.isConnected || b._gone) return;
+  wavePos(b, !!b.querySelector('.tr'));
+  const w = b.querySelector('.wvc')._w;
+  const sc = b.getBoundingClientRect().width / b.offsetWidth || 1;
+  const bl = b.getBoundingClientRect().left;
+  const ka = small ? RIP.small.a : 1;
+  const L = RIP.speed * RIP.dur / 1000 * (small ? .8 : 1);   // 浪形宽度（px）
+  const sp = (w + L) / Math.max(400, room);                   // px / ms
+  const dur = L / sp;
+  const e = 'cubic-bezier(.37,0,.63,1)';
+  /* hero 中心：浪在这里最高，hero 自己抬起 .2×字号 */
+  const hp = b.querySelector('.m .ph.hero .pw');
+  const hx = hp ? (() => { const r = hp.getBoundingClientRect(); return ((r.left + r.width / 2) - bl) / sc; })() : null;
+  /* 每个词组按自己的中心排时间；用 translate 属性抬起，不碰 .pw 上的静态斜切 */
+  b.querySelectorAll('.pw').forEach(g => {
+    const r = g.getBoundingClientRect();
+    const rx = ((r.left + r.width / 2) - bl) / sc;   // 离左缘的距离
+    const fs = parseFloat(getComputedStyle(g).fontSize) || 58;
+    const A = Math.max(1.6, fs * (g === hp ? .2 : .12) * ka);
+    anim(g, [
+      { translate: '0 0', easing: e },
+      { translate: `0 ${(-A).toFixed(2)}px`, offset: RIP.crest, easing: e },
+      { translate: `0 ${(A * .42).toFixed(2)}px`, offset: RIP.dip, easing: e },
+      { translate: '0 0' }], dur, 'linear', delay + rx / sp);
+  });
+  /* 水线：波峰从左缘外进入、从右缘外离开，和字的位移同速；路径按波峰位置逐帧取样，隆起在 hero 下最高 */
+  const h = WAMP * ka;
+  const x0 = -RIP.crest * L, x1 = w + (1 - RIP.crest) * L, T0 = (w + L) / sp;
+  const N = 24, kf = [];
+  for (let j = 0; j <= N; j++) { const x = x0 + (x1 - x0) * j / N; kf.push({ d: bumpD(w, x, L, bumpH(x, h, hx)) }); }
+  b.querySelectorAll('.wvc path').forEach(p => {
+    const pa = anim(p, kf, T0, 'linear', delay);
+    pa.finished.then(() => pa.cancel(), () => {});   // 走完回到属性里的平直线（宽度可能已随翻译开关变化）
+  });
+  /* 亮斑：宽 SPOT（≈180px），中心始终对准波峰 */
+  const hv = b.querySelector('.wv.hi'), S = SPOT * (small ? .8 : 1);
+  hv.style.setProperty('--spot', S + 'px');
+  const ma = anim(hv, [{ maskPosition: `${x0 - S / 2}px 0`, webkitMaskPosition: `${x0 - S / 2}px 0` },
+    { maskPosition: `${x1 - S / 2}px 0`, webkitMaskPosition: `${x1 - S / 2}px 0` }], T0, 'linear', delay);
+  ma.finished.then(() => ma.cancel(), () => {});
+}
+
+function enter(b, k, delay, slow = 1) {
+  if (RM.matches) { anim(b, [{ opacity: 0 }, { opacity: 1 }], 180, 'linear', delay); return; }
+  /* 词组从左到右依次冲出水面：其余词正着浮上来；hero 带 -20° 斜切起跳，落定在静态 -12°；
+     相邻词组隔 PH.step，换行再加 T.row。最后一个词组落地后翻译浮出。 */
+  const d = PH.enter * Math.max(.5, k) * slow;
+  let last = delay;
+  b.querySelectorAll('.m > .msk').forEach((m, r) => {
+    m.querySelectorAll('.ph').forEach((el, n) => {
+      const at = delay + (r * T.row + n * PH.step) * k;
+      last = Math.max(last, at);
+      const hero = el.classList.contains('hero');
+      anim(el, [{ transform: depth(el, hero ? PH.skew : 0) }, { transform: 'none' }], d * (hero ? 1.12 : 1), EZ.up, at);
+    });
+  });
+  const s = subIn(b);
+  if (s) anim(s, [{ transform: depth(s) }, { transform: 'none' }], d * .9, EZ.up, last + T.trans * k);
+  const c = b.querySelector('.wvc');
+  if (c) anim(c, [{ opacity: 0 }, { opacity: getComputedStyle(c).opacity }], d * .8, 'ease-out', delay + d * .2);
+}
+function exit(b, dur, ease) {
+  b._gone = true;
+  let last;
+  const done = () => b.remove();
+  if (RM.matches) { last = anim(b, [{ opacity: getComputedStyle(b).opacity }, { opacity: 0 }], 140, 'linear'); }
+  else {
+    const c = b.querySelector('.wvc');
+    if (c) anim(c, [{ opacity: getComputedStyle(c).opacity }, { opacity: 0 }], dur * .8, 'linear');
+    /* 翻译先沉；主句词组从左到右沉回水下，hero 同方向斜到 -20° 再没入 */
+    const f = Math.min(1, dur / T.exit);
+    const s = subIn(b);
+    const sink = (el, at, sk) => {
+      const from = curY(el);
+      el.getAnimations().forEach(a => a.cancel());
+      return anim(el, [{ transform: `translateY(${from})` }, { transform: depth(el, sk) }], dur, ease, at);
+    };
+    if (s) last = sink(s, 0, 0);
+    mainPhs(b).forEach((el, n) => { last = sink(el, (s ? T.exitRow : 0) * f + n * PH.exitStep * f, el.classList.contains('hero') ? PH.skew : 0); });
+  }
+  if (last) last.finished.then(done, done); else done();
+}
+
+/* 在 time 时刻应该显示什么 */
+function desired(t) {
+  const L = song.lines;
+  for (let i = L.length - 1; i >= 0; i--) {
+    if (t >= L[i].t - T.lead * kOf(song, i)) {
+      const nt = i + 1 < L.length ? L[i + 1].t : song.end;
+      if (nt - L[i].t >= INTERLUDE && t >= L[i].t + HOLD) return { key: 'gap' + i, i, none: true };
+      if (i === L.length - 1 && t >= song.end - .9) return { key: 'gap' + i, i, none: true };
+      const l = L[i];
+      return { key: 'L' + i, i, lat: isLat(l.text), lang: song.lang, main: l.text.split('|').map(s => s.trim()), sub: l.trans,
+        red: i === hookOf(song) };
+    }
+  }
+  return { key: 'title', i: -1, lat: isLat(song.title), lang: song.lang, main: [song.title], sub: song.artist, by: true };
+}
+
+/* mode: 'auto' | 'seek' | 'song' | 'instant' */
+function show(item, mode) {
+  index = item.i;
+  const old = shown && shown.el;
+  const k = item.none ? 1 : mode === 'seek' ? .6 : item.i >= 0 ? kOf(song, item.i) : 1;
+  let delay = 0;
+  if (old) {
+    if (mode === 'instant') old.remove();
+    else if (item.none) exit(old, T.calmExit, EZ.calm);
+    else {
+      const ed = mode === 'song' ? 260 : T.exit * k;
+      exit(old, ed, EZ.down);
+      delay = ed + 40;
+    }
+  }
+  if (item.none) { shown = { key: item.key, el: null }; return; }
+  const b = build(item);
+  shown = { key: item.key, el: b };
+  if (mode !== 'instant') enter(b, k, delay, item.key === 'title' ? 1.15 : 1);
+  /* 波纹排期：可见时长 = 到下一次退场（或间奏淡出）为止 */
+  const L = song.lines, i = item.i;
+  const t0 = i >= 0 ? L[i].t : 0, nt = i + 1 < L.length ? L[i + 1].t : (i >= 0 ? song.end : L[0].t);
+  const vis = Math.min(nt - t0, i >= 0 && nt - t0 >= INTERLUDE ? HOLD : Infinity, i === L.length - 1 ? song.end - .9 - t0 : Infinity);
+  /* 一句一道浪：浮出时起步，走完整句的剩余时长，和这一句同步 */
+  if (mode !== 'instant' && nt - t0 >= RIP.minEnter) {
+    const d0 = delay + T.enter * Math.max(.5, k) * .32;
+    const room = (t0 + vis - time) * 1000 - d0 - 250;
+    ripple(b, d0, nt - t0 < RIP.full, room);
+  }
+  b._ripT = null;
+}
+
+function setSong(n, at, mode) {
+  si = (n + SONGS.length) % SONGS.length; song = SONGS[si]; time = at || 0;
+  const item = desired(time);
+  show(item, mode);
+}
+
+function seek(dir) {
+  const L = song.lines;
+  let j = index + dir;
+  if (shown && shown.key.startsWith('gap') && dir > 0) j = index + 1;
+  if (shown && shown.key.startsWith('gap') && dir < 0) j = index;
+  if (j >= L.length) { setSong(si + 1, 0, 'song'); return; }
+  time = j < 0 ? 0 : L[j].t;
+  const item = desired(time);
+  if (item.key !== (shown && shown.key)) show(item, 'seek');
+}
+
+/* ---------- 时钟 ---------- */
+let last = performance.now();
+function tick(now) {
+  requestAnimationFrame(tick);
+  try {
+    const dt = Math.min(.25, (now - last) / 1000) / SLOW; last = now;
+    if (paused) return;
+    time += dt;
+    if (time >= song.end) { setSong(si + 1, 0, 'song'); return; }
+    const item = desired(time);
+    if (!shown || item.key !== shown.key) show(item, 'auto');
+    const b = shown && shown.el;
+    if (b && b._ripT != null && time >= b._ripT) { if (time < b._ripT + .5) ripple(b); b._ripT = null; }
+  } catch (e) { console.error(e); }
+}
+
+function setPaused(p) {
+  paused = p;
+  anims.forEach(a => p ? a.pause() : a.play());
+  lyr.classList.toggle('paused', p);
+}
+function toggleTrans() {
+  transOn = !transOn;
+  const b = shown && shown.el;
+  if (!b || b._item.by || !b._item.sub) return;
+  const old = b.querySelector('.tr');
+  if (!transOn && old) {
+    const el = old.querySelector('.in');
+    const from = curY(el); el.getAnimations().forEach(a => a.cancel());
+    moveWave(b, false);
+    if (RM.matches) { old.remove(); return; }
+    anim(el, [{ transform: `translateY(${from})` }, { transform: depth(el) }], 240, EZ.down).finished.then(() => old.remove(), () => {});
+  } else if (transOn && !old) {
+    const s = addSub(b, b._item);
+    if (!RM.matches) { const el = s.querySelector('.in'); anim(el, [{ transform: depth(el) }, { transform: 'none' }], 560, EZ.up); }
+    moveWave(b, true);
+  }
+}
+/* 翻译开关时水线移到新的底部：平滑滑过去，reduced-motion 下直接跳 */
+function moveWave(b, withTr) {
+  const dy = wavePos(b, withTr), c = b.querySelector('.wvc');
+  if (c && dy && !RM.matches) anim(c, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], 300, EZ.up);
+}
+
+const CMD = {
+  pause: () => setPaused(!paused),
+  trans: toggleTrans,
+  song: () => setSong(si + 1, 0, 'song'),
+  lineNext: () => seek(1),
+  linePrev: () => seek(-1),
+  theme: () => { root.dataset.theme = root.dataset.theme === 'lavender' ? 'p3' : 'lavender'; },
+  bg: () => { if (root.dataset.bg === 'light') delete root.dataset.bg; else root.dataset.bg = 'light'; },
+};
+const KEYS = { ' ': 'pause', t: 'trans', n: 'song', ArrowRight: 'lineNext', ArrowLeft: 'linePrev', l: 'theme', b: 'bg' };
+addEventListener('keydown', e => {
+  const c = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (c) { e.preventDefault(); CMD[c](); }
+});
+addEventListener('message', e => { const c = e.data && e.data.cmd; if (CMD[c]) CMD[c](); });
+
+Object.defineProperty(window, '__lyr', { get: () => ({ time, index, paused, song: si, key: shown && shown.key }) });
+
+/* ---------- 舞台缩放 ---------- */
+const stage = document.getElementById('stage');
+function fit() { stage.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; }
+addEventListener('resize', fit); fit();
+
+/* ---------- 开场 ---------- */
+const t0 = +Q.get('t'), s0 = +Q.get('song') || 0;
+if (t0 > 0) setSong(s0, t0, 'instant'); else setSong(s0, 0, 'song');
+requestAnimationFrame(n => { last = n; tick(n); });
+</script>
+</body>
+</html>

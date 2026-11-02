@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lock Surface</title>
+<link rel="stylesheet" href="lock.css">
+</head>
+<body class="idle">
+<div id="stage">
+  <div id="deep">
+    <div class="bg" id="bg">
+      <img src="../../assets/bg.png" alt="">
+      <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+        <filter id="cf" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#cf)"/>
+      </svg>
+      <div class="rays" id="rays"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="bubbles" id="bubbles"></div>
+    </div>
+
+    <div id="ui">
+      <div class="when"><span class="d md" id="md"></span><span class="l dow" id="dow"></span><span class="l tod" id="tod"></span></div>
+      <div class="clock d" id="clock"><span id="hh"></span><span class="col">:</span><span id="mm"></span></div>
+      <div class="wake l" id="wake">PRESS ANY KEY</div>
+
+      <div class="pass" id="pass">
+        <div class="who">
+          <span class="d user" id="user"></span><span class="l host" id="host"></span>
+          <span class="l caps" id="caps">CAPS LOCK</span>
+        </div>
+        <div class="line" id="line"><div class="dots" id="dots"></div><i class="cur" id="cur"></i><i class="sweep"></i></div>
+        <div class="foot">
+          <span class="l status" id="status"></span>
+          <span class="keys l"><span><kbd>ENTER</kbd><span class="zh">解锁</span></span><span class="tab" id="tabkey"><kbd>TAB</kbd><span class="zh">电源</span></span></span>
+        </div>
+      </div>
+
+      <div class="power" id="power">
+        <div class="pi d" data-a="suspend"><span class="echo">SUSPEND</span><span class="tx">SUSPEND</span></div>
+        <div class="pi d" data-a="reboot"><span class="echo">REBOOT</span><span class="tx">REBOOT</span></div>
+        <div class="pi d" data-a="poweroff"><span class="echo">POWER OFF</span><span class="tx">POWER OFF</span></div>
+        <div class="foot">
+          <span class="l status" id="pstatus"></span>
+          <span class="keys l"><span><kbd>↑↓</kbd><span class="zh">选择</span></span><span><kbd>ENTER</kbd><span class="zh">执行</span></span><span><kbd>ESC</kbd><span class="zh">返回</span></span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="desk">
+    <div class="desk-bar l"><span>DESKTOP</span><span class="dim" id="deskclock"></span></div>
+    <div class="desk-note"><span class="d">UNLOCKED</span><span class="l dim">占位桌面 · 按 L 重新锁定</span></div>
+  </div>
+</div>
+<script src="lock.js"></script>
+</body>
+</html>

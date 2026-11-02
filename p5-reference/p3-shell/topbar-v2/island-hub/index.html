@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Island Hub</title>
+<link rel="stylesheet" href="island.css">
+</head>
+<body>
+<div class="bg"><img src="../../../p3-miku/bg.png" alt=""></div>
+<div id="strip">
+  <div id="island">
+    <div class="wdg off" id="tw"><i class="r"></i><i class="w"></i></div>
+    <div class="z" id="z-ws" data-sheet="windows"><div class="wdg" id="ww"><i class="r"></i><i class="w"></i></div></div>
+    <button class="z" id="z-time" data-sheet="calendar"><span class="d">00:00</span><span class="l dt"></span></button>
+    <button class="z" id="z-pulse" data-sheet="media"><span class="pulse"><i></i><i></i><i></i><i></i></span></button>
+    <button class="z" id="z-unread" data-sheet="notif"><span class="d">0</span></button>
+    <button class="z" id="z-bat" data-sheet="status">
+      <span class="bat"><svg class="bolt" viewBox="0 0 9 15"><path d="M6 0L0 9h4l-1 6 6-9H5z"/></svg><span class="d">100</span><span class="l dim">%</span></span>
+      <span class="osd"><svg viewBox="0 0 16 14"></svg><b><i></i></b></span>
+    </button>
+    <div id="arrive"></div>
+  </div>
+</div>
+<div id="sheet"><div id="face"><div id="body"></div></div><i id="edge"></i></div>
+<script src="island.js"></script>
+</body>
+</html>

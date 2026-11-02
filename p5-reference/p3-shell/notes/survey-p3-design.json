@@ -1,0 +1,275 @@
+{
+  "tokens": "P3 BLUE in p3-miku (p5-reference/p3-miku/index.html, the newest prototype, modified 2026-10-19 00:34). There is one :root theme and no switch.\n- --ink #04103c, --tx #ecfcff, --fill #a3f0ff\n- --c1 #a1eefd, --c2 #90e1f2, --c3 #7ccdf4, --c4 #c2f6ff, --c5 #74c9ff\n- --dim rgba(163,240,255,.62), --red #e3121b, --ease cubic-bezier(.22,.9,.24,1)\n- Hard-coded colours outside the tokens: body #000510, white wedge #fff, bubble ring rgba(190,245,255,.75), description bar rgba(2,10,60,.55) with a 1px top border rgba(163,240,255,.25), kbd chip rgba(163,240,255,.16), resting text-shadow 0 3px 0 rgba(2,16,70,.35).\n- The water gradient is baked into bg.png. Right-edge samples by stage y: 0 #1cfcfd, 120 #12f1fe, 200 #08a3fc, 300 #0480e1, 400 #0160ca, 500 #0143c3, 600 #0131bf, 700 #0123b9, 800 #0113ae, 900 #0002a7, 1079 #000296. The date area is #5dfcfd/#13f4fd/#08bdfd. The description-bar area is #00019f to #0101a2.\n\nP3 BLUE in phone v2 (p5-reference/phone/v2/style.css, selector `:root, [data-theme=\"p3\"]`).\n- --deep #020a52, --sea #0626c4, --sky #0b8fe8, --fill #a3f0ff, --ink #021046, --tx #ecfcff\n- --c1 #a1eefd, --c2 #90e1f2, --c3 #71b2e4, --c4 #a3f0ff, --c5 #6bbbfc\n- --dim rgba(163,240,255,.58), --line rgba(163,240,255,.2), --panel rgba(120,200,255,.08), --accent #e3121b, --shard #fff\n- P3-only overrides: .pbtn.danger #ff6a70, .sh-title #ff4a52.\n\nDMS LAVENDER in phone v2 (selector `[data-theme=\"lavender\"]`).\n- --deep #0d0722, --sea #2a1b66, --sky #7b62d6, --fill #d0bcff, --ink #1b0f33, --tx #f6f0ff\n- --c1 #efe6ff, --c2 #d0bcff, --c3 #b39dfa, --c4 #e3d6ff, --c5 #c2a9ff\n- --dim rgba(208,188,255,.62), --line rgba(208,188,255,.22), --panel rgba(208,188,255,.08), --accent #ff3d6e, --shard #fff\n- p3-miku has no lavender version.\n\nSHARED IN v2\n- --ease cubic-bezier(.22,.9,.24,1)\n- --cut polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%), the 12px top-right corner cut used by panels.\n\nTHEME SWITCH (v2 only)\n- The data-theme attribute on <html> picks the theme. The default is \"p3\".\n- app.js line 16 applies ?theme=lavender. The T key toggles p3 and lavender (app.js line 371).\n- In v2 every colour comes from tokens, including the water (sky/sea/deep), so switching the theme recolours the whole page.\n\nDRIFT BETWEEN THE TWO PROTOTYPES\n- p3-miku is about 3 hours newer, so its values are the later ones.\n- c3 #71b2e4 → #7ccdf4, c4 #a3f0ff → #c2f6ff, c5 #6bbbfc → #74c9ff, ink #021046 → #04103c, dim .58 → .62.\n- --accent was renamed --red. deep/sea/sky/line/panel/shard were dropped because bg.png supplies the water.\n- c1, c2, fill and the v2 c3/c5 are the original P3R CodePen colours (p3-menu).\n\nUSAGE RULES (from the v2 design comment)\n- --fill is the only solid fill (switch on, water level, today, tags, chips). It always carries --ink text.\n- --accent/--red is reserved for selected text and for unread or danger.\n- Menu words cycle c1 to c5. v2 does this with nth-child(5n+k). p3-miku sets --c per item.\n\nQML PORT\n- The lavender --fill should come from DMS primary in ~/.cache/DankMaterialShell/dms-colors.json. The default is #D0BCFF. Per memory, never use a saturated violet like #8A2BFF.\n- This matches how dms-p5's overlay/DankCommon/Common/P5.qml takes violet from Style.primary.\n- P5.qml today: ink #0E0A12, inkRaised #1D1624, paper #FFF, pink mix(primary,#FF9ED8,.45), plum hsla(hue,.48,.3), lilac mix(primary,paper,.35), blood #FF1F45, amber #FF7A1A.\n- None of the P3 tokens exist in dms-p5 yet.",
+  "fonts": "Paths are relative to the repo root.\n\nDISPLAY FACE \"P3\" (Nunito Sans Black Italic, condensed)\n- Main file: p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2 (latin subset, 24052 B), declared font-weight 900, font-style italic.\n- p3-miku loads it as ../p3-menu/fonts/…-laLQ.woff2.\n- v2 loads it as ../../p3-menu/fonts/…-laLQ.woff2, plus …-daLY50.woff2 (latin-ext, unicode-range U+0100-02BA, U+2020, U+20A0-20AB, U+2113).\n- The -RaLY50 (cyrillic-ext), -1aLY50 (cyrillic) and -ZaLY50 (vietnamese) subsets are used only by p3-menu/fonts.css.\n- It is a variable font with only the opsz axis (6-12). Width 75 and weight 900 are baked in. Internal name: \"Nunito Sans 12pt ExtraLight Condensed Black\" Italic.\n- 230 glyphs: Latin letters, digits and : / % ° · are present. Arrows U+2190-2193 and all CJK are missing.\n- Role: nouns and numbers only. Class .d, line-height .86 in p3-miku.\n\nLABEL FACE \"BarlowC\" (Barlow Condensed Bold, upright)\n- File: p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf (109912 B), weight 700. Both prototypes load this file.\n- Class .l: uppercase, line-height 1. Letter-spacing is .14em in p3-miku and .12em at the 12px default in v2.\n- Role: labels, tags, units, key hints and small values.\n- A copy already ships in dms-p5/overlay/DankCommon/assets/fonts/p5/, next to Anton, Barlow and LuckiestGuy. dms-p5 has no P3/Nunito face yet.\n\nCJK\n- p3-miku's .zh class uses the system fonts \"Noto Sans CJK SC\" and \"Noto Sans SC\" at weight 500, letter-spacing .08em, for the Chinese descriptions.\n- v2 has no Chinese text.\n\nSIZES IN p3-miku\n- Menu item 70px, letter-spacing -.01em. Selected it scales ×1.3, about 91px.\n- Date M/D 112px, -.02em. Weekday 58px.\n- Time-of-day chip 18px. HH:MM 22px at .1em.\n- Number badge: 11px label with a 26px P3 number.\n- Description tag 18px. Chinese description 21px. Key hints 15px.\n\nSIZES IN v2, P3 FACE (px)\n- Header date 60, weekday 30\n- List row noun 42 (compact list 28)\n- Tank number 52 with a 22px unit\n- Tile name 24, slider value 30\n- Month name 44, today cell 22\n- Sub-screen title 40, current network 32\n- Music title 36, current lyric line 28\n- Message name 22, avatar initial 26\n- Sheet title 54, launch name 76\n\nSIZES IN v2, BarlowC (px)\n- Row value 17 (link rows 15, units 12)\n- Calendar day 17\n- Agenda title 17, agenda meta 11\n- Message preview 14\n- Power-button label 11 at .08em\n- Weekday header 11\n- Status-bar time 14\n- Hints 11\n- Lyrics 14 and 11",
+  "geometry": "STAGE AND COVER SCALING (p3-miku)\n- #stage is 1920x1080: position absolute, left/top 50%, margin -540px 0 0 -960px, overflow hidden.\n- fit() sets transform scale(s) with s = max(innerWidth/1920, innerHeight/1080), which is cover scaling.\n- eDP-1 (1706x1066 logical) gives s = 0.987. About 96 stage px are cropped on each side, so the visible range is stage x 96 to 1824. The date's right edge loses about 10px and the key hints lose about 32px.\n- HDMI-A-1 (2560x1440) fits exactly at s = 1.333.\n- v2 instead uses contain scaling: s = min(w/1920, h/1080), translate then scale, transform-origin 0 0.\n\nCOMPOSITION (taken from bg.png)\n- A white field fills the left. For y < 540 the white/hair edge is at stage x ≈ 465-522. It curves to x 219 at y 700, x 90 at y 842 and x 54 at y 1000.\n- The hair runs diagonally from the top centre to the lower left. Its right edge is at x ≈ 690-745 for y ≥ 386.\n- Every interactive piece sits in the water on the right:\n  - the menu column, 300-500px right of the hair\n  - the date, on the bright top-right surface\n  - the description bar, along the bottom right\n\nMENU ITEM POSITIONS\n- Each .it is placed at left var(--x), top var(--y), with transform rotate(var(--r)), transform-origin 0 60%, font-size 70px, colour var(--c).\n- Code comment: \"沿着头发的斜线排：上面靠右，下面靠左；角度参差，模仿 P3R\".\n- Values as x, y, rotation, colour:\n  - APPS 1220, 228, -14°, c1\n  - FILES 1176, 310, -6°, c3\n  - TERMINAL 1128, 386, -8°, c2\n  - BROWSER 1104, 462, -3°, c4\n  - MUSIC 1136, 536, 0°, c3\n  - KANBAN 1082, 614, -5°, c2\n  - CALENDAR 1056, 688, -3°, c1\n  - SETTINGS 1074, 764, -5°, c2\n  - POWER 1036, 842, +4°, c5\n- Rule of thumb:\n  - Row pitch is 74-82px (mean 77).\n  - x falls about 20px per row (least-squares fit), with up to ±28px jitter around that line.\n  - Angles are small negatives from -14° to 0°. The last item is +4°.\n  - Adjacent rows never share a colour.\n- Resting text has text-shadow 0 3px 0 rgba(2,16,70,.35).\n\nSELECTED STATE (.it.on)\n- Item: z-index 2, transform rotate(r) translate(-22px,0) scale(1.3). The word grows to the right from its left-edge origin and shifts 22px left.\n- Text: .tx turns --ink and loses its shadow.\n- DOM order from back to front: red shard .sh.sr, white wedge .sh.sw, red echo .echo, text .tx, badge .no.\n- White wedge .sw:\n  - insets left -46, right -54, top -14, bottom -22px\n  - background #fff, clip-path polygon(0 66%, 100% 0, 97% 100%, 12% 92%)\n  - at rest opacity 0 and scaleX(.2) with transform-origin 100% 50%; selected opacity 1 and transform none, so it wipes in from the right\n- Red shard .sr:\n  - insets left -96, right -22, top -40, bottom 6px\n  - background --red, clip-path polygon(0 88%, 100% 0, 88% 34%)\n  - at rest scaleX(.2) with origin 100% 0; it also wipes to full when selected\n- Red echo: a second copy of the word in --red behind the text. Selected, it shows at opacity 1 and translate(5px,4px), so it reads as a red offset shadow on the white wedge.\n- Confirm adds .hit, which pulses the wedge to scale(1.12,1.25) at 40%.\n\nNUMBER BADGE (.no.l)\n- Sits to the left of the word: right 100%, margin-right 34px, top -4px.\n- 11px BarlowC in --fill. Its <b> is the 26px P3 number with margin-right 4px, giving \"01/ 09\".\n- Opacity 0 except on the selected item.\n\nDESCRIPTION BAR (.desc)\n- Position: left 980, right 0, bottom 46, height 64, which is stage y 970-1034.\n- Layout: flex, gap 22, padding-left 34.\n- Fill: rgba(2,10,60,.55) with a 1px top border rgba(163,240,255,.25).\n- Contents:\n  - .tag chip: --fill background, --ink text, padding 7/12/6, 18px, showing the item name\n  - .txt.zh: the 21px Chinese description in --tx\n- On confirm, .desc.go turns the tag --red with #fff text reading \"→ NAME\".\n\nKEY HINTS (.keys.l)\n- Position: right 64, bottom 14.\n- Flex gap 22, 15px, colour --dim.\n- kbd chips: min-width 24, padding 4/6/3, margin-right 7, background rgba(163,240,255,.16), text --tx.\n- Content: \"[↑↓] 选择 [ENTER] 确认\".\n\nDATE BLOCK (.date)\n- Position: right 86, top 54, right-aligned.\n- Colour: --ink, because it sits on the brightest cyan.\n- .md: 112px P3 \"M/D\". Its <small> holds the weekday at 58px, margin-left 6.\n- Below it, .row (flex-end, gap 14, margin-top 8) holds:\n  - .tod chip: --ink background, --fill text, padding 6/12/5, 18px\n  - .hm: HH:MM at 22px, .1em\n- Time-of-day labels by hour: before 5 DARK HOUR, 5-9 EARLY MORNING, 9-12 MORNING, 12-13 LUNCHTIME, 13-17 AFTERNOON, 17-19 AFTER SCHOOL, 19 and later EVENING.\n\nLEGIBILITY AT REST\n- WCAG contrast of each item colour against the averaged water under the word in bg.png: APPS 1.83, FILES 2.47, TERMINAL 4.07, BROWSER 6.54, MUSIC 5.03, KANBAN 6.65, CALENDAR 8.36, SETTINGS 8.16, POWER 7.18.\n- The date ink measures 7.7 to 13.2.\n\nv2 PHONE GEOMETRY (for reuse as panel-scale parts)\n- #phone sits at stage (760,115), 400x850, radius 50. The screen is inset 10px: 380x830, radius 40.\n- Status bar at top 16, height 18. Notch 92x26.\n- Regions:\n  - header .hd: top 46, height 90, left 22, right 20\n  - viewport and .sub: top 146, height 596\n  - tabs: top 748, height 82; .hints is positioned at top 40px\n- Pages are 380 wide with 18px side margins. Order: STATUS, APPS (home), CONTROL, CALENDAR.\n- Element heights:\n  - list rows 62 (compact 48)\n  - tiles 86, in 2 columns with gap 10\n  - power buttons 62, gap 6\n  - calendar cells 38, agenda rows 54, message rows 66, key/value rows 42\n  - sub-screen head 54, with a 34px back button\n  - sheet panel 270\n  - launch text block at top 330, inset 26\n- List rows indent on a sine: --x = 10 + 14·sin(0.7i + 0.3) px.\n- Selected row:\n  - .pl-w rotates -4deg and scales 1.14 from origin 0 70%.\n  - The word turns --accent with a -2px 2px 0 #000 shadow.\n  - ::before is a white shard, polygon(0 88%, 100% 4%, 90% 92%).\n  - ::after is an accent shard at .55 opacity, polygon(3% 100%, 104% 0, 96% 64%).\n  - Both pseudo-elements use insets -.5em / -.7em / -.32em / -.3em.",
+  "motion": "Easing is --ease cubic-bezier(.22,.9,.24,1) unless noted.\n\np3-miku\n\nENTER\n- Each .it runs enter .7s var(--ease) both, from opacity 0 and translate(140px,0).\n- Delay is i·45ms + .15s. The 9th item starts at .51s, and all are in by 1.21s.\n\nSELECT\n- Item transform .2s var(--ease), colour .12s.\n- White wedge wipes scaleX(.2) to 1 over .22s var(--ease), with opacity .1s.\n- Red shard wipes over .26s var(--ease) after .03s.\n- Echo: opacity .1s, translate .2s var(--ease).\n- Badge opacity .15s. Tag colour .15s.\n- Description swap: .txt.swap jumps to opacity 0 and +16px with no transition. A double requestAnimationFrame then removes the class so the text eases back (opacity .15s, translate .2s).\n- Selection wraps at both ends of the list.\n\nCONFIRM / HIT\n- .hit restarts through a forced reflow and plays hit .38s var(--ease) on the wedge, peaking at scale(1.12,1.25) at 40%.\n- The tag turns --red and reads \"→ NAME\".\n- Both reset after 700ms.\n\nINPUT\n- ↓, s or Tab: next. ↑ or w: previous. Enter or Space: confirm.\n- The wheel is throttled to 90ms.\n- mouseenter selects. Click selects and confirms.\n- ?sel= sets the starting item.\n\nPARALLAX\n- The pointer position is normalised to nx, ny in [-.5, .5].\n- Layer offsets: .bg (nx·-18, ny·-12), #menu (nx·10, ny·6), .date (nx·-6, ny·-4).\n- Each layer has transition transform .9s var(--ease).\n- .bg is inset -30px, so its edges never show.\n\nBACKGROUND LOOPS\n- Caustic: drift 24s ease-in-out infinite alternate, to translate(-90px,26px).\n- Rays: sway ease-in-out infinite alternate at 9, 11, 12, 14 and 16s, from skewX(-5deg) at opacity .55 to skewX(6deg) at opacity 1.\n- Bubbles: rise linear infinite over 9-19s, with negative delays from 0 to -18s. Keyframes: 0% opacity 0; 12% .7; 50% translate(14px,-480px); 85% .4; 100% translate(-6px,-960px) at opacity 0.\n\nCLOCK\n- tick() runs every 10s.\n\nphone v2\n\nPAGES\n- .track transform .55s var(--ease).\n- An inactive .page fades to .25 over .4s.\n- Background layers shift per page over .6s var(--ease): base ×.5, caustic ×1, rays ×1.4 of a 26px step.\n\nLIST SELECT\n- .pl-w transform .16s cubic-bezier(.3,1.5,.5,1), which overshoots.\n- The wedge pseudo-elements only fade in over .1s. There is no wipe.\n- Selection clamps at the ends.\n\nCONTROLS\n- Tile background .15s.\n- Slider fill width .12s.\n- Switch knob left and background .15s.\n- Tab colour and wavy underline opacity .2s.\n\nSUB-SCREEN\n- #screen gets .sub-open. The viewport fades and blurs 4px over .25s, and the tabs drop to .25 opacity over .25s.\n- .sub.open plays subIn .42s var(--ease), from opacity 0 and translateY(18px).\n- A two-ring ripple starts from the tapped row: .7s ease-out, scale 1 to 46, the second ring .1s later.\n\nTANKS\n- Water height 1s var(--ease).\n- Waves run flow at 3.2s linear (front) and 5s reversed at .45 opacity (back), translating -104px.\n\nMUSIC ART RINGS\n- ring 3s ease-out infinite, delays 0/1/2s, scale .6 to 5, opacity .6 to 0.\n\nPOWER SHEET\n- .sh-panel plays sheetIn .35s var(--ease) from translateY(100%).\n- The hold bar fills its width 0 to 100% over 1s linear, while a 1000ms timer fires the action.\n- The hold works with a pointer or a held Enter. Releasing cancels.\n\nLAUNCH\n- .lw-water: fillUp .6s cubic-bezier(.3,.7,.2,1), from translateY(100%) to -14px.\n- Wave: flowW 1.6s linear, translateX(-380px).\n- Text: textIn .4s var(--ease) after .3s, from translateY(16px).\n- Rings: 2.4s ease-out infinite, starting at .4s and 1.2s.\n- At 1300ms #phone gets .dismiss: translateY(60px) scale(.96), opacity 0, over .32s ease-in. It returns at 2300ms.\n\nDATA\n- Perf values random-walk every 1200ms.\n\n?static\n- Forces every animation and transition duration to 0.\n- Freezes bubbles at .35 opacity.\n- Shows the launch rings in fixed poses, for screenshots.",
+  "background": "p3-miku stacks four layers inside #stage. The menu sits above them at z-index 3, then the date and the bottom bar.\n\n1. IMAGE (.bg#bg)\n- An <img src=bg.png> with object-fit cover in a box inset -30px, which gives the parallax headroom.\n- bg.png (2560x1440) is a 2x regrade of p3-menu/miku_p3.png (1280x720, the CodePen's upside-down Miku), made by p3-miku/grade.py with numpy and PIL.\n- What grade.py does:\n  - Finds the water from the per-row median of the right 14% of the image. White and skin are left alone.\n  - Gradient-maps the hair from a normalised blur, with stops [.04,.24,.52,.66,.88] between two ramps:\n    - \"lit\": [[18,84,232],[6,156,252],[0,218,255],[44,238,255],[172,250,255]]\n    - \"deep\": [[16,6,96],[16,34,178],[0,132,230],[0,194,246],[108,224,252]]\n  - Mixes the ramps by L = clip(1.15 - y/H·1.25 + (x/W - .25)·.55).\n  - Adds a wave term (blur 26S - blur 70S)·.55, a rim light toward [.8,1,1]·.35, and a cold tint [214,238,255]·.14 on the white near the hair.\n- The water itself is already a painted cyan-to-navy gradient, with painted caustic patches in the top right.\n- The ramps are blue only. A lavender variant needs a second grade or a token-built background.\n\n2. CAUSTICS (.caustic)\n- An inline SVG with viewBox 0 0 1300 520 and preserveAspectRatio none, placed at left 820, top -60, 1300x520.\n- A rect is filled through:\n  - feTurbulence fractalNoise, baseFrequency \".008 .02\", numOctaves 2, seed 7\n  - feColorMatrix \"0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2\", which outputs white with alpha = 5.2 - 9·noise, so only low-noise regions survive as soft blobs\n- Opacity .2, mix-blend-mode screen.\n- Mask linear-gradient(180deg, #000 20%, transparent 90%).\n- Drift 24s.\n\n3. RAYS (.rays)\n- A box at left 900, top -80, 1100x900, with mask linear-gradient(200deg, #000 15%, transparent 70%).\n- Five <i> strips, each 1000px tall, filled with linear-gradient(180deg, rgba(255,255,255,.22), transparent 85%). transform-origin 50% 0, rotate 24deg, sway animation.\n- Each strip's left / width / duration:\n  - 260 / 40 / 14s\n  - 420 / 90 / 12s, opacity .6\n  - 610 / 26 / 9s\n  - 720 / 70 / 16s, opacity .5\n  - 900 / 34 / 11s\n\n4. BUBBLES (.bubbles)\n- 16 <i> elements created in JS: border-radius 50%, 2px solid rgba(190,245,255,.75).\n- Random values per bubble (r is a fresh random number for each):\n  - size 6 + r·16 px\n  - left 760 + r·1140\n  - top 1100 + r·40, so they spawn below the stage\n  - duration 9 + r·10 s\n  - delay -r·18 s\n- The x range keeps them in the water. Code comment: \"气泡只在水里冒\".\n\nphone v2 does not use bg.png. Its .bg inside the phone screen rebuilds the water from tokens, so the lavender theme recolours it.\n- .bg-base: linear-gradient(180deg, var(--sky) 0%, var(--sea) 34%, var(--deep) 92%), extended -60px left and right for parallax.\n- .bg-caustic: its own filter#caustic (index.html line 30).\n  - feTurbulence baseFrequency \".011 .018\".\n  - Alpha passes through feFuncA table \"0 0 0 0 .9 0 0 0 0\". This is a band-pass, so it gives thin veins instead of blobs.\n  - Opacity .14, masked out by 62% of the height, drift 26s to translate(90px,24px), no blend mode.\n- .bg-rays: five rays rotated 16/12/9/6/3deg, 26/60/18/44/22px wide, white at .16. They sway over 9-15s from skewX(-4deg) to skewX(5deg), with no opacity change.\n- .bg-bubbles: 12 bubbles placed with a seeded FNV-1a + LCG random: 3-10px, 1.5px --fill border, rising 840px with an 8/-4px wobble.\n- All layers shift per page over .6s.\n\nWHERE v2 REUSES THE WATER MOTIFS IN ITS UI\n- the tap ripple (.ripple)\n- the tank gauges: sine wavePath() loops over a flat --fill water body\n- the launch screen: a --fill water body rising with a wave crest, plus rings\n- the wavy underline on the current tab\n- the concentric rings on the music art\n\nSCAFFOLDING OUTSIDE THE PHONE (not part of the design)\n- #desk: linear-gradient(160deg, #1d2236, #0d1020 70%) with a 38px .bar placeholder\n- #scrim: rgba(2,4,14,.72)\n- #glow: radial-gradient(closest-side, var(--sky), transparent) at .16",
+  "components": [
+    {
+      "name": "Underwater background",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".bg > .bg-base, .bg-caustic, .bg-rays i, .bg-bubbles i (filter #caustic in index.html line 30)",
+      "description": "Water built from tokens: a gradient, band-pass caustic veins, five swaying rays and seeded bubbles, shifting per page; recolours with the theme."
+    },
+    {
+      "name": "Status bar",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".sbar .sb-time .sb-icons [data-g] .batt i, .notch",
+      "description": "18px row with clock, wifi/bt glyphs and a battery outline; the only thin horizontal bar in the prototypes."
+    },
+    {
+      "name": "HUD header (date + moon)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".hd .hd-date b.d .hd-dow .l.hd-tod .hd-moon #moon .moon-dark .moon-lit .hd-phase",
+      "description": "P3R-style corner calendar: P3 M/D and weekday, a time-of-day label, a moon-phase SVG (maths in app.js) with phase name, and a weather line."
+    },
+    {
+      "name": "Pager",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".viewport .track .page / .page.cur",
+      "description": "Horizontal 4-page track (STATUS, APPS home, CONTROL, CALENDAR); inactive pages sit at .25 opacity."
+    },
+    {
+      "name": "Dock tabs",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".tabs .tab .tab.cur svg",
+      "description": "Bottom row of page names; the current one turns bright and gets a wavy underline drawn in app.js."
+    },
+    {
+      "name": "Key hints (v2)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".hints kbd",
+      "description": "Centred 11px --dim hint line with plain --tx kbd text and no chip; app.js picks the verb (OPEN/LAUNCH/TOGGLE/SELECT) from the selected element."
+    },
+    {
+      "name": "P3 list row",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".plist .pl.nav .pl-g .pl-w b .pl-m .pl-m.hot .pl-k, .pl.sel",
+      "description": "Glyph, 42px P3 noun, BarlowC meta and chevron on a sine indent; selected, the word tilts -4° ×1.14 and turns --accent over a white shard and an accent shard."
+    },
+    {
+      "name": "Compact list row",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".plist.sm .pl, .pl.off",
+      "description": "48px row variant for network and device lists; .off dims unavailable rows."
+    },
+    {
+      "name": "Section label",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".sec.l",
+      "description": "Small --dim uppercase heading with an 18px top margin (SESSION, TODAY · REQUESTS, NEARBY · 5)."
+    },
+    {
+      "name": "Cut panel",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".panel (uses --cut)",
+      "description": "Flat --panel fill with a 1px --line top border and a 12px top-right corner cut."
+    },
+    {
+      "name": "Water tank gauge",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".tanks .tank-wrap[data-k] .tank .tk-water .tk-wave .tk-wave.back .tk-num .tk-lab",
+      "description": "A percentage shown as a --fill water level with two looping sine waves (wavePath in app.js), a 52px P3 number with a 22px unit, a label and a subtitle."
+    },
+    {
+      "name": "Sparkline",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".panel.spark .sp-head #spark .sp-area .sp-line",
+      "description": "340x56 line and area over 60 CPU samples inside a panel, with a load-average label."
+    },
+    {
+      "name": "Key-value rows",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".rows .row .l.dim b.v small",
+      "description": "42px rows: dim label on the left, BarlowC value with a small unit on the right."
+    },
+    {
+      "name": "Toggle tiles",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".tiles .tile.nav[data-toggle][data-on], .tile.on",
+      "description": "Two-column 86px tiles with glyph, P3 name and status; on = --fill background, --ink text, status from data-on."
+    },
+    {
+      "name": "Slider",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".slider.nav[data-v] .sl-top .sl-val .sl-track i",
+      "description": "Glyph and label, a 30px P3 value, and a flat track with a --fill bar."
+    },
+    {
+      "name": "Link row",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".row.link.nav",
+      "description": "Glyph, label, value and chevron for pickers (OUTPUT, INPUT)."
+    },
+    {
+      "name": "Power buttons",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".pbtns .pbtn.nav[data-power], .pbtn.danger",
+      "description": "Five 62px session buttons: LOCK, SLEEP, LOG OUT, REBOOT, OFF; OFF and REBOOT open the hold sheet, the others launch at once (app.js line 332)."
+    },
+    {
+      "name": "Control selection outline",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".tile.sel, .slider.sel, .row.nav.sel, .pbtn.sel, .ag.sel, .msg.sel, .cbtn.sel",
+      "description": "2px --shard (white) outline at a 3px offset for every non-list control; tiles and power buttons lose their cut corner while selected."
+    },
+    {
+      "name": "Calendar month",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".cal-head .cal-m .cal-next #moonFull #moonNext .cal-wd .cal-grid span.past/.today/.has/.full",
+      "description": "P3 month with BarlowC year, next full moon, weekday header, and a 7-column grid of 38px cells marking past days, today (filled), events and full moons."
+    },
+    {
+      "name": "Agenda",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".agenda .ag.nav .ag.doing/.daily/.done .tag.l b small",
+      "description": "54px task rows with a TODO/DOING/DAILY/DONE tag, a title and a source or due line (kanban-fed in the mock)."
+    },
+    {
+      "name": "Sub-screen",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".sub.open .sub-head .back .sub-r, #screen.sub-open",
+      "description": "Full-height app screen over the pager with a 34px back button, a 40px P3 title and a right slot; blurs the pager and dims the tabs."
+    },
+    {
+      "name": "Square switch",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".sw i, .sw.on",
+      "description": "50x26 flat square toggle; on = --fill track with an --ink knob."
+    },
+    {
+      "name": "Ripple",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".ripple, .ripple.r2",
+      "description": "Two-ring water ripple from the tapped row when a sub-screen opens."
+    },
+    {
+      "name": "Signal bars",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": ".bars i, .bars i.off",
+      "description": "Four 4px bars 5/8/11/14px tall in currentColor; off bars at .25."
+    },
+    {
+      "name": "Wi-Fi app",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/index.html",
+      "selector": "#sub-wifi .panel.cur-net .plist.sm",
+      "description": "92px current-network panel with a 32px P3 name and signal bars, then a NEARBY · 5 compact list (replaces v1's ROUTES)."
+    },
+    {
+      "name": "Bluetooth app",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/index.html",
+      "selector": "#sub-bluetooth .row.pair",
+      "description": "PAIRED · 4 device rows."
+    },
+    {
+      "name": "Music app",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/index.html",
+      "selector": "#sub-music .mu-top .mu-art .mu-info .mu-prog .mu-bar .mu-t .mu-ctl .cbtn .cbtn.big .mu-lyr p.cur",
+      "description": "Album art with pulsing rings, 36px title, progress bar and times, transport buttons with a round play button, and lyrics."
+    },
+    {
+      "name": "Messages",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/index.html",
+      "selector": "#sub-messages .msgs .msg .msg.unread .av",
+      "description": "66px rows with square initial avatars and an unread mark."
+    },
+    {
+      "name": "Power confirm sheet",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": "#sheet.sheet.open .sh-panel .sh-title .sh-sub .sh-hold.hold i .sh-cancel",
+      "description": "270px bottom sheet titled POWER OFF? or REBOOT? (set in app.js line 313) with a fixed warning line and a 1s hold-to-confirm bar (pointer or held Enter)."
+    },
+    {
+      "name": "Launch screen",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/style.css",
+      "selector": "#launch.launch.on .lw-water .lw-wave .lw-body .lw-rings i .lw-text .lw-k .lw-g .lw-name .lw-hint, #phone.dismiss",
+      "description": "--fill water floods the screen and shows OPENING or SESSION, the app name and a hint from the LAUNCH map in app.js; the phone then dismisses."
+    },
+    {
+      "name": "Glyph set",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/app.js",
+      "selector": "GLYPHS, glyph(name, size, stroke), [data-g], .gsvg .f",
+      "description": "24px monochrome stroke icons: wifi, bt, music, chat, kanban, term, folder, globe, shot, lock, dnd, exit, reboot, power, cloud, vol, sun, bulb, out, mic, chev, ext."
+    },
+    {
+      "name": "Theme switch",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/app.js",
+      "selector": "html[data-theme='p3'|'lavender']",
+      "description": "?theme= (line 16) and the T key (line 371) swap the P3 blue and DMS lavender token sets."
+    },
+    {
+      "name": "Stage fit (contain)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/app.js",
+      "selector": "#stage",
+      "description": "1920x1080 stage scaled by min(w/1920, h/1080) with origin 0 0."
+    },
+    {
+      "name": "Static / screenshot mode",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/app.js",
+      "selector": ".static; query ?static ?page= ?app= ?sheet= ?sel= ?theme=",
+      "description": "Freezes motion and opens any page, app or sheet directly, for screenshots."
+    },
+    {
+      "name": "Type classes",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": ".d .l .zh (v2 has the same .d and .l plus a .dim helper)",
+      "description": ".d = P3 italic 900 for nouns and numbers; .l = upright uppercase BarlowC for labels; .zh = Noto Sans CJK SC 500 for Chinese text."
+    },
+    {
+      "name": "Stage fit (cover)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": "#stage + fit()",
+      "description": "1920x1080 stage centred and scaled by max(w/1920, h/1080), cropping the sides on 16:10."
+    },
+    {
+      "name": "Background stack",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": ".bg#bg img, .caustic, .rays i, .bubbles i",
+      "description": "bg.png with blob caustics, five rays and 16 bubbles kept in the water."
+    },
+    {
+      "name": "Date block",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": ".date .md small .row .tod .hm",
+      "description": "Top-right 112px P3 M/D with weekday, an ink time-of-day chip and HH:MM, in ink on the bright water."
+    },
+    {
+      "name": "Slanted menu item",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": "#menu .it .tx .echo .sh.sr .sh.sw .no b, .it.on, .it.hit",
+      "description": "70px word placed by --x/--y/--r/--c/--i; selecting it wipes in a white wedge and red shard and shows a red echo and number badge; .hit pulses on confirm."
+    },
+    {
+      "name": "Description bar",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": ".desc .tag .txt.zh .txt.swap, .desc.go",
+      "description": "Translucent bottom-right bar with a --fill name tag and the Chinese description; the tag turns red and reads → NAME on confirm."
+    },
+    {
+      "name": "Key hints (p3-miku)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html",
+      "selector": ".keys.l kbd",
+      "description": "Bottom-right 15px --dim hints with tinted kbd chips."
+    }
+  ],
+  "gaps": [
+    "(a) Calendar page. PRECEDENT: v2's CALENDAR page at phone width (380px). It has a P3 month with a BarlowC year, the next full moon, a weekday header, a 7-column grid of 38px cells (past/today/has/full states), and a TODAY · REQUESTS agenda fed by kanban (tags TODO/DOING/DAILY/DONE, lines such as KANBAN · DUE 10/20 and RESETS 04:00). p3-miku only has a CALENDAR menu item (日程与每日任务) with no page behind it. P3R itself names its pages STATS, CALENDAR and SYSTEM (p3-menu). NO PRECEDENT YET: a 1920x1080 layout that works with the hair diagonal and the top-right date block; month navigation and a selected-day state (only today is marked); week or day views; event detail and creation; the data source (kanban JSON or .ics/calendar service); Chinese weekdays, lunar dates and holidays (the P3 face has no CJK, so 周X needs the .zh face); multi-day events; the transition from menu to page and the back model. REQUESTS is P5/v1 jargon to rename.",
+    "(b) Numeric readout / stats page. PRECEDENT: v2's STATUS page at phone width, running on fake random-walk data. It has CPU/MEMORY/GPU water tanks (52px P3 numbers with temperature or GB subtitles), a 60s CPU sparkline with load average, and key/value rows NETWORK, DISK /, NVME, FANS, UPTIME. p3-miku shows no number apart from the date. NO PRECEDENT YET: a 1920 layout, including how big numbers sit beside the slanted menu; battery (only a status-bar icon, although today's DMS bar shows battery 100%); warning and critical colours (accent is reserved for selection and danger, and no amber-like token exists); multi-series or longer-history charts; per-core and top-process lists; data sources and refresh rates (DMS services or polling); a P3 version of today's striped CPU/RAM bar gauges. The P3 face has no arrows, so ↓ ↑ ↵ depend on BarlowC or a fallback font.",
+    "(c) Power page. PRECEDENT: (1) v2's CONTROL page SESSION row: LOCK, SLEEP, LOG OUT, REBOOT and OFF as 62px buttons, with OFF in a danger colour. (2) A bottom sheet titled POWER OFF? or REBOOT?, with a fixed line ALL WINDOWS CLOSE · UNSAVED WORK IS LOST and a 1s hold-to-confirm; it is used only for OFF and REBOOT. (3) Launch-screen hints: P5LOCK · SESSION LOCKED, SUSPEND TO RAM, NIRI · QUIT SESSION, SYSTEMCTL REBOOT, SYSTEMCTL POWEROFF. (4) p3-miku's POWER item (锁屏 / 注销 / 关机, colour c5, the only +4° item). NO PRECEDENT YET: a full-screen 1920 power page in the slanted-list style, either a second-level list or an in-place confirm step; a countdown or auto-cancel; LOCK wired to DMS customPowerActionLock (~/.config/quickshell/p5lock/p5lock.sh); hibernate or reboot-to-firmware options, if wanted; uptime and battery context on the page; a back pattern from a sub-page to the menu.",
+    "(d) App list including running tray apps. PRECEDENT: p3-miku's 9 hard-coded items, and v2's APPS page with 9 rows. In v2, MUSIC, MESSAGES, WI-FI and BLUETOOTH open sub-screens, while KANBAN, TERMINAL, FILES, BROWSER and SCREENSHOT launch apps. Rows use monochrome stroke glyphs and meta text, with a red .pl-m.hot chip for 2 NEW. NO PRECEDENT YET: running, pinned and focused states; a treatment for tray icons, which are full-colour raster icons that clash with the flat two-tone rule (monochrome mask, tinted plate or desaturation); attention or notification badges (closest: .pl-m.hot and the .msg.unread mark); tray context menus and activation; overflow or scrolling beyond about 9 slanted rows; long app names at 70px; search or letter shortcuts (Mod+Z already opens dms-p5's P5AppCarousel). The phrase 当前快捷栏的应用 is ambiguous: it could mean the system-tray items or pinned/dock apps. The user needs to answer.",
+    "(e) Thin top bar. PRECEDENT: nothing horizontal at desktop size. The only pieces are v2's 18px phone status bar .sbar (clock, wifi, bt, battery) and the 38px #desk .bar placeholder. UNDECIDED: (1) Fill: a flat --ink/--panel strip or a water strip (the one-gradient rule applies). (2) Selection: how hover reads at 14-16px, where the wedge may not work. (3) P3 versions of today's bar widgets: workspaces, focused window, music bars, clock, weather, tray, clipboard, bell with count, CPU/RAM gauges, battery, control-center button. (4) Height and scaling on eDP-1 (1706 logical, scale 1.5) and HDMI-A-1 (2560, scale 1), given island: true. (5) Legibility over a busy wallpaper. (6) Which widgets move into the menu: CPU/RAM/battery to stats, tray to apps, the control-center button to power/control, and where clipboard goes. (7) How the bar opens the menu. (8) How a full-screen menu overlays live windows, likely as a layer-shell overlay with keyboard focus.",
+    "General gaps. (1) Legibility: at rest APPS (1.83:1) and FILES (2.47:1) fall below 3:1 on the bright upper water; TERMINAL is 4.07. (2) p3-miku has no lavender variant (bg.png and the grade.py ramps are blue only), no theme switch and no sub-page or back model. (3) The 16:10 eDP-1 cover crop needs a safe area of about 100 stage px at left and right. (4) dms-p5 has no P3 face, and Qt support for woff2 is unverified, so a TTF/OTF conversion may be needed. (5) Tokens and the selection recipe differ between the two prototypes, and list wrapping differs (p3-miku wraps, v2 clamps). (6) The gallery p5-reference/index.html links v1 and p3-miku but not v2."
+  ],
+  "ruleViolations": [
+    "p3-miku: every menu item is slanted at rest (rotate -14° to +4°, with ±28px x jitter), copying P3R. This breaks 'only the selection is slanted'. The user needs to decide whether the main menu column is an allowed exception.",
+    "p3-miku: a third face is in use. System Noto Sans CJK SC (.zh) sets the Chinese descriptions. The Chinese hint words 选择 and 确认 sit in BarlowC .l spans and silently fall back to a system CJK font.",
+    "p3-miku: colours outside the tokens are hard-coded: wedge #fff, bubble rgba(190,245,255,.75), bar rgba(2,10,60,.55), kbd rgba(163,240,255,.16), shadow rgba(2,16,70,.35), body #000510. It also has no theme switch, which breaks 'keep a DMS lavender variant'.",
+    "v2: gradients appear outside the water: #glow (a radial gradient of --sky at .16) and #desk (linear-gradient 160deg #1d2236 to #0d1020). Both are desk scaffolding around the phone, but they render on the page.",
+    "v2: the display face sets a sentence. The current lyric line .mu-lyr p.d.cur (28px) is not a noun or a number. The sheet titles POWER OFF? and REBOOT? are borderline.",
+    "v2: extra reds sit outside --accent. In the P3 theme, .pbtn.danger is #ff6a70 and .sh-title is #ff4a52, next to --accent #e3121b. The selected list word also gets a pure #000 hard shadow (-2px 2px 0).",
+    "Both prototypes: the selection recipe differs. p3-miku: ink word, red echo, white wedge and red shard wiping in from the right, ×1.3, smooth ease. v2 list rows: the word turns red, a static wedge and an accent shard at .55 only fade in, -4° ×1.14 with overshoot. v2 controls: a rectangular 2px white outline that also removes the cut corner (.tile.sel and .pbtn.sel set clip-path none).",
+    "v2: round shapes break the right-angle panel rule: the 64px round play button .cbtn.big, the music-art and launch rings, the ripple, and the round full-moon dot in the calendar grid.",
+    "Both prototypes: numbers mix faces. In v2, row values, calendar day numbers and the year 2026 are BarlowC, while today, the month and the tank values are P3. p3-miku sets HH:MM in BarlowC next to the P3 date. The 'P3 for numbers' rule needs a size threshold, or the mix stays.",
+    "Both prototypes: the display face is itself italic, and the user's rejection of v1 cited 'slanted fonts'. v2 uses it widely: header date, list nouns, tile names, sub-screen titles, sheet title. This follows the recorded rule, but it is worth confirming with the user."
+  ]
+}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!--
+  剪切板方案对比页：四个方向的缩略预览 + 打开链接。预览 iframe 固定 1920×1080 渲染（?static=1），按卡片宽度等比缩小。
+  只是入口页，不属于任何 QML 组件。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Directions</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  html, body { margin: 0; background: var(--deep); color: var(--tx); }
+  body { min-height: 100vh; padding: 56px 64px 80px; }
+  a { color: inherit; text-decoration: none; }
+  .hd { display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 22px; }
+  .hd .ttl { font-size: 104px; color: var(--tx); }
+  .hd .cnt { display: flex; align-items: baseline; gap: 10px; padding-bottom: 6px; }
+  .hd .cnt b { font-size: 56px; color: var(--fill); }
+  .hd .cnt span { color: var(--dim); font-size: 18px; }
+  .hd .st { margin-left: auto; padding-bottom: 10px; color: var(--dim); font-size: 16px; }
+  .note { margin: 18px 0 40px; color: var(--dim); font-size: 15px; line-height: 1.7; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 40px; }
+  .card { display: flex; flex-direction: column; gap: 14px; }
+  .meta { display: flex; align-items: baseline; gap: 16px; }
+  .meta .ix { font-size: 64px; }
+  .card:nth-child(1) .ix { color: var(--c1); } .card:nth-child(2) .ix { color: var(--c3); }
+  .card:nth-child(3) .ix { color: var(--c5); } .card:nth-child(4) .ix { color: var(--c4); }
+  .meta .nm { font-size: 28px; color: var(--tx); }
+  .meta .fn { margin-left: auto; color: var(--dim); font-size: 13px; }
+  .pv { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--ink);
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%); }
+  .pv iframe { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0;
+               transform-origin: 0 0; transform: scale(var(--s, .375)); pointer-events: none; }
+  .pv a { position: absolute; inset: 0; }
+  .ds { margin: 0; color: var(--tx); font-size: 14px; line-height: 1.75; }
+  .acts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; height: 38px; padding: 0 20px; font-size: 15px;
+         background: var(--panel); color: var(--fill); border: 1px solid var(--line);
+         clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+  .btn.pri { background: var(--fill); color: var(--ink); border-color: var(--fill); }
+  .btn:focus-visible { outline: 2px solid var(--shard); outline-offset: 2px; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .meta { flex-wrap: wrap; } .meta .fn { margin-left: 0; width: 100%; }
+    body { padding: 28px 16px 48px; }
+    .hd .ttl { font-size: 60px; }
+    .hd .st { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="hd">
+  <div class="d ttl">CLIPBOARD</div>
+  <div class="cnt"><b class="d">4</b><span class="l">DIRECTIONS</span></div>
+  <div class="st l">静态原型 · 未选定方案</div>
+</header>
+<p class="note zh">剪切板历史（DMS 2.0 Modals/Clipboard）的 P3 改造方案。预览是 ?static=1 的缩略图，不可交互；点预览或「打开」进入完整原型，键盘操作见 AGENTS.md，F10 在原型里显示按键提示。</p>
+
+<main class="grid" id="grid"></main>
+
+<script>
+const V = [
+  { f: 'a-tide.html', n: 'TIDE 列表', d: '居中的切角面板，最接近菜单页。左侧 72px 行列表（P3 斜体序号、tide 光点），右侧完整预览当前条目，短内容放大显示。清空用 POWER 页按住 1s 的红条，旁边大字显示将删除的条数。' },
+  { f: 'b-wedge.html', n: 'WEDGE 斜切', d: '屏幕右侧一块斜切深海色板，左半保留桌面。行是沿斜边错位的平行四边形，每行以倾斜的大号类型词（CODE / LINK / TEXT…）开头；选中行压在白色楔形上，红色残影移动时滞后再追上。' },
+  { f: 'c-island.html', n: 'ISLAND 下拉', d: '剪切板作为顶部灵动岛的 activity：复制时胶囊胀开显示 COPIED 提示，Mod+Alt+V 时向下垂成 600 宽面板，沿用 island-b 通知中心的平涂行。选中行展开动作条，预览、编辑、确认都在面板内完成。' },
+  { f: 'd-deck.html', n: 'DECK 卡组', d: '全屏横向卡组（塔罗 / 社群卡）。当前卡抬起、放大并倾斜，背后是白色楔形和红色残影；新条目向左展开，旧条目向右排开。文字排版成摘录，图片是缩略图，颜色值带色块。' },
+];
+const grid = document.getElementById('grid');
+grid.innerHTML = V.map((v, i) => `
+  <article class="card">
+    <div class="meta"><span class="d ix">0${i + 1}</span><span class="l nm">${v.n}</span><span class="l fn">${v.f}</span></div>
+    <div class="pv"><iframe loading="lazy" tabindex="-1" title="${v.n}" src="${v.f}?static=1"></iframe><a href="${v.f}" aria-label="打开 ${v.n}"></a></div>
+    <p class="ds zh">${v.d}</p>
+    <div class="acts"><a class="btn pri l" href="${v.f}">打开</a><a class="btn l" href="${v.f}?static=1">?static=1</a></div>
+  </article>`).join('');
+const fit = () => document.querySelectorAll('.pv').forEach(p => p.style.setProperty('--s', p.clientWidth / 1920));
+new ResizeObserver(fit).observe(grid); fit();
+</script>
+</body>
+</html>

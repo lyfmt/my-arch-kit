@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two Marks</title>
+<link rel="stylesheet" href="two-marks.css">
+<link rel="stylesheet" href="icons.css">
+</head>
+<body>
+<div id="bg"><img src="../../../p3-miku/bg.png" alt=""></div>
+
+<div id="bar">
+  <div id="ws"><i class="plate"></i><i id="wse"></i><i id="wsw"></i></div>
+  <div id="center">
+    <i class="plate" id="cplate"></i>
+    <span id="lowbat" class="d">18%</span>
+    <span id="muted"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke-width="2.2"/></svg></span>
+    <button id="clock" class="d" aria-label="16:29"></button>
+    <span id="mark"><svg viewBox="0 0 34 38" preserveAspectRatio="none"><polygon points="2,30 31,2 28,36 6,35"/></svg><b class="d" id="markn"></b></span>
+  </div>
+</div>
+
+<div id="toast"><div class="tin"></div></div>
+
+<div id="sheet"><div class="pages"></div></div>
+<div id="fade"></div>
+
+<script src="two-marks.js"></script>
+</body>
+</html>

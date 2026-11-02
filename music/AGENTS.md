@@ -7,7 +7,8 @@
 - **卡片**（`qs -c music`）：普通 xdg 窗口，标题 `Music Card`，由 niri 管理（默认浮动在屏幕正中，可聚焦、移动、切平铺）。
   - 左侧唱片：封面随播放旋转，外圈一圈竖线随 cava 频谱跳动（cava 只在卡片可见时运行）。
   - 右侧：歌名、歌手 / 来源标签、逐行滚动歌词（有翻译时显示在当前行下方）。
-  - 鼠标贴左 / 右 / 下边缘浮出毛玻璃浮层：左 = 歌单栏（右键可从列表移除），右 = 搜索（歌曲 / 歌手 / 歌单，歌手可进入热门歌曲页，歌单可收藏到歌单栏），下 = 工具栏（切歌、进度、音量、播放方式、喜欢、收藏到歌单）。
+  - 鼠标贴左 / 右 / 下边缘浮出毛玻璃浮层：左 = 歌单栏（右键可从列表移除），右 = 搜索（歌曲 / 歌手 / 歌单，歌手可进入热门歌曲页，歌单可收藏到歌单栏），下 = 工具栏（切歌、进度、音量、播放方式、桌面歌词、喜欢、收藏到歌单）。
+  - 工具栏的「词」是 P3 桌面歌词（`p3-kits/p3-lyrics/`，`qs -c p3lyrics`）的开关：左键开 / 关（实例没在跑时先 `qs -n -c p3lyrics -d` 拉起）；右键或长按进入歌词的位置 / 大小调整。开着时字和圆底是主题色；状态跟随 `$XDG_STATE_HOME/p3lyrics/state.json`，并用 IPC `status` 确认实例还在。没装 p3lyrics 时按钮一直是关的。
 - **后端**（`music-card.service` → `shell/backend/musicd.py`）：网易云 API + mpv 播放 + MPRIS。
   - MPRIS 名称 `org.mpris.MediaPlayer2.music_card`，DMS 的媒体控件、媒体键、`playerctl` 都能直接控制。
   - 播放队列、进度、音量、播放方式会持久化，重启后恢复。
@@ -49,7 +50,7 @@ shell/                     → ~/.config/quickshell/music/
 ├── shell.qml              卡片窗口、键盘处理、IPC
 ├── Backend.qml            与后端的 socket 通信（单例）
 ├── Theme.qml              DMS 配色 + 字体 + 圆角
-├── Disc.qml / Lyrics.qml / Panel.qml / Sidebar.qml / SearchPanel.qml / SongRow.qml / Toolbar.qml / HelpOverlay.qml / Icon.qml / IconButton.qml
+├── Disc.qml / Lyrics.qml / Panel.qml / Sidebar.qml / SearchPanel.qml / SongRow.qml / Toolbar.qml / LyricsButton.qml / HelpOverlay.qml / Icon.qml / IconButton.qml
 ├── cava.conf              cava 配置（48 段，pipewire 输入，输出到 stdout）
 ├── fonts/MaterialSymbolsRounded.ttf   图标字体（Google Material Symbols，Apache-2.0），随包附带无需安装
 └── backend/

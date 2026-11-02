@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Miku Menu — preview</title>
+<style>
+@font-face { font-family: "P3"; src: url("../p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* ============================================================
+   设计：唯一的渐变是背景图里的水；菜单全是平涂
+   展示字 .d（P3R Nunito Sans 900 斜体窄体）只给菜单项和日期
+   标签字 .l（Barlow Condensed 大写）给其余一切
+   选中项 = 深色字 + 红色错位残影 + 白色楔形 + 红色碎片
+   ============================================================ */
+:root {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff;
+  --c1: #a1eefd; --c2: #90e1f2; --c3: #7ccdf4; --c4: #c2f6ff; --c5: #74c9ff;
+  --dim: rgba(163,240,255,.62);
+  --red: #e3121b;
+  --ease: cubic-bezier(.22,.9,.24,1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000510; }
+body { user-select: none; -webkit-user-select: none; color: var(--tx); cursor: default; }
+.d { font-family: "P3", sans-serif; font-style: italic; font-weight: 900; line-height: .86; }
+.l { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; line-height: 1; }
+.zh { font-family: "Noto Sans CJK SC", "Noto Sans SC", sans-serif; font-weight: 500; letter-spacing: .08em; }
+
+#stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1920px; height: 1080px; margin: -540px 0 0 -960px;
+  overflow: hidden;
+}
+
+/* ---------- 背景 ---------- */
+.bg { position: absolute; inset: -30px; transition: transform .9s var(--ease); }
+.bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rays { position: absolute; left: 900px; top: -80px; width: 1100px; height: 900px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 15%, transparent 70%);
+          mask-image: linear-gradient(200deg, #000 15%, transparent 70%); }
+.rays i {
+  position: absolute; top: 0; height: 1000px;
+  background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 85%);
+  transform-origin: 50% 0; rotate: 24deg;
+  animation: sway 12s ease-in-out infinite alternate;
+}
+.rays i:nth-child(1) { left: 260px; width: 40px; animation-duration: 14s; }
+.rays i:nth-child(2) { left: 420px; width: 90px; opacity: .6; }
+.rays i:nth-child(3) { left: 610px; width: 26px; animation-duration: 9s; }
+.rays i:nth-child(4) { left: 720px; width: 70px; opacity: .5; animation-duration: 16s; }
+.rays i:nth-child(5) { left: 900px; width: 34px; animation-duration: 11s; }
+@keyframes sway { from { transform: skewX(-5deg); opacity: .55; } to { transform: skewX(6deg); opacity: 1; } }
+
+.caustic { position: absolute; left: 820px; top: -60px; width: 1300px; height: 520px; opacity: .2;
+  mix-blend-mode: screen; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+          mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+  animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { to { translate: -90px 26px; } }
+
+.bubbles i {
+  position: absolute; border-radius: 50%;
+  border: 2px solid rgba(190,245,255,.75);
+  opacity: 0; animation: rise linear infinite;
+}
+@keyframes rise {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  12%  { opacity: .7; }
+  50%  { transform: translate(14px, -480px); }
+  85%  { opacity: .4; }
+  100% { transform: translate(-6px, -960px); opacity: 0; }
+}
+
+/* ---------- 右上日期 ---------- */
+.date { position: absolute; right: 86px; top: 54px; text-align: right; color: var(--ink);
+  transition: transform .9s var(--ease); }
+.date .md { font-size: 112px; letter-spacing: -.02em; }
+.date .md small { font-size: 58px; margin-left: 6px; }
+.date .row { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 8px; }
+.date .tod { background: var(--ink); color: var(--fill); padding: 6px 12px 5px; font-size: 18px; }
+.date .hm { font-size: 22px; letter-spacing: .1em; }
+
+/* ---------- 菜单 ---------- */
+#menu { position: absolute; left: 0; top: 0; z-index: 3; transition: transform .9s var(--ease); }
+.it {
+  position: absolute; left: var(--x); top: var(--y);
+  transform: rotate(var(--r));
+  transform-origin: 0 60%;
+  font-size: 70px; letter-spacing: -.01em;
+  color: var(--c); cursor: pointer;
+  transition: transform .2s var(--ease), color .12s;
+  animation: enter .7s var(--ease) both; animation-delay: calc(var(--i) * 45ms + .15s);
+}
+@keyframes enter { from { opacity: 0; translate: 140px 0; } }
+.it .tx { position: relative; display: block; white-space: nowrap;
+  text-shadow: 0 3px 0 rgba(2,16,70,.35); transition: color .12s, text-shadow .12s; }
+.it .echo { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--red); opacity: 0;
+  transition: opacity .1s, translate .2s var(--ease); }
+.it .sh { position: absolute; pointer-events: none; opacity: 0; }
+/* 白色楔形：左端收尖，盖住文字 */
+.it .sw {
+  left: -46px; right: -54px; top: -14px; bottom: -22px;
+  background: #fff;
+  clip-path: polygon(0 66%, 100% 0, 97% 100%, 12% 92%);
+  transform: scaleX(.2); transform-origin: 100% 50%;
+  transition: transform .22s var(--ease), opacity .1s;
+}
+/* 红色碎片：从楔形后面斜着戳出来 */
+.it .sr {
+  left: -96px; right: -22px; top: -40px; bottom: 6px;
+  background: var(--red);
+  clip-path: polygon(0 88%, 100% 0, 88% 34%);
+  transform: scaleX(.2); transform-origin: 100% 0;
+  transition: transform .26s var(--ease) .03s, opacity .1s;
+}
+.it.on { z-index: 2; transform: rotate(var(--r)) translate(-22px, 0) scale(1.3); }
+.it.on .tx { color: var(--ink); text-shadow: none; }
+.it.on .echo { opacity: 1; translate: 5px 4px; }
+.it.on .sh { opacity: 1; transform: none; }
+.it.hit .sw { animation: hit .38s var(--ease); }
+@keyframes hit { 40% { transform: scale(1.12, 1.25); } }
+
+.it .no { position: absolute; right: 100%; top: -4px; margin-right: 34px; white-space: nowrap;
+  color: var(--fill); font-size: 11px; opacity: 0; transition: opacity .15s; }
+.it .no b { font-family: "P3"; font-style: italic; font-weight: 900; font-size: 26px; letter-spacing: 0; margin-right: 4px; }
+.it.on .no { opacity: 1; }
+
+/* ---------- 底部说明 ---------- */
+.desc { position: absolute; left: 980px; right: 0; bottom: 46px; height: 64px;
+  display: flex; align-items: center; gap: 22px; padding-left: 34px;
+  background: rgba(2,10,60,.55); border-top: 1px solid rgba(163,240,255,.25); }
+.desc .tag { background: var(--fill); color: var(--ink); padding: 7px 12px 6px; font-size: 18px; }
+.desc .zh { font-size: 21px; color: var(--tx); }
+.desc .txt { transition: opacity .15s, translate .2s var(--ease); }
+.desc .txt.swap { opacity: 0; translate: 16px 0; transition: none; }
+.keys { position: absolute; right: 64px; bottom: 14px; display: flex; gap: 22px; color: var(--dim); font-size: 15px; }
+.keys kbd { font: inherit; display: inline-block; min-width: 24px; padding: 4px 6px 3px; margin-right: 7px;
+  text-align: center; background: rgba(163,240,255,.16); color: var(--tx); }
+
+.desc .tag { transition: background .15s, color .15s; }
+.desc.go .tag { background: var(--red); color: #fff; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg" id="bg">
+    <img src="bg.png" alt="">
+    <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+      <filter id="cf" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#cf)"/>
+    </svg>
+    <div class="rays"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="bubbles" id="bubbles"></div>
+  </div>
+
+  <div class="date" id="date">
+    <div class="d md"><span id="md">10/19</span><small id="dow">MON</small></div>
+    <div class="row"><span class="l tod" id="tod">AFTERNOON</span><span class="l hm" id="hm">14:20</span></div>
+  </div>
+
+  <div id="menu"></div>
+
+  <div class="desc">
+    <span class="l tag" id="tag">APPS</span>
+    <span class="zh txt" id="txt"></span>
+  </div>
+  <div class="keys l">
+    <span><kbd>↑↓</kbd>选择</span><span><kbd>ENTER</kbd>确认</span>
+  </div>
+</div>
+
+<script>
+// 菜单沿着头发的斜线排：上面靠右，下面靠左；角度参差，模仿 P3R
+const ITEMS = [
+  { t: "APPS",     zh: "应用程序列表",            x: 1220, y: 228, r: -14, c: "--c1" },
+  { t: "FILES",    zh: "文件管理器",              x: 1176, y: 310, r: -6,  c: "--c3" },
+  { t: "TERMINAL", zh: "打开一个新终端",          x: 1128, y: 386, r: -8,  c: "--c2" },
+  { t: "BROWSER",  zh: "浏览器",                  x: 1104, y: 462, r: -3,  c: "--c4" },
+  { t: "MUSIC",    zh: "音乐卡片 · 网易云",        x: 1136, y: 536, r: 0,   c: "--c3" },
+  { t: "KANBAN",   zh: "看板：TODO / DOING / DONE", x: 1082, y: 614, r: -5,  c: "--c2" },
+  { t: "CALENDAR", zh: "日程与每日任务",          x: 1056, y: 688, r: -3,  c: "--c1" },
+  { t: "SETTINGS", zh: "DankMaterialShell 设置",  x: 1074, y: 764, r: -5,  c: "--c2" },
+  { t: "POWER",    zh: "锁屏 / 注销 / 关机",      x: 1036, y: 842, r: 4,   c: "--c5" },
+];
+
+const stage = document.getElementById("stage");
+const menu = document.getElementById("menu");
+const tag = document.getElementById("tag");
+const txt = document.getElementById("txt");
+const desc = document.querySelector(".desc");
+
+const els = ITEMS.map((it, i) => {
+  const el = document.createElement("div");
+  el.className = "it d";
+  el.style.cssText = `--x:${it.x}px;--y:${it.y}px;--r:${it.r}deg;--c:var(${it.c});--i:${i}`;
+  el.innerHTML = `<span class="sh sr"></span><span class="sh sw"></span><span class="echo">${it.t}</span><span class="tx">${it.t}</span>` +
+    `<span class="no l"><b>${String(i + 1).padStart(2, "0")}</b>/ ${String(ITEMS.length).padStart(2, "0")}</span>`;
+  el.addEventListener("mouseenter", () => select(i));
+  el.addEventListener("click", () => { select(i); confirm(); });
+  menu.appendChild(el);
+  return el;
+});
+
+let cur = -1;
+function select(i) {
+  i = (i + ITEMS.length) % ITEMS.length;
+  if (i === cur) return;
+  if (cur >= 0) els[cur].classList.remove("on");
+  cur = i;
+  els[i].classList.add("on");
+  const it = ITEMS[i];
+  tag.textContent = it.t;
+  txt.classList.add("swap");
+  txt.textContent = it.zh;
+  requestAnimationFrame(() => requestAnimationFrame(() => txt.classList.remove("swap")));
+}
+
+// 预览里"确认"只做个反馈：楔形弹一下，底栏标签变红
+let goTimer;
+function confirm() {
+  const el = els[cur];
+  el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit");
+  tag.textContent = "→ " + ITEMS[cur].t;
+  desc.classList.add("go");
+  clearTimeout(goTimer);
+  goTimer = setTimeout(() => { desc.classList.remove("go"); tag.textContent = ITEMS[cur].t; }, 700);
+}
+
+addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "s" || e.key === "Tab") { e.preventDefault(); select(cur + 1); }
+  else if (e.key === "ArrowUp" || e.key === "w") { e.preventDefault(); select(cur - 1); }
+  else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); confirm(); }
+});
+let wheelLock = 0;
+addEventListener("wheel", e => {
+  const now = performance.now();
+  if (now < wheelLock) return;
+  wheelLock = now + 90;
+  select(cur + Math.sign(e.deltaY));
+}, { passive: true });
+
+// 鼠标视差：背景、日期、菜单各走不同距离
+const bg = document.getElementById("bg"), date = document.getElementById("date");
+addEventListener("mousemove", e => {
+  const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5;
+  bg.style.transform = `translate(${nx * -18}px, ${ny * -12}px)`;
+  menu.style.transform = `translate(${nx * 10}px, ${ny * 6}px)`;
+  date.style.transform = `translate(${nx * -6}px, ${ny * -4}px)`;
+});
+
+// 气泡只在水里冒
+const bubbles = document.getElementById("bubbles");
+for (let k = 0; k < 16; k++) {
+  const b = document.createElement("i");
+  const s = 6 + Math.random() * 16;
+  b.style.cssText = `left:${760 + Math.random() * 1140}px;top:${1100 + Math.random() * 40}px;width:${s}px;height:${s}px;` +
+    `animation-duration:${9 + Math.random() * 10}s;animation-delay:${-Math.random() * 18}s`;
+  bubbles.appendChild(b);
+}
+
+// 日期 / 时段
+function tick() {
+  const d = new Date();
+  document.getElementById("md").textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+  document.getElementById("dow").textContent = ["SUN","MON","TUE","WED","THU","FRI","SAT"][d.getDay()];
+  const h = d.getHours();
+  document.getElementById("tod").textContent =
+    h < 5 ? "DARK HOUR" : h < 9 ? "EARLY MORNING" : h < 12 ? "MORNING" : h < 13 ? "LUNCHTIME" :
+    h < 17 ? "AFTERNOON" : h < 19 ? "AFTER SCHOOL" : "EVENING";
+  document.getElementById("hm").textContent = `${String(h).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+tick(); setInterval(tick, 10000);
+
+// 1920×1080 舞台按 cover 缩放
+function fit() {
+  const s = Math.max(innerWidth / 1920, innerHeight / 1080);
+  stage.style.transform = `scale(${s})`;
+}
+fit(); addEventListener("resize", fit);
+
+const q = new URLSearchParams(location.search);
+select(+(q.get("sel") ?? 0));
+</script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+{
+  "sources": [
+    {
+      "need": "Power: lock (does it honour customPowerActionLock = p5lock.sh?)",
+      "service": "Lock component (Modules/Lock/Lock.qml), reachable from a singleton as IdleService.lockComponent; IPC target 'lock'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/Lock/Lock.qml (onLockRequested 246; IpcHandler 373, target 374); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/IdleService.qml:67 (lockComponent); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShell.qml:428 (onLockRequested: lock.activate()) and 1083-1086 (_lockFromPowerMenu)",
+      "api": "activate() -> lock() -> spawnCustomLocker(), which runs `sh -c <customPowerActionLock>`, then dismissFadeToLock() and sets customLockerSpawned = true. Lock.qml registers itself as IdleService.lockComponent in Component.onCompleted; handleLoginctlCustomLock() covers the loginctl lock. IPC lock: lock, lockAndOutputsOff, unlock, forceReset, demo, isLocked, status.",
+      "caveats": "Yes, it honours p5lock.sh. settings.json has customPowerActionLock = /home/lyfmt/.config/quickshell/p5lock/p5lock.sh, and the same path runs for the menu lock, the loginctl lock and lockAtStartup (true). p5lock.sh returns immediately (`--wait` blocks until the lock is confirmed) and starts `setsid -f qs -n -c p5lock` only if `pgrep -f 'qs -n -c p5lock'` finds nothing. Never call SessionService.executePowerAction('lock'): its switch has no lock case (getPowerActionData only has the label, line 602). From the menu: close it, then call IdleService.lockComponent?.activate(). Existing binds: Mod+Alt+L (/home/lyfmt/.config/niri/dms/binds.kdl:231) and Super+X power menu (line 223)."
+    },
+    {
+      "need": "Power: logout, suspend, hibernate, reboot, poweroff (also soft reboot and Restart DMS)",
+      "service": "SessionService",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/SessionService.qml (direct functions 397, 470, 478, 488, 492, 502, 514; executePowerAction switch about 526-563, restart case 560, softreboot 526/554/584; getPowerActionData: lock 602, restart 620, switchuser 626)",
+      "api": "executePowerAction(action) with logout | suspend | hibernate | reboot | softreboot | poweroff | restart | custom:N. Direct functions include suspendThenHibernate() and suspendWithBehavior(behavior). Also isPowerActionSupported(action); getPowerActionData(action) -> {icon, label, key}; hibernateSupported; powerManagerCommand; customActionCommand (systemd-run --user --scope); syncLockBeforeSuspend; syncSleepInhibitor.",
+      "caveats": "No polling. Every customPowerAction* setting except Lock is unset, so actions go through systemctl/loginctl. lockBeforeSuspend is false (default at /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/SettingsData.qml:822, not set in settings.json), so suspend from the menu does not lock. Either reuse the Mod+Alt+P command `$HOME/.config/quickshell/p5lock/p5lock.sh --wait && systemctl suspend` (dms/binds.kdl:233) or let the user decide. Logout uses uwsm or NiriService.quit(). Show hibernate only when hibernateSupported is true. 'restart' (label 'Restart DMS', icon refresh, key D) runs Quickshell.execDetached(['dms','restart']). enable.sh:83-85 and disable.sh:40-42 restart DMS differently, with `pkill -x dms` then `setsid -f dms run -c <dir>`. Whether `dms restart` keeps the -c path is unverified (not tested, because the rules forbid restarting DMS), so leave it out of the menu or verify it first. DMSShell's _executePowerAction (DMSShell.qml:1078-1081) calls PopoutService.closeControlCenter() first, so the menu should close itself before running any action."
+    },
+    {
+      "need": "Power: confirmation/countdown flow and IPC",
+      "service": "PowerMenuContent (logic), hosted by PowerMenuModal and PowerMenuPopout; IPC target 'powermenu'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/PowerMenu/PowerMenuContent.qml (22, 52-58, 60-138, 161-164, 167, 221, 244, 322-323); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modals/PowerMenuModal.qml:90-92; /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankBar/Popouts/PowerMenuPopout.qml:36-38; /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShell.qml (1068-1070, 1078-1094, 1108-1110); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml (handler 145, target 174)",
+      "api": "needsConfirmation = SettingsData.powerActionConfirm (true by default); holdDurationMs comes from powerActionHoldDuration (0.5 s = 500 ms). actionNeedsConfirm(a) is true for everything except lock and restart; actionWakesOnKeyRelease(a) is true for suspend and hibernate. Functions: startHold(action, index), cancelHold(), completeHold(), commitAction(), executeCommittedAction(), executeAction(). Timers: holdTimer 16 ms ticks, hintTimer 2000 ms, commitFallbackTimer 5000 ms. Signals: closeRequested, lockRequested, switchUserRequested, powerActionRequested(action). Action list: SettingsData.powerMenuActions || ['reboot','logout','poweroff','lock','suspend','restart'] (line 167; not set in settings.json). The modal uses namespace dms:power-menu on the Overlay layer and openCentered(). IPC powermenu: open, close, toggle.",
+      "caveats": "Hold-to-confirm only; there is no countdown. Releasing before the hold completes shows a hint for 2 s. A keyboard-triggered suspend or hibernate is committed once the hold completes, then runs on key release (or after the 5 s fallback), so the key release does not wake the machine. The logic is local to the component, so a new menu must copy it or embed PowerMenuContent. executeAction() emits closeRequested before it acts. 'switchuser' (icon switch_account, key U) exists, but switchUserModalLoader (DMSShell.qml:1120) is local to DMSShell, so a singleton cannot reach it without new wiring. Super+X (dms/binds.kdl:223) opens the current power menu."
+    },
+    {
+      "need": "Tray: model, icon, title, tooltip, activate/secondaryActivate, context menus, TrayMenuManager",
+      "service": "SystemTray.items (Quickshell.Services.SystemTray) plus the TrayMenuManager singleton (Common); IPC target 'tray'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/TrayMenuManager.qml; /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankBar/Widgets/SystemTrayBar.qml (1602; 1884/1889; 2029, 2041, 2047, 2055, 2074-2086); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml (handler 2083, target 2132)",
+      "api": "Item fields: id, title, icon, tooltipTitle, tooltipDescription, onlyMenu, hasMenu, menu, activate(), secondaryActivate(), display(). Menus: QsMenuOpener { menu: item.menu } entries with text, icon, enabled, isSeparator, hasChildren, buttonType (0 none, 1 checkbox, 2 radio), checkState (2 = checked), triggered(). TrayMenuManager: requestOpenMenu, claimMenuRequest, findTrayItem, registerMenu/unregisterMenu, closeAllMenus, closeHoverMenus, signal openTrayMenuRequested. SystemTrayBar.trayIconSourceFor() resolves icons. IPC tray: list(), activate(itemId), menu(itemId), status(itemId).",
+      "caveats": "Event-driven, no polling. The existing tray menu window (dms:tray-menu-window) is on the Top layer, below an Overlay-layer menu, and requestOpenMenu needs a SystemTrayBar on that screen. So draw tray menus inside the P3 window with QsMenuOpener. secondaryActivate is unused today; items without a menu fall back to display(). Filter hiddenTrayIds and DMS_HIDE_TRAYIDS as the bar does."
+    },
+    {
+      "need": "Apps: pinned apps",
+      "service": "SessionData",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/SessionData.qml (188-189; 1162, 1172, 1182, 1189, 1193, 1198, 1208); state file /home/lyfmt/.local/state/DankMaterialShell/session.json",
+      "api": "pinnedApps, barPinnedApps, setPinnedApps(apps), addPinnedApp(appId), removePinnedApp(appId), isPinnedApp(appId), setBarPinnedApps(apps), addBarPinnedApp(appId), removeBarPinnedApp(appId)",
+      "caveats": "Both lists are empty and the dock is off (showDock unset, default false), so no saved '快捷栏' list exists. The only app list the user sees today is the Mod+Z P5AppCarousel, which is ordered by frecency. The user must choose: pin apps, take the top of the frecency ranking, or keep a fixed list in the menu."
+    },
+    {
+      "need": "Apps: usage history",
+      "service": "AppUsageHistoryData",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/AppUsageHistoryData.qml; state file /home/lyfmt/.local/state/DankMaterialShell/appusage.json",
+      "api": "appUsageRanking {id: {name, exec, icon, comment, usageCount, lastUsed}}, addAppUsage(entry), getRankedApps(), cleanupAppUsageRanking(). Controller.qml calls addAppUsage at 2134, 2142 and 2152; AppSearchService.calculateFrecency reads the ranking.",
+      "caveats": "20 entries. Top 10 by usageCount: magpie 69, feishu 67, buffin 64, Clash Verge 63, qq 37, termius 14, fcitx5-configtool 9, linuxqq-wayland-fix 5, netease-cloud-music-gtk 4, net.lutris.Lutris 4. A launch that bypasses the Controller must call addAppUsage itself, or the ranking stops updating."
+    },
+    {
+      "need": "Apps: desktop entries and launching through the launcher Controller (as P5AppsWindow does)",
+      "service": "DankLauncherV2 Controller + AppSearchService + SessionService.launchDesktopEntry",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modals/DankLauncherV2/Controller.qml (performSearch 657; frecency scoring 954-956); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/AppSearchService.qml; /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/SessionService.qml:299 (launchDesktopEntry); /home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5AppsWindow.qml (70-108)",
+      "api": "Controller: active, viewModeContext, forceLinearNavigation, explicitQuerySession, searchMode, pluginFilter, searchQuery, setSearchQuery(text), performSearch(), flatModel (entries with isHeader / item), executeItem(item, close), signal itemExecuted. P5AppsWindow uses `Controller { active: win.visible; viewModeContext: 'appDrawer'; forceLinearNavigation: true; onItemExecuted: win.close() }`. Its items are the flatModel entries where !isHeader && item; it launches with ctl.executeItem(item, true) and maps icons with iconValueOf(): material/nerd -> 'material:'+icon, unicode -> 'unicode:'+icon, composite -> iconFull, else icon. Direct path: DesktopEntries.heuristicLookup(id) -> SessionService.launchDesktopEntry(desktopEntry, useNvidia) -> AppUsageHistoryData.addAppUsage(...). AppSearchService: applications, getVisibleApplications, searchApplications, getAllCategories, getAppsInCategory, getCategoriesForApp, getCoreApps, isAppHidden, calculateFrecency, refreshApplications.",
+      "caveats": "Bind Controller.active to window visibility so it does no work while the menu is hidden. With an empty query and sortAppsAlphabetically false (the default; not set in settings.json), the Controller orders items by frecency via Scorer.scoreItems(allItems, searchQuery, getFrecencyForItem), the same order Mod+Z shows. A fixed app strip can skip the Controller and use the direct path. Close the menu before launching; keyboard focus is released when shouldShow goes false, so the new window gets focus."
+    },
+    {
+      "need": "Stats: CPU %, per-core, RAM, swap, CPU/GPU temp, disk, network rates, uptime, process count; consumer-gated sampling",
+      "service": "DgopService (dgop backend via DMSService.sendRequest)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/DgopService.qml (16, 17, 25, 38, 68, 117, 162, 174, 269, 319, timers about 435-445); ref-guard pattern in /home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5HomeDash.qml:21-38",
+      "api": "Refs: addRef(modules)/removeRef(modules) with cpu, memory, network, disk, diskmounts, processes, gpu, system or all; refCount, enabledModules, updateInterval, powerSaver, dgopAvailable. CPU: cpuUsage, perCoreCpuUsage, cpuTemperature, cpuFrequency, cpuCores, cpuModel, cpuHistory, loadAverage. Memory: memoryUsage, usedMemoryMB, totalMemoryMB, freeMemoryMB, availableMemoryMB, memoryHistory. Swap: usedSwapKB, totalSwapKB. Disk: diskMounts, diskDevices, diskReadRate, diskWriteRate, diskHistory. Network: networkRxRate, networkTxRate, networkInterfaces, networkHistory. System: uptime, shortUptime, bootTime, processCount, threadCount, processes, setSortBy(), hostname, kernelVersion, distribution. GPU: availableGpus[i] {pciId, temperature, ...}, gpuPciIds, addGpuPciId(id)/removeGpuPciId(id), counted per pciId.",
+      "caveats": "Yes, sampling runs only while refs are held. updateTimer runs when dgopAvailable && refCount > 0 && enabledModules.length > 0, every 3000 ms (6000 ms in power saver), and fires on start. A one-shot 1000 ms primeTimer calls updateAllStats(). With no refs, updateInterval reads 30000/60000 but the timer is stopped. Each tick sends one dgop.meta request and needs the dgop capability (dux-gop 2.0.0-1, /usr/bin/dgop). There is no top-level GPU temperature: availableGpus[i].temperature updates only while gpuPciIds is non-empty and refCount > 0, and resets to 0 when removed. Today the cpuUsage and memUsage satellites hold refs permanently; removing them from the top bar drops those refs. Copy P5HomeDash's dgopRefHeld/syncDgopRef guard and hold refs only while the menu is visible, releasing them in Component.onDestruction."
+    },
+    {
+      "need": "Battery: percent, charging state, time remaining, charge limit",
+      "service": "BatteryService (UPower)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/BatteryService.qml (505, 518, 528, 538); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/Settings/BatteryTab.qml (23, 37)",
+      "api": "batteryAvailable, batteryLevel, isCharging, isPluggedIn, batteryStatus, batteryHealth, batteryCapacity, changeRate, signedChangeRate, estimatedSeconds(), formatTimeRemaining(), formatEstimatedTime(), getBatteryIcon(), isLowBattery, isCriticalBattery, suggestPowerSaver; SettingsData.batteryChargeLimit; thresholdFileList",
+      "caveats": "Event-driven via UPower, no polling. batteryChargeLimit is 85 in settings.json, but BAT0 charge_control_end_threshold reads 100, so the limit is not applied. Writing it needs `pkexec sh -c`, so the menu should only display it (possibly flagging the mismatch)."
+    },
+    {
+      "need": "Devices: audio volume, mute, mic",
+      "service": "AudioService; IPC targets 'audio' and 'mic'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/AudioService.qml (17, 18, 1040, 1041; IpcHandler 1311, target 1312); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml (mic 2053/2054)",
+      "api": "sink = Pipewire.defaultAudioSink and source = Pipewire.defaultAudioSource (.audio.volume, .audio.muted); setVolume, outputVolumeStep, adjustDefaultSinkVolume, toggleMute, setMicVolume, toggleMicMute, incrementMicVolume, decrementMicVolume, sinkVolumeIconName, sinkSilent. IPC audio: setvolume, increment, decrement, mute, setmic, micmute, status, getmaxvolume, setmaxvolume, getmaxvolumefor, setmaxvolumefor, cycleoutput. IPC mic: setvolume, increment, decrement, mute, status.",
+      "caveats": "Live through PwObjectTracker, no polling."
+    },
+    {
+      "need": "Devices: brightness",
+      "service": "DisplayService; IPC targets 'brightness' and 'night'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/DisplayService.qml (852, 1132; brightness IPC 1618/1760; night IPC 1763/1932); usage example /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankIsland/Activities/HomeCompact.qml:128",
+      "api": "brightnessAvailable, brightnessLevel, devices, setBrightness(percentage, device, suppressOsd), toggleNightMode(). IPC brightness: set, increment, decrement, status, list, enableExponential, disableExponential, toggleExponential. IPC night: toggle, enable, disable, status, gamma, contrast, getCurrentTemp, getTargetTemp, getDayTemp, setTargetTemp, setDayTemp, getSchedule.",
+      "caveats": "Needs the backend brightness capability. Pass suppressOsd = true from inside the menu, as HomeCompact does with DisplayService.setBrightness(next, root.brightnessDevice.id, true)."
+    },
+    {
+      "need": "Devices: Wi-Fi SSID and strength",
+      "service": "NetworkService",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/NetworkService.qml",
+      "api": "currentWifiSSID, wifiSignalStrength, wifiSignalIcon, wifiConnected, wifiEnabled, wifiIP, ethernetConnected, networkStatus, vpnConnected, vpnActiveName, toggleWifiRadio(), addRef()/removeRef(); signals connectionChanged, networksUpdated",
+      "caveats": "The backend pushes state (network capability). addRef only drives Wi-Fi scanning, so take it only if the menu lists networks."
+    },
+    {
+      "need": "Devices: Bluetooth",
+      "service": "BluetoothService (Quickshell.Bluetooth)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/BluetoothService.qml",
+      "api": "available, enabled, connected, adapter, devices, pairedDevices, allDevicesWithBattery, discovering, toggleBluetooth(), setBluetoothEnabled(), getDeviceIcon(), getSignalStrength(), connectDeviceWithTrust()",
+      "caveats": "Event-driven, no polling."
+    },
+    {
+      "need": "Devices: weather",
+      "service": "WeatherService",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/WeatherService.qml (40, 44-45, 52, 470, 511, addRef 514-520, removeRef 522, throttle 648-664, 673, update timer about 1041-1051); ref holders: /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankBar/Widgets/Weather.qml:12-13, /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankIsland/Activities/HomeCompact.qml (37, 45, 131-139, 146, 149, 152) with IslandController.qml:65; defaults /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/SettingsData.qml (595, 1063-1093)",
+      "api": "addRef()/removeRef(), weather {available, loading, ...}, getWeatherIcon, getWeatherCondition, formatTemp, currentTempText, formatForecastDay, getSunTimes, getMoonPhase, forceRefresh, setLocation, lastFetchError, updateInterval, lastFetchTime, minFetchInterval (30000)",
+      "caveats": "Polls only when refCount > 0 && weatherEnabled && !isGreeterMode. The update timer fires on start, then every max(60 s, 15 min +/- 7.5 s), with a retry timer; each fetch runs `dms dl --connect-timeout 8 --timeout 20` against open-meteo. The first addRef() fetches at once when no data exists; fetches are throttled to one per 30 s, and data is kept in memory only. Current state: the bar Weather widget sits in centerWidgets, which island mode does not render, and the island weather group is off by default (no islandHomeLayout stored), so homeWeatherEnabled is false. No always-on weather ref was found; weather is fetched only while a weather page, the dash or a lock/greeter screen holds a ref (P5WeatherPage.qml 31/33, WeatherOverviewCard.qml 22/25, WeatherTab.qml 27/30, LockScreenContent.qml 116/126, GreeterContent.qml 109/668). The menu should hold its own ref while visible with a syncWeatherRef-style guard (HomeCompact 131-139); expect a short loading state on the first open after shell start. Location is unset (weatherLocation, weatherCoordinates and useAutoLocation are not in settings.json), so it shows the New York default."
+    },
+    {
+      "need": "Calendar: CalendarService, khal, date helpers, locale",
+      "service": "CalendarService + SystemClock + I18n",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/CalendarService.qml; /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/I18n.qml; month grid in /home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5HomeDash.qml",
+      "api": "activeBackend, calendarAvailable, khalAvailable, dankBinaryExists, loadEvents, eventsByDate, getEventsForDate, hasEventsForDate, canCreateEvents, createEvent; local tasks: addTaskForDate, toggleTask, editTask, removeTask, reorderTasksForDate; I18n.locale(), Qt.locale().firstDayOfWeek; SystemClock for the date",
+      "caveats": "calendarBackend is unset (default 'auto'), but khal, dcal and the dankcalendar flatpak are absent, so the backend is 'none' and there are no events. Local tasks still work. Copy P5HomeDash's month grid (I18n.locale(), monthOffset reset to 0 when hidden)."
+    },
+    {
+      "need": "Other: MPRIS",
+      "service": "MprisController; IPC target 'mpris'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/MprisController.qml (308, 315, 321, 349, 358); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml (568/635)",
+      "api": "activePlayer, availablePlayers, stableTitle, stableArtist, stableAlbum, activePlayerStableLength, displayTrackTitle, isIdle, previousOrRewind(), next(), setActivePlayer(player: MprisPlayer): void, switchActivePlayer(player), setPinned(identity: string): void. IPC mpris: list, play, pause, playPause, previous, next, stop, increment, decrement, setvolume.",
+      "caveats": "Event-driven. The music card's mpv also shows up as an MPRIS player."
+    },
+    {
+      "need": "Other: notification count and DND",
+      "service": "NotificationService + SessionData; IPC target 'notifications'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/NotificationService.qml (21); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modals/NotificationModal.qml (IpcHandler 123, target 209); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Common/SessionData.qml (636, 651)",
+      "api": "unreadCount, notifications, historyList, markNotificationsSeen(), clearHistory(), clearAllNotifications(); SessionData.doNotDisturb, setDoNotDisturb(enabled, durationMinutes), setDoNotDisturbUntilTimestamp(timestampMs). IPC notifications: open, close, toggle, toggleDoNotDisturb, enableDoNotDisturbFor(minutes), enableDoNotDisturbUntil(timestampMs), enableDoNotDisturbIndefinitely, enableDoNotDisturbUntilTomorrowMorning, disableDoNotDisturb, getDoNotDisturb(): bool, getDoNotDisturbUntil(): string, clearAll, dismissAllPopups, dismiss.",
+      "caveats": "Event-driven. NotificationService has no doNotDisturb property; DND state lives in SessionData. DND is currently off. The HomeCompact patch already binds the bell and the P5Tag count."
+    },
+    {
+      "need": "Other: user name, avatar, hostname",
+      "service": "UserInfoService + PortalService; IPC target 'profile'",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/UserInfoService.qml (11-16); /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Services/PortalService.qml (343/344)",
+      "api": "UserInfoService: username, fullName, profilePicture, profileAvailable, hostname, uid, getUserInfo(). PortalService: profileImage, systemProfileImage, accountsServiceAvailable, getUserProfileImage(). IPC profile: getImage, setImage, clearImage. DgopService.hostname is an alternative.",
+      "caveats": "Read once at startup, no polling. The avatar may be empty, so the design needs a fallback. P5HomeDash (the island's expanded home) already renders avatar, username and hostname with these APIs."
+    }
+  ],
+  "overlayPattern": "Existing pattern, in /home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5 (work/shell/Modules/P5 is byte-identical):\n\nP5Apps.qml is a `pragma Singleton`, auto-registered as qs.Modules.P5 (there is no qmldir anywhere under overlay). It holds `LazyLoader { id: loader; active: false; P5AppsWindow {} }`. `_run(fn)` calls fn(loader.item) when the item exists. Otherwise it stores `_pending = fn` and sets `loader.active = true`, and onItemChanged replays _pending with Qt.callLater. API: `readonly property bool isOpen: loader.item?.shouldShow ?? false`, open(query), close() (calls loader.item?.close()) and toggle(). The loader is never deactivated, so after first use the window stays instantiated but hidden.\n\nP5AppsWindow.qml is a `PanelWindow { visible: false; color: 'transparent'; WlrLayershell.namespace: 'dms:p5-apps'; WlrLayershell.layer: WlrLayer.Overlay; WlrLayershell.exclusiveZone: -1; WlrLayershell.keyboardFocus: shouldShow ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None; anchors top/bottom/left/right }`.\n- open(query): picks `CompositorService.getFocusedScreen() ?? Quickshell.screens[0]` and assigns `screen` if it differs, sets shouldShow = true and visible = true, resets the Controller (searchMode 'apps', pluginFilter '', searchQuery ''), sets carousel.opened = true and its query, calls performSearch(), then carousel.forceActiveFocus().\n- close(): sets shouldShow = false, which releases keyboard focus at once so a launched app gets it, and sets carousel.opened = false. The carousel's folded signal sets visible = false after the exit animation.\n\nProposed P3 menu: /home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P3Menu.qml, using the same singleton, LazyLoader and _pending scheme with isOpen/open/close/toggle, plus P3MenuWindow.qml with:\n- a full-screen PanelWindow, namespace 'dms:p3-menu', on the Overlay layer. That layer covers the Top-layer island and satellites. The island moves to Overlay only with DMS_DANKISLAND_LAYER or islandUseOverlayLayer (DankIslandHostWindow.qml:61-62), which is currently off.\n- exclusiveZone -1 and all four anchors\n- the focused screen chosen on open\n- Exclusive keyboard focus only while shouldShow is true\n- Escape and a backdrop click close the menu\n- visible = false only after the exit animation\n- DgopService refs (cpu, memory, system, diskmounts, network as needed; GPU via addGpuPciId) and one WeatherService ref, held only while shown, using P5HomeDash-style guards that release in Component.onDestruction\n- the menu closes before it launches an app or runs a power action\n- a copy of the PowerMenuContent hold-to-confirm and commit-on-key-release logic\n- tray menus drawn in the window with QsMenuOpener\n- reused shared widgets from overlay/DankCommon/Widgets, imported as qs.DankCommon.Widgets (P5Plate, P5Meter, P5Tag, P5Ransom, P5Select, P5Switch, P5ActionChip, ...), and tokens from overlay/DankCommon/Common/P5.qml. The P3 watery look may need its own tokens.\n\nbuild.sh copies overlay/ into ~/.local/share/dms-p5/shell on top of upstream plus patches, so new overlay files need no registration.",
+  "ipcPattern": "/home/lyfmt/Projects/my-arch-kit/dms-p5/patches/DMSShellIPC.qml.patch adds `import qs.Modules.P5` and rewrites the existing 'spotlight' IpcHandler (/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml 1525-1568):\n- open, close and toggle call P5Apps.open(''), P5Apps.close() and P5Apps.toggle().\n- openQuery(query) calls P5Apps.open(query).\n- toggleQuery(query) closes if P5Apps.isOpen, otherwise opens with the query.\n- openWith and toggleWith still call PopoutService.openDankLauncherV2WithMode / toggleDankLauncherV2WithMode.\n- Return strings stay the upstream SPOTLIGHT_*_SUCCESS values.\n- The 'launcher' target (1480/1520) is untouched, and nothing else in the tree calls P5Apps.\n\nniri reaches it through /home/lyfmt/.config/niri/dms/binds.kdl:31 `Mod+Z hotkey-overlay-title=\"程序菜单 Applauncher\" { spawn-sh \"dms ipc call spotlight toggle || fuzzel\"; }`. The current power menu is at :223 `Super+X ... { spawn \"dms\" \"ipc\" \"call\" \"powermenu\" \"toggle\"; }`.\n\nProposal: add a new handler in the same patch.\n```qml\nIpcHandler {\n    target: \"p3menu\"\n    function open(): string { P3Menu.open(); return \"P3MENU_OPEN_SUCCESS\"; }\n    function close(): string { P3Menu.close(); return \"P3MENU_CLOSE_SUCCESS\"; }\n    function toggle(): string { P3Menu.toggle(); return \"P3MENU_TOGGLE_SUCCESS\"; }\n    function status(): string { return P3Menu.isOpen ? \"open\" : \"closed\"; }\n}\n```\nIt is called as `dms ipc call p3menu toggle`.\n\nThe dms-p5 package has no niri/ folder, so add a snippet such as /home/lyfmt/.config/niri/p3menu.kdl containing `binds { Mod+BackSpace hotkey-overlay-title=\"P3 菜单\" { spawn \"dms\" \"ipc\" \"call\" \"p3menu\" \"toggle\"; } }`. Include it after `include \"didive.kdl\"` (config.kdl:208) and run `niri validate`; niri hot-reloads a valid config.\n\nInside the menu, call services directly rather than through IPC. Existing targets reusable from scripts and binds: powermenu, lock, audio, mic, brightness, night, mpris, tray, notifications, island, control-center, dash, bar, widget, launcher, spotlight, powerprofile, profile (locations in notes).",
+  "openFromBar": "The top bar is the Dank Island plus satellites, not a DankBar. barConfigs has one entry (id 'default') with island: true, which renders as an island (SettingsData.qml:991-997); DankBar windows are created only for non-island configs (2588). /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankIsland/IslandSatelliteHost.qml renders leftWidgets [workspaceSwitcher, focusedWindow] and rightWidgets [systemTray, clipboard, cpuUsage, memUsage, battery, controlCenterButton] as satellites (models 133-141, sections 579 and 646). Their components come from an invisible DankBarContent (419-441, componentProvider.allComponents). centerWidgets [music, clock, weather] are stored but not rendered; the island takes the center.\n\n(1) Bar button.\n- Option A: patch the onClicked of launcherButtonComponent (/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modules/DankBar/DankBarContent.qml:1017, the P5Revolver launcher, popoutTarget appDrawer) or powerMenuButtonComponent (994) to call P3Menu.toggle(). Then add that id to leftWidgets or rightWidgets; satellites pick up the patched component automatically. Neither id is in the current layout.\n- Option B: add a new widget id (e.g. p3MenuButton). Register it in DankBarContent componentMap (645-675) and allComponents (687-717), add its Component, and list it in WidgetHost.qml (255, 284) and Modules/Settings/WidgetsTab.qml (about 292) so it can be added from settings. The CpuMonitor patch shows that bar widgets can import qs.Modules.P5.\n\n(2) Island.\n- Option a: the patched HomeExpanded hosts P5HomeDash with `onCloseDash: root.controller.requestCollapse()` and already imports qs.Modules.P5. A P3 button in P5HomeDash can emit closeDash() and then call P3Menu.open().\n- Option b: the DankIslandSurface.qml MouseAreas (263-267, about 368-370) call controller.requestToggle(true) (IslandController.qml:755; requestExpand 481, requestCollapse 502). Add a right- or middle-click branch that calls requestCollapse() and then P3Menu.toggle().\n- Any new hit area outside the existing ones must join the DankIslandHostWindow input mask (inputMaskItem, fittsStripItem, paperInputItem, satellites).\n\n(3) Pull-cord: no implementation exists. dms-p5/AGENTS.md:10 says the cord hangs on the island, and :26 mentions its red flash. Greps over overlay/, patches/ and work/shell find no cord code; the '缠绳' at P5Knife.qml:112 is a knife-handle drawing.\n- Building it is new work: a small item hanging from the island with a DragHandler or MouseArea drag, a pull threshold, snap-back and a P5.blood flash, then P3Menu.toggle(). Its rect must be added to the input mask.\n- The Overlay-layer menu covers the cord while open, so closing happens inside the menu (Escape, backdrop, or a cord drawn in the menu).",
+  "keybinds": [
+    {
+      "key": "Mod+M",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/music.kdl:15, spawn \"qs\" \"ipc\" \"-c\" \"music\" \"call\" \"music\" \"toggle\" (music card)"
+    },
+    {
+      "key": "Mod+X",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:223, written Super+X, spawn \"dms\" \"ipc\" \"call\" \"powermenu\" \"toggle\" (power menu). Line 167 '//Mod+X { toggle-column-tabbed-display; }' is commented out. Could be rebound if the P3 menu replaces the power menu."
+    },
+    {
+      "key": "Mod+A",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:155, consume-or-expel-window-left"
+    },
+    {
+      "key": "Mod+D",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:156, consume-or-expel-window-right"
+    },
+    {
+      "key": "Mod+N",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:200, switch-focus-between-floating-and-tiling"
+    },
+    {
+      "key": "Mod+C",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:185, center-column"
+    },
+    {
+      "key": "Mod+V",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:197, toggle-window-floating"
+    },
+    {
+      "key": "Mod+I",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:259, focus-workspace-up"
+    },
+    {
+      "key": "Mod+U",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:258, focus-workspace-down"
+    },
+    {
+      "key": "Mod+Escape",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/binds.kdl:213, toggle-keyboard-shortcuts-inhibit (allow-inhibiting=false)"
+    },
+    {
+      "key": "Mod+Space",
+      "status": "free in niri, used by fcitx5",
+      "usedBy": "/home/lyfmt/.config/fcitx5/config:13-14, [Hotkey/TriggerKeys] 0=Super+space toggles the input method (the other trigger is Zenkaku_Hankaku). A niri bind would take the key before fcitx5 sees it."
+    },
+    {
+      "key": "Mod+Tab",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/supertab.kdl:24, next-window scope=\"workspace\""
+    },
+    {
+      "key": "Mod+grave",
+      "status": "used",
+      "usedBy": "/home/lyfmt/.config/niri/dms/supertab.kdl:27, next-window filter=\"app-id\""
+    },
+    {
+      "key": "Mod+Backspace",
+      "status": "free",
+      "usedBy": "Nothing: no Mod+ or Super+ BackSpace bind in any included .kdl file. Recommended for the P3 menu."
+    }
+  ],
+  "notes": "Key scan scope: only files that /home/lyfmt/.config/niri/config.kdl actually includes (lines 9-10, 188-198, 202, 205, 208); backup files were ignored. All 26 Mod+letter combinations are taken. Free alternatives found: Mod+Shift+BackSpace, Mod+Shift+M, Mod+Alt+M, Mod+0 and Mod+Apostrophe; rebinding Super+X is another option.\n\nxkb swap: config.kdl:39-42 loads caps-super-swap.xkb. Physical Caps Lock sends Super_L (Mod4), physical left Win sends Caps_Lock, and right Win stays Super. This changes which physical key acts as Mod, not which binds are free. Key hints in the design should say Caps (e.g. Caps+Backspace).\n\nTop bar facts, which correct an earlier assumption that weather polls constantly:\n- The top bar is the island plus satellites (see openFromBar).\n- Island compact home groups use defaults, since no islandHomeLayout is stored: media on, clock on, weather off, status off, volume off, brightness off, notifications on.\n- The always-on samplers today are the cpuUsage and memUsage satellites (dgop refs). No always-on weather ref was found.\n\nOverlap: the island's expanded home (P5HomeDash via the HomeExpanded patch) already shows the avatar, username and hostname, dgop meters and a month calendar (P5HomeDash.qml:11). The P3 menu would duplicate it, so the user should decide whether the island home stays. P5HomeDash is the code to copy for the stats and calendar sections.\n\nTree: /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell is the scripts/dev.sh git working copy of upstream v1.6.3 with the dms-p5 patches and overlay already applied, not pristine upstream. Its Modules/P5 is byte-identical to overlay/Modules/P5. The UI is DMS v1.6.3; the backend is dms 2.0.0 (dux-shell 2.0.0-1) with dgop from dux-gop 2.0.0-1.\n\nOpen decisions for the user:\n1. App source: pins are empty; take the frecency top-N or keep a fixed list.\n2. Suspend does not lock (lockBeforeSuspend is false).\n3. Weather shows the New York default location.\n4. There is no calendar backend (khal and dcal are absent); only local tasks work.\n5. The charge limit is configured as 85, but 100 is applied.\n6. Whether to offer switchuser, which needs new wiring.\n7. Whether to keep Restart DMS: it is unverified whether `dms restart` keeps -c, and enable.sh itself uses pkill -x dms plus dms run -c.\n8. The key: Mod+BackSpace, or replacing Super+X.\n\nStyle constraints for the HTML phase:\n- dms-p5/AGENTS.md: the primary is theme primary #D0BCFF, a light pinkish lavender; P5.blood red is for motion flashes and alerts only.\n- Memory notes: P5 purple must stay that light pinkish lavender, not saturated violet. The P3 direction is the P3R watery look with one gradient and one display face.\n\nIPC targets (handler/target lines, in /home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/DMSShellIPC.qml unless noted):\n\n| Target | Lines |\n| --- | --- |\n| powermenu | 145/174 |\n| control-center | 218/262 |\n| dash | 280/397 |\n| mpris | 568/635 |\n| bar | 818/974 |\n| widget | 1156/1334 |\n| launcher | 1480/1520 |\n| spotlight | 1525/1568 |\n| mic | 2053/2054 |\n| tray | 2083/2132 |\n| powerprofile | 2135/2201 |\n| notifications | Modals/NotificationModal.qml 123/209 |\n| lock | Modules/Lock/Lock.qml 373/374 |\n| island | Modules/DankIsland/DankIsland.qml 266/267 |\n| audio | Services/AudioService.qml 1311/1312 |\n| brightness | Services/DisplayService.qml 1618/1760 |\n| night | Services/DisplayService.qml 1763/1932 |\n| profile | Services/PortalService.qml 343/344 |\n\nState files: ~/.config/DankMaterialShell/settings.json, ~/.local/state/DankMaterialShell/session.json, ~/.local/state/DankMaterialShell/appusage.json, and ~/.cache/DankMaterialShell/dms-colors.json for the palette.\n\nDisclosure: all checks were read-only, with one exception. A helper script, /tmp/ipc_funcs.awk, was written and deleted within a single command to parse IpcHandler blocks. settings.json was read with `python3 -I`, and the dms binary was inspected with `strings`, not executed. No repo or config file changed, no dms ipc call ran, DMS was not restarted, no qs process was touched, and none of look.sh, grab.sh, dev.sh or preview.sh ran."
+}

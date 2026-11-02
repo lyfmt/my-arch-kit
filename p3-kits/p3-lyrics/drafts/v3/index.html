@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P3 歌词 v3</title>
+<style>
+@font-face{font-family:"BarlowC";src:url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype");font-weight:700}
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");font-weight:900;font-style:italic}
+:root{--ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--dim:rgba(163,240,255,.62);--panel:rgba(2,10,60,.62);--red:#e3121b;--slant:polygon(18px 0,100% 0,calc(100% - 18px) 100%,0 100%);--ease:cubic-bezier(.22,.9,.24,1)}
+:root[data-theme="lavender"]{--ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--dim:rgba(208,188,255,.62);--panel:rgba(20,10,50,.66);--red:#ff3d6e}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#000510}
+body{color:var(--tx);user-select:none;-webkit-user-select:none}
+#frame{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+#bar{position:fixed;left:40px;top:32px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  max-width:min(760px,calc(100vw - 32px));transition:transform .32s var(--ease),opacity .2s}
+#bar.off{transform:translateX(-120%);opacity:0;pointer-events:none}
+#tabs{display:flex;gap:6px;align-items:baseline;background:var(--ink);padding:8px 30px 8px 24px;clip-path:var(--slant)}
+.tab{position:relative;isolation:isolate;border:0;background:none;padding:6px 14px 4px;cursor:pointer;color:var(--dim);
+  font:italic 900 30px/.86 "P3",sans-serif;letter-spacing:-.01em;transition:color .15s}
+.tab::after{content:"";position:absolute;inset:0;z-index:-1;background:var(--fill);
+  transform:skewX(-14deg) scaleX(0);transform-origin:left;transition:transform .22s var(--ease)}
+.tab:hover{color:var(--tx)}
+.tab.on{color:var(--ink)}
+.tab.on::after{transform:skewX(-14deg) scaleX(1)}
+.tab:focus-visible{outline:2px solid var(--fill);outline-offset:3px}
+.num{font:700 13px/1 "BarlowC",sans-serif;letter-spacing:.14em;margin-right:6px;vertical-align:.5em;opacity:.8}
+#pitch{margin-left:14px;background:var(--ink);padding:7px 30px 6px 28px;clip-path:var(--slant);font:500 15px/1.55 "Noto Sans CJK SC","Noto Sans SC",sans-serif;letter-spacing:.06em;
+  color:var(--tx);white-space:normal;overflow-wrap:anywhere}
+@media (max-width:900px){#bar{left:16px;top:16px}.tab{font-size:22px}#pitch{margin-left:4px}}
+</style>
+</head>
+<body>
+<iframe id="frame" title="歌词预览"></iframe>
+<nav id="bar">
+  <div id="tabs"></div>
+  <div id="pitch"></div>
+</nav>
+<script>
+const V=[
+  {key:'rise',label:'RISE',name:'Rise',file:'rise.html',pitch:'旧行先淡出新行再浮上，任何时刻屏幕上只有一条可读歌词'},
+  {key:'slide',label:'SLIDE',name:'Slide',file:'slide.html',pitch:'换行时旧句先淡尽、新句再浮出，不再叠影；中日文字收紧到 56px'},
+  {key:'surface',label:'SURFACE',name:'Surface',file:'surface.html',pitch:'旧行整条沉到水面下不留残笔，交接空档全空，新行干净浮出'},
+];
+const root=document.documentElement,frame=document.getElementById('frame'),bar=document.getElementById('bar'),
+  tabs=document.getElementById('tabs'),pitch=document.getElementById('pitch');
+const Q=new URLSearchParams(location.search);
+const st={i:0,theme:Q.get('theme')==='lavender'?'lavender':'p3',light:Q.get('bg')==='light'};
+try{const k=localStorage.getItem('p3lyrics.v3');const j=V.findIndex(v=>v.key===(Q.get('v')||k));if(j>=0)st.i=j}catch(e){}
+
+V.forEach((v,i)=>{const b=document.createElement('button');b.className='tab';b.innerHTML='<span class="num">'+(i+1)+'</span>';b.append(v.label);b.title=v.name;
+  b.onclick=()=>{show(i);b.blur()};tabs.appendChild(b)});
+
+function src(v){const p=new URLSearchParams();if(st.theme==='lavender')p.set('theme','lavender');if(st.light)p.set('bg','light');
+  const s=p.toString();return v.file+(s?'?'+s:'')}
+function show(i){
+  st.i=(i+V.length)%V.length;const v=V[st.i];
+  [...tabs.children].forEach((b,j)=>b.classList.toggle('on',j===st.i));
+  pitch.textContent=v.pitch;pitch.title=v.name+'：'+v.pitch;frame.src=src(v);
+  try{localStorage.setItem('p3lyrics.v3',v.key)}catch(e){}
+}
+function send(cmd){try{frame.contentWindow.postMessage({cmd},'*')}catch(e){}}
+
+/* 外层统一按键 → 各方案。N/←/→ 用统一指令 song/lineNext/linePrev，
+   因为各方案的 next/prev 含义不一致（有的是下一首，有的是下一句）。 */
+function key(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return false;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  const n='1234567890'.indexOf(k);if(n>=0&&n<V.length){show(n);return true}
+  switch(k){
+    case 'h':bar.classList.toggle('off');return true;
+    case ' ':if(!e.repeat)send('pause');return true;
+    case 't':send('trans');return true;
+    case 'n':send('song');return true;
+    case 'ArrowRight':send('lineNext');return true;
+    case 'ArrowLeft':send('linePrev');return true;
+    case 'l':st.theme=st.theme==='p3'?'lavender':'p3';root.dataset.theme=st.theme;send('theme');return true;
+    case 'b':st.light=!st.light;send('bg');return true;
+  }
+  return false;
+}
+addEventListener('keydown',e=>{if(key(e))e.preventDefault()});
+
+/* iframe 获焦时：同源则在其 window 捕获阶段截获按键，压住方案自带的按键处理，避免触发两次；
+   跨源（如 file:// 下）则把焦点拉回外层。 */
+frame.addEventListener('load',()=>{
+  let hooked=false;
+  try{frame.contentWindow.addEventListener('keydown',e=>{if(key(e)){e.preventDefault();e.stopImmediatePropagation()}},true);hooked=true}catch(e){}
+  if(!hooked)setTimeout(()=>window.focus(),0);
+});
+addEventListener('blur',()=>setTimeout(()=>{
+  if(document.activeElement!==frame)return;
+  try{void frame.contentWindow.document}catch(e){window.focus()}
+},0));
+
+root.dataset.theme=st.theme;
+show(st.i);
+</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+/* CALENDAR 面板（类名前缀 cg-）
+   日视图：标题 / 本周 7 张日卡 / 当日日程（满宽）。M 换整页月历，事件详情是子页面（同 APPS 托盘菜单）
+   今天 = 唯一的 --fill 实心卡；选中 = 共用滑块（白楔 + 红碎片）；盒子底近实心，亮水上也可读 */
+.cg { display: flex; flex-direction: column; height: 796px; }
+.cg .pn-head { flex: none; }
+.cg b { font-weight: inherit; }
+.cg [data-t], .cg [data-r], .cg [data-back], .cg [data-month], .cg [data-act], .cg [data-more], .cg [data-link], .cg [data-del] { cursor: pointer; }
+.cg-mon { white-space: nowrap; flex: none; }
+.cg-mon:hover { background: var(--tx); }
+.cg-rel { white-space: nowrap; }
+.cg-rel { font-size: 16px; letter-spacing: .14em; min-width: 0; overflow: hidden; margin-bottom: 10px; margin-left: -6px;
+  padding: 6px 16px 5px 14px; background: var(--fill); color: var(--ink); clip-path: var(--slant); }
+.cg-rel:empty { display: none; }
+.cg-cn { margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+  padding: 8px 16px 7px 14px; background: var(--ink); color: var(--fill); clip-path: var(--cut); }
+.cg-cn[hidden] { display: none; }
+.cg-cn b { font-size: 44px; }
+.cg-cn .l { font-size: 15px; color: var(--tx); }
+
+.cg-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; position: relative; }
+.cg-body.out > * { opacity: 0; translate: -40px 0;
+  transition: opacity var(--d-fast) var(--e-io), translate var(--d-fast) var(--e-io); }
+.cg-agenda, .cg-det, .cg-month { background: color-mix(in srgb, var(--ink) 86%, transparent); border-top: 3px solid var(--fill); }
+
+/* ---------- 日卡条 ---------- */
+.cg-strip { flex: none; height: 200px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px;
+  padding: 16px 8px 10px 12px; }
+.cg-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; padding: 12px 12px 12px;
+  background: color-mix(in srgb, var(--ink) 80%, transparent); border-top: 1px solid var(--line); clip-path: var(--cut); color: var(--tx);
+  transition: background var(--d-fast) 90ms, color var(--d-fast) 90ms, border-color var(--d-fast) 90ms, opacity var(--d-med); }
+.cg-card .wd { font-size: 17px; }
+.cg-card .mo { position: absolute; right: 12px; top: 13px; font-size: 15px; color: var(--fill); }
+.cg-card .dn { font-size: 84px; margin-top: auto; letter-spacing: -.04em; transform-origin: 0 100%;
+  transition: transform var(--d-med) var(--e-snap); }
+.cg-pips { display: flex; gap: 5px; height: 6px; margin-top: 10px; }
+.cg-pips i { display: block; width: 16px; height: 6px; background: var(--fill); }
+.cg-card .cg-pips:empty, .cg-card:not(:has(.cg-pips))::after { content: none; }
+.cg-card:not(:has(.cg-pips)) .dn { margin-bottom: 16px; }
+.cg-card.past { opacity: .45; }
+.cg-card.today { background: var(--fill); color: var(--ink); border-top-color: transparent; }
+.cg-card.today .mo, .cg-card.sel .mo { color: var(--ink); }
+.cg-card.today .cg-pips i, .cg-card.sel .cg-pips i { background: var(--ink); }
+.cg-card.sel { opacity: 1; color: var(--ink); }
+.cg-card.sel:not(.today) { background: transparent; border-top-color: transparent; }
+.cg-card.sel .dn { transform: rotate(-6deg) scale(1.1); }
+.cg-card.sel.today { clip-path: none; }
+/* 焦点在日程里：选中日只剩一条平直的 fill 底边，说明日程属于哪一天 */
+.cg-card.cur { opacity: 1; box-shadow: inset 0 -6px 0 var(--fill); }
+.cg-card.today.cur { box-shadow: inset 0 -6px 0 var(--ink); }
+.cg-strip > .p3-hl::after { left: -7%; right: -7%; top: -6%; bottom: -6%; clip-path: polygon(5% 3%, 100% 0, 93% 100%, 0 97%); }
+.cg-strip > .p3-hl::before { left: -22%; top: -11%; width: 74%; height: 44%; bottom: auto;
+  clip-path: polygon(0 100%, 100% 0, 74% 42%); }
+
+/* ---------- 日程 ---------- */
+.cg-agenda { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 26px 12px 24px; overflow: hidden; }
+.cg-ah { flex: none; display: flex; align-items: flex-end; gap: 16px; height: 48px; }
+.cg-wdn { font-size: 40px; color: var(--tx); }
+.cg-md { font-size: 40px; color: var(--fill); }
+.cg-free { margin-left: auto; font-size: 48px; color: var(--fill); }
+.cg-pg { margin-left: auto; font-size: 16px; color: var(--ink); background: var(--fill); padding: 6px 16px 5px; margin-bottom: 4px; }
+.cg-list { flex: none; display: flex; flex-direction: column; margin-top: 12px; }
+.cg-r { display: flex; align-items: center; gap: 18px; height: 64px; padding: 0 14px 0 4px; color: var(--tx);
+  transition: color var(--d-fast) 90ms; }
+.cg-r + .cg-r, .cg-now + .cg-r { border-top: 1px solid var(--line); }
+.cg-r.sel, .cg-r.sel + .cg-r { border-top-color: transparent; }
+.cg-tm { flex: none; width: 120px; display: flex; flex-direction: column; justify-content: center; gap: 3px; color: var(--fill); }
+.cg-tm .t1 { font-size: 28px; }
+.cg-tm .t2 { font-size: 28px; opacity: .62; }
+.cg-tm .tl { font-size: 20px; letter-spacing: .1em; }
+.cg-tm .ts { font-size: 15px; letter-spacing: .1em; opacity: .7; }
+.cg-plus { font-size: 30px !important; }
+.cg-r .nm { flex: 1; min-width: 0; font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-addl { font-size: 22px !important; letter-spacing: .12em; color: var(--fill); }
+.cg-r .v { flex: none; font-size: 18px; color: var(--dim); max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-r .l.v { font-size: 16px; letter-spacing: .1em; }
+.cg-r .chip { flex: none; font-size: 15px; padding: 7px 14px 6px; }
+.cg-del { background: var(--red) !important; color: #fff !important; }
+.cg-r.done .nm { text-decoration: line-through; opacity: .38; }
+.cg-r.sel, .cg-r.sel .cg-tm, .cg-r.sel .v, .cg-r.sel .cg-addl { color: var(--ink); }
+.cg-r.sel .cg-link { background: var(--ink); color: var(--fill); }
+/* 任务勾选框：方框，勾上 = 内部实心块缩放进入（同 APPS 单选） */
+.cg-ck { position: relative; width: 30px; height: 30px; margin-left: 6px; box-shadow: inset 0 0 0 3px var(--fill); }
+.cg-ck::after { content: ""; position: absolute; inset: 7px; background: var(--fill); transform: scale(0);
+  transition: transform var(--d-med) var(--e-snap); }
+.cg-ck.on::after { transform: scale(1); }
+.cg-r.sel .cg-ck { box-shadow: inset 0 0 0 3px var(--ink); }
+.cg-r.sel .cg-ck::after { background: var(--ink); }
+.cg-in { flex: 1; min-width: 0; height: 46px; font-size: 26px; padding: 0 14px; border: 0; outline: 0;
+  background: var(--ink); color: var(--tx); caret-color: var(--fill); box-shadow: inset 0 -3px 0 var(--fill); user-select: text; }
+.cg-in::placeholder { color: var(--dim); }
+.cg-list > .p3-hl::after { left: -3%; right: -2%; top: -8%; bottom: -10%; clip-path: polygon(0 16%, 100% 0, 99% 100%, 1.2% 90%); }
+.cg-list > .p3-hl::before { left: -5%; width: 18%; top: -8%; bottom: 40%; }
+/* isLoading 且当天还没有事件：暗色 LOADING 占位行（同 APPS 子菜单），不可选 */
+.cg-ld .nm { font-size: 22px; letter-spacing: .12em; color: var(--dim); }
+.cg-now { position: relative; height: 24px; display: flex; align-items: center; }
+.cg-now::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1px; background: var(--fill); }
+.cg-now .l { position: relative; background: var(--fill); color: var(--ink); font-size: 15px; padding: 4px 16px 3px 12px; }
+.cg-more { height: 48px; display: flex; align-items: center; padding-left: 128px; border-top: 1px solid var(--line); }
+.cg-more .l { font-size: 18px; letter-spacing: .12em; color: var(--fill); }
+
+/* 底部固定的"无日历"一行：不是主内容，只说明为什么没有日程 */
+.cg-foot { margin-top: auto; flex: none; }
+.cg-note { display: flex; align-items: center; gap: 16px; height: 64px; padding: 0 4px; border-top: 3px solid var(--line); }
+.cg-note .nl { font-size: 20px; letter-spacing: .12em; color: var(--fill); }
+.cg-note .nz { font-size: 19px; color: var(--dim); }
+.cg-note .btn { font-size: 17px; height: 44px; padding: 0 20px; }
+.cg-note .btn:first-of-type { margin-left: auto; }
+.cg-note.sel { background: var(--shard); clip-path: polygon(0 10%, 100% 0, 99.4% 100%, .6% 92%); }
+.cg-note.sel .nl, .cg-note.sel .nz { color: var(--ink); }
+.cg-note.sel .btn.pri { background: var(--ink); color: var(--fill); }
+
+/* ---------- 事件详情子页面 ---------- */
+.cg-det { flex: 1; display: flex; flex-direction: column; gap: 20px; padding: 30px 32px 28px; }
+.cg-dt { font-size: 56px; line-height: 1.1; color: var(--tx); }
+.cg-dr { font-size: 26px; letter-spacing: .1em; color: var(--ink); background: var(--fill); align-self: flex-start; padding: 9px 22px 8px 18px; }
+.cg-dl { font-size: 28px; color: var(--fill); }
+.cg-dd { font-size: 24px; line-height: 1.45; color: var(--tx); max-width: 720px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cg-dc { display: flex; flex-wrap: wrap; gap: 12px; }
+.cg-dc .chip { font-size: 17px; padding: 9px 16px 8px; }
+.cg-dc:empty { display: none; }
+.cg-back { margin-top: auto; align-self: flex-start; font-size: 18px; padding: 10px 18px 9px;
+  background: var(--fill); color: var(--ink); clip-path: var(--cut); }
+
+/* ---------- 月历 ---------- */
+.cg-month { flex: 1; display: flex; flex-direction: column; padding: 18px 22px 16px; }
+.cg-mh { display: flex; align-items: flex-end; justify-content: space-between; height: 66px; margin-bottom: 12px; }
+.cg-mn { font-size: 64px; color: var(--tx); }
+.cg-mh .cg-back { margin-top: 0; margin-bottom: 6px; }
+.cg-wds { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0 8px; font-size: 16px; color: var(--dim); margin-bottom: 8px; padding-left: 10px; }
+.cg-grid { flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); gap: 6px 8px; }
+.cg-c { display: flex; flex-direction: column; justify-content: space-between; padding: 8px 10px 10px; color: var(--tx);
+  background: var(--well); transition: color var(--d-fast) 90ms, background var(--d-fast) 90ms; }
+.cg-c b { font-size: 40px; transform-origin: 0 100%; transition: transform var(--d-med) var(--e-snap); }
+.cg-c .cg-pips i { width: 14px; }
+.cg-c.out { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--dim); }
+.cg-c.today { background: var(--fill); color: var(--ink); }
+.cg-c.today .cg-pips i, .cg-c.sel .cg-pips i { background: var(--ink); }
+.cg-c.sel { color: var(--ink); }
+.cg-c.sel:not(.today) { background: transparent; box-shadow: none; }
+.cg-c.sel b { transform: rotate(-8deg) scale(1.12); }
+.cg-grid > .p3-hl::after { left: -8%; right: -8%; top: -8%; bottom: -8%; clip-path: polygon(6% 6%, 100% 0, 94% 100%, 0 94%); }
+.cg-grid > .p3-hl::before { left: -24%; top: -18%; width: 60%; height: 50%; bottom: auto; clip-path: polygon(0 100%, 100% 0, 76% 42%); }
+.cg-note { transition: padding var(--d-fast) var(--e-snap); }
+.cg-note.sel { padding: 0 20px 0 18px; }
+.cg-note.sel .btn:not(.pri) { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lyrics Slide</title>
+<style>
+@font-face { font-family: "P3"; src: url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; font-display: block; }
+@font-face { font-family: "BarlowC"; src: url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; font-display: block; }
+
+/* p3.css token：p3 / lavender */
+:root, [data-theme="p3"] { --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff; --dim: rgba(163,240,255,.62); --red: #e3121b; }
+[data-theme="lavender"] { --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff; --dim: rgba(208,188,255,.62); --red: #ff3d6e; }
+:root { --main: var(--tx); --sub: var(--dim); }
+[data-bg="light"] { --main: var(--ink); --sub: color-mix(in srgb, var(--ink) 62%, transparent); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000510; }
+body { user-select: none; -webkit-user-select: none; cursor: default; }
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px; overflow: hidden; transform-origin: 50% 50%; }
+.bg { position: absolute; inset: 0; }
+.bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+[data-theme="lavender"] .bg img { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+[data-bg="light"] .bg img { display: none; }
+[data-bg="light"] .bg { background: #e8edf1; }
+
+/* 歌词：右下深色区，右对齐，顶边固定，翻译开关不推动主句 */
+#lyr { position: absolute; right: 148px; top: 756px; width: 1500px; height: 0; }
+.item { position: absolute; right: 0; top: 0; text-align: right; white-space: nowrap; }
+.part { will-change: transform, opacity; opacity: 0; }
+.main { color: var(--main); transition: color .32s; }
+.sub  { color: var(--sub); transition: color .32s; margin-top: 20px; }
+.row { display: block; }
+/* 中文 / 日文：照 .zh 的路子（Noto Sans CJK，正体，正字距），字重 700（Noto CJK 无 600），56px、.04em 收紧 */
+.main.zh { font: 700 56px/1.24 "Noto Sans CJK SC", "Source Han Sans CN", sans-serif; letter-spacing: .04em; margin-right: -.04em; }
+.main.ja { font: 700 56px/1.24 "Noto Sans CJK JP", "Noto Sans CJK SC", sans-serif; letter-spacing: .04em; margin-right: -.04em; }
+/* 拉丁：P3R 展示字 .d 原生斜体（不是合成的） */
+.main.la { font: italic 900 70px/1 "P3", sans-serif; letter-spacing: -.005em; padding-right: 6px; }
+.sub.zh { font: 400 26px/1.3 "Noto Sans CJK SC", sans-serif; letter-spacing: .16em; margin-right: -.16em; }
+.sub.la { font: 700 26px/1 "BarlowC", sans-serif; letter-spacing: .2em; margin-right: -.2em; text-transform: uppercase; }
+.main.zh + .sub, .main.ja + .sub { margin-top: 14px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg"><img src="../../../../p5-reference/p3-miku/bg.png" alt=""></div>
+  <div id="lyr"></div>
+</div>
+<script>
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ---------- 参数 ---------- */
+const Q=new URLSearchParams(location.search);
+const ROOT=document.documentElement, lyr=document.getElementById('lyr'), stage=document.getElementById('stage');
+const SLOW=Math.max(.05,parseFloat(Q.get('slow'))||1);
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+ROOT.dataset.theme=Q.get('theme')==='lavender'?'lavender':'p3';
+ROOT.dataset.bg=Q.get('bg')==='light'?'light':'img';
+
+/* ---------- 动效参数（ms / px，均为 k=1 的基准） ----------
+   方向：沿 -6°（右上）一条直线。新行从左下侧进，旧行朝右上出，同一条轨道。 */
+const TAN=Math.tan(6*Math.PI/180);
+const M={
+  inDur:560, inFade:300, inDist:64, over:3, inOverAt:.68,   // 入场：位移 560，透明度 300 先到；68% 处过冲 3px 再回落
+  outDur:220, outDist:40,                                     // 出场：220 加速离开
+  quietDur:520, quietDist:24,                                 // 间奏/曲终：慢一点、短一点，安静退场
+  outFade:.56,                                                // 出场透明度单独走，在位移的前 56% 内淡完（ease-out）
+  // 交接：新行透明度在旧行降到 .05 以下之前不超过 .1（见 exit()，按两条曲线实际求解，快歌同样成立）
+  subLag:50, subOutLag:30,                                    // 翻译：入场晚 50，出场晚 30
+  lead:.16                                                    // 提前量（秒），让新行在时间戳时已读得清
+};
+const BZ={inFade:[.3,0,.2,1], outFade:[.2,0,.4,1]};
+const E={inFade:'cubic-bezier(.3,0,.2,1)', outFade:'cubic-bezier(.2,0,.4,1)', out:'cubic-bezier(.16,1,.3,1)', settle:'cubic-bezier(.45,0,.55,1)', acc:'cubic-bezier(.55,0,.85,.35)', quiet:'cubic-bezier(.4,0,.6,1)'};
+// 三次贝塞尔：给定输出 y，求时间进度 x（单调曲线，二分）
+function bzX(c,y){ const f=(t,a,b)=>3*a*t*(1-t)*(1-t)+3*b*t*t*(1-t)+t*t*t;
+  let lo=0,hi=1; for(let n=0;n<40;n++){ const m=(lo+hi)/2; f(m,c[1],c[3])<y?lo=m:hi=m; } return f((lo+hi)/2,c[0],c[2]); }
+const tr=(x)=>`translate(${x.toFixed(2)}px,${(-x*TAN).toFixed(2)}px)`;
+
+/* ---------- 状态 ---------- */
+let si=Math.max(0,Math.min(SONGS.length-1,parseInt(Q.get('song'))||0)), song=SONGS[si];
+let time=Math.max(0,parseFloat(Q.get('t'))||0), paused=false, transOn=Q.get('trans')!=='0';
+let shown=null, curEl=null;   // shown: 'title' | 'gap' | 'end' | 行号
+window.__lyr={time,index:-1,paused};
+
+const kind=(lang)=>lang==='en'?'la':lang==='ja'?'ja':'zh';
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rows=s=>s.split('|').map(r=>`<span class="row">${esc(r.trim())}</span>`).join('');
+
+function hold(l){ const n=l.text.replace(/[\s|]/g,'').length*(song.lang==='en'?.45:1); return Math.min(6.5,Math.max(3.2,2.4+n*.16)); }
+function gapOf(i){ const L=song.lines; return (i+1<L.length?L[i+1].t:song.end)-L[i].t; }
+// 快歌压缩：显示时长 < 1.6s 时按比例缩短时长和位移，最低到一半
+function kOf(i){ if(typeof i!=='number') return 1; return Math.max(.5,Math.min(1,gapOf(i)/1.6)); }
+
+function desired(t){
+  const L=song.lines;
+  if(t<L[0].t-M.lead) return 'title';
+  let i=0; for(let j=0;j<L.length;j++) if(t>=L[j].t-M.lead*kOf(j)) i=j;
+  const g=gapOf(i), h=hold(L[i]);
+  if(g>h+1.5 && t>L[i].t+h) return i===L.length-1?'end':'gap';   // 间奏：唱完 h 秒后先退场，屏幕留空
+  return i;
+}
+
+function build(key){
+  const el=document.createElement('div'); el.className='item';
+  let main,sub,mk=kind(song.lang),sk='zh';
+  if(key==='title'){ main=song.title; sub=song.artist; sk=song.lang==='en'?'la':'zh'; }
+  else { const l=song.lines[key]; main=l.text; sub=l.trans; }
+  el.innerHTML=`<div class="part main ${mk}" lang="${song.lang}">${rows(main)}</div>`+(sub?`<div class="part sub ${sk}">${esc(sub)}</div>`:'');
+  const s=el.querySelector('.sub'); if(s){ s.dataset.title=key==='title'?'1':''; if(!transOn&&key!=='title') s.style.display='none'; }
+  lyr.appendChild(el); return el;
+}
+const D=ms=>ms*SLOW;
+const reduced=()=>RM.matches;
+
+function enterPart(p,k,delay,dist){
+  const d=reduced()?0:dist*(.5+.5*k), o=reduced()?0:M.over*k;
+  p.animate([{transform:tr(-d),easing:E.out},{transform:tr(o),offset:M.inOverAt,easing:E.settle},{transform:tr(0)}],
+    {duration:D((reduced()?240:M.inDur)*k),delay:D(delay),fill:'both'});
+  p.animate([{opacity:0},{opacity:1}],{duration:D((reduced()?240:M.inFade)*k),delay:D(delay),easing:E.inFade,fill:'both'});
+}
+const inFadeDur=k=>(reduced()?240:M.inFade)*k;
+function freeze(p){ // 从当前画面状态接手，不跳
+  p.getAnimations().forEach(a=>{ try{a.commitStyles();}catch(e){} a.cancel(); });
+}
+function exitPart(p,k,delay,quiet){
+  freeze(p);
+  const d=reduced()?0:(quiet?M.quietDist:M.outDist*(.5+.5*k));
+  const dur=reduced()?160:(quiet?M.quietDur:M.outDur*k);
+  // 位移保留加速曲线；透明度拆开，用 ease-out 在前 56% 内淡完，免得位移还没走完就和新行叠在一起
+  p.animate([{},{opacity:0}],{duration:D(quiet?dur:dur*M.outFade),delay:D(delay),easing:quiet?E.quiet:E.outFade,fill:'forwards'});
+  return p.animate([{},{transform:tr(d)}],{duration:D(dur),delay:D(delay),easing:quiet?E.quiet:E.acc,fill:'forwards'});
+}
+const outDurOf=(k,quiet)=>reduced()?160:(quiet?M.quietDur:M.outDur*k);
+function enter(el,k,delay){
+  enterPart(el.querySelector('.main'),k,delay,M.inDist);
+  const s=el.querySelector('.sub'); if(s&&s.style.display!=='none') enterPart(s,k,delay+M.subLag*k,M.inDist*.75);
+}
+// 返回新行入场应延后的毫秒数：旧行（含晚 subOutLag 的翻译）透明度 < .05 的时刻，减去新行透明度升到 .1 所需时间
+function exit(el,k,quiet,kIn){
+  const parts=[...el.querySelectorAll('.part')].filter(p=>p.style.display!=='none');
+  const anims=parts.map((p,n)=>exitPart(p,k,n?M.subOutLag*k:0,quiet));
+  Promise.all(anims.map(a=>a.finished)).then(()=>el.remove(),()=>{});
+  if(quiet) return outDurOf(k,quiet);
+  const lag=parts.length>1?M.subOutLag*k:0;
+  const oldGone=lag+outDurOf(k,false)*M.outFade*bzX(BZ.outFade,.95);
+  const newShow=inFadeDur(kIn)*bzX(BZ.inFade,.1);
+  return Math.max(0,oldGone-newShow)+8;   // 8ms 余量，约半帧
+}
+
+function show(key,fast){
+  if(key===shown) return;
+  const quiet=(key==='gap'||key==='end'), k=kOf(key);
+  let wait=0;
+  if(curEl){ wait=exit(curEl,fast?.6:Math.min(k,kOf(shown)),quiet&&!fast,k); curEl=null; }
+  shown=key;
+  if(typeof key==='number'||key==='title'){ curEl=build(key); enter(curEl,k,quiet?0:wait); }
+  __lyr.index=typeof key==='number'?key:-1;
+}
+
+function setSong(i,at){
+  si=(i+SONGS.length)%SONGS.length; song=SONGS[si]; time=at||0;
+  shown=null;            // 强制重建
+  show(desired(time),true);
+}
+
+/* ---------- 时钟 ---------- */
+let last=performance.now();
+function tick(now){
+  requestAnimationFrame(tick);
+  try{
+    const dt=Math.min(.25,(now-last)/1000)/SLOW; last=now;
+    if(!paused){
+      time+=dt;
+      if(time>=song.end){ setSong(si+1,0); }
+      else show(desired(time));
+    }
+    __lyr.time=time; __lyr.paused=paused;
+  }catch(e){ console.error(e); }
+}
+
+/* ---------- 控制 ---------- */
+function anims(){ return lyr.getAnimations({subtree:true}).filter(a=>a.effect&&a.effect.target!==lyr); }
+const C={
+  pause(){ paused=!paused; anims().forEach(a=>paused?a.pause():a.play());
+    // 暂停：整条退到 45% 不透明，原地不动；继续时 160ms 回来
+    lyr.getAnimations().forEach(a=>{try{a.commitStyles();}catch(e){}a.cancel();}); lyr.animate([{},{opacity:paused?.45:1}],{duration:D(paused?320:160),easing:E.out,fill:'forwards'}); __lyr.paused=paused; },
+  trans(){ transOn=!transOn;
+    lyr.querySelectorAll('.item .sub').forEach(s=>{
+      if(s.dataset.title) return;
+      if(transOn){ s.style.display=''; freeze(s); enterPart(s,1,0,32); }
+      else { const a=exitPart(s,1,0,false); a.finished.then(()=>{ if(!transOn) s.style.display='none'; },()=>{}); }
+    }); },
+  song(){ setSong(si+1,0); },
+  lineNext(){ const L=song.lines, i=typeof shown==='number'?shown+1:(shown==='title'?0:L.findIndex(l=>l.t>time));
+    if(i<0||i>=L.length) return setSong(si+1,0);
+    time=L[i].t-M.lead*kOf(i)+.001; show(i,true); },
+  linePrev(){ const L=song.lines; let i=typeof shown==='number'?shown-1:(shown==='title'?-1:[...L].reverse().findIndex(l=>l.t<=time));
+    if(typeof shown!=='number'&&shown!=='title'&&i>=0) i=L.length-1-i;
+    if(i<0){ time=0; return show('title',true); }
+    time=L[i].t-M.lead*kOf(i)+.001; show(i,true); },
+  theme(){ ROOT.dataset.theme=ROOT.dataset.theme==='p3'?'lavender':'p3'; },
+  bg(){ ROOT.dataset.bg=ROOT.dataset.bg==='light'?'img':'light'; }
+};
+addEventListener('keydown',e=>{
+  const m={' ':'pause',t:'trans',T:'trans',n:'song',N:'song',ArrowRight:'lineNext',ArrowLeft:'linePrev',l:'theme',L:'theme',b:'bg',B:'bg'}[e.key];
+  if(m){ e.preventDefault(); C[m](); }
+});
+addEventListener('message',e=>{ const c=e.data&&e.data.cmd; if(C[c]) C[c](); });
+
+function fit(){ const s=Math.min(innerWidth/1920,innerHeight/1080); stage.style.transform=`scale(${s})`; }
+addEventListener('resize',fit); fit();
+
+// 字体就绪后再开场，避免首帧换字
+const start=()=>{ last=performance.now(); show(desired(time),true); requestAnimationFrame(tick); };
+Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))]).then(start);
+
+</script>
+</body>
+</html>

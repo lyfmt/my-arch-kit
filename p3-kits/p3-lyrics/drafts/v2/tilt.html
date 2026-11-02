@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tilt Lyrics</title>
+<style>
+@font-face{font-family:"P3";font-weight:900;font-style:italic;font-display:block;
+ src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");}
+@property --so{syntax:"<length>";inherits:true;initial-value:5px}
+@property --rot{syntax:"<angle>";inherits:false;initial-value:-5deg}
+:root{
+ --ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--red:#e3121b;
+ --idle:color-mix(in srgb,var(--fill) 50%,var(--ink));
+ --done:var(--tx);--shc:var(--ink);--subc:var(--fill);
+ --bgc:#0b1d4f;
+}
+:root[data-theme="lavender"]{--ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--red:#ff3d6e;--bgc:#22163f}
+:root[data-bg="light"]{--bgc:#e8edf1;--idle:color-mix(in srgb,var(--ink) 52%,#e8edf1);--done:var(--ink);--shc:color-mix(in srgb,var(--ink) 24%,#e8edf1);--subc:var(--ink)}
+html,body{margin:0;height:100%;overflow:hidden;background:#000}
+body{background:var(--bgc)}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:var(--bgc)}
+#bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+:root[data-theme="lavender"] #bg{filter:hue-rotate(38deg) saturate(.55) brightness(.92)}
+:root[data-bg="light"] #bg{display:none}
+
+/* a line is a zero-height box sitting on the main baseline; rotation pivots on its left end */
+.ln{position:absolute;width:0;height:0;transform-origin:0 0;transform:rotate(var(--rot)) translateY(var(--lift,0px));
+ transition:--rot .42s cubic-bezier(.3,1.5,.5,1),--so .42s cubic-bezier(.3,1.5,.5,1),--lift .42s cubic-bezier(.3,1.5,.5,1)}
+.paused .ln{--rot:-8deg;--so:10px}
+.main{position:absolute;left:0;bottom:-.14em;white-space:nowrap;font-size:76px;line-height:1;font-weight:900;font-synthesis:none;
+ font-style:italic;font-family:"P3","Noto Sans CJK SC",sans-serif}
+.ln[lang="ja"] .main{font-family:"P3","Noto Sans CJK JP",sans-serif}
+.c{display:inline-block;position:relative;vertical-align:bottom}
+.c.k{margin-right:-.07em}
+.c.l{letter-spacing:-.01em}
+.c.sp{width:.26em}
+.g{display:block;position:relative;transform-origin:0 100%}
+.k .g{transform:skewX(-9deg) scaleX(.9)}
+.g>i{font-style:inherit;display:block}
+.g .s,.g .f{position:absolute;left:0;top:0}
+.g .s{color:var(--shc);transform:translate(var(--so),calc(var(--so) * 1.15))}
+.g .b{position:relative;color:var(--idle)}
+.g .f{color:var(--done);clip-path:inset(-20% 100% -20% 0)}
+.c.on .f{clip-path:inset(-20% -10% -20% 0)}
+.c.r .f{color:var(--red)}
+.c.r .f2{color:var(--done)}
+.sub{position:absolute;left:.6em;top:.1em;white-space:nowrap;font-size:34px;line-height:1;font-weight:900;font-synthesis:none;
+ font-family:"Noto Sans CJK SC",sans-serif;color:var(--subc);transform:skewX(-14deg);transform-origin:0 0;letter-spacing:.02em}
+.sub i{font-style:normal;display:block;position:relative}
+.sub .s{position:absolute;left:0;top:0;color:var(--shc);transform:translate(calc(var(--so) * .6),calc(var(--so) * .7))}
+.sub.en{font-family:"P3","Noto Sans CJK SC",sans-serif;font-style:italic}
+</style>
+</head>
+<body>
+<div id="stage"><img id="bg" src="../../../../p5-reference/p3-miku/bg.png" alt=""><div id="lyr"></div></div>
+<script>
+const Q=new URLSearchParams(location.search);
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+const root=document.documentElement,stage=document.getElementById('stage'),lyr=document.getElementById('lyr');
+if(Q.get('theme')==='lavender')root.dataset.theme='lavender';
+if(Q.get('bg')==='light')root.dataset.bg='light';
+let showTrans=Q.get('trans')!=='0';
+
+const SONGS=[
+ {title:'雨后的第七站',artist:'白昼信号',lang:'zh-CN',end:36,lines:[
+  {t:2.0,text:'凌晨的站台没有人'},
+  {t:5.0,text:'广播还在念你的名字'},
+  {t:8.2,text:'慢一点'},
+  {t:9.6,text:'再慢一点'},
+  {t:11.4,text:'让这列空荡荡的末班车把没来得及说出口的话都带走'},
+  {t:16.8,text:'我还站在这里'},
+  {t:19.8,text:'等下一班风'},
+  {t:22.6,text:''},
+  {t:30.0,text:'灯亮了'},
+  {t:32.4,text:'天亮了吗'}]},
+ {title:'透明な午後',artist:'霧島ソラ',lang:'ja',end:30,lines:[
+  {t:2.0,text:'窓の外で光が揺れる',trans:'窗外的光在摇晃'},
+  {t:5.2,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:7.6,text:'もう一度',trans:'再一次'},
+  {t:9.0,text:'忘れかけた約束を今もポケットに入れたまま',trans:'那个快要忘记的约定，至今仍放在口袋里'},
+  {t:14.0,text:''},
+  {t:22.0,text:'走り出せ',trans:'跑起来吧'},
+  {t:24.4,text:'透明な午後へ',trans:'奔向透明的午后'},
+  {t:27.0,text:'まだ間に合う',trans:'还来得及'}]},
+ {title:'Paper Satellites',artist:'Glass Avenue',lang:'en',end:31,lines:[
+  {t:2.0,text:'We built a sky out of paper',trans:'我们用纸搭了一片天空'},
+  {t:5.0,text:'Folded every star by hand',trans:'每颗星星都亲手折好'},
+  {t:7.8,text:'Say it',trans:'说出来'},
+  {t:8.6,text:'Spray it',trans:'喷上去'},
+  {t:9.4,text:'Light the wire',trans:'点亮导线'},
+  {t:10.4,text:'Send the signal through the static to every window in the city',trans:'把信号穿过噪声，送进城市的每一扇窗'},
+  {t:15.6,text:''},
+  {t:24.0,text:'Paper satellites',trans:'纸做的卫星'},
+  {t:26.4,text:'Falling up',trans:'向上坠落'},
+  {t:28.4,text:'Falling up again',trans:'再一次向上坠落'}]}
+];
+
+const isCJK=ch=>/[぀-ヿ㐀-鿿豈-﫿＀-￯]/.test(ch);
+const isPunct=ch=>/[，。、！？・…「」,.!?'’"\-—~：:;；（）()]/.test(ch);
+const weight=ch=>ch===' '?.15:isPunct(ch)?.3:isCJK(ch)?1:.42;
+const EO='cubic-bezier(.16,.96,.2,1)',EI='cubic-bezier(.6,0,.9,.4)';
+function A(el,kf,dur,ease,delay=0){return el.animate(kf,{duration:RM.matches?0:dur,easing:ease||EO,delay:RM.matches?0:delay,fill:'both'})}
+
+let si=+Q.get('song')||0,song,lines,time=0,idx=-1,cur=null,paused=false,hold=Q.has('hold'),last=0;
+
+/* Red rule (two beats, nothing random):
+   CADENCE  every 4th sung line of a song ends on red: its last real character wipes in --red and stays red
+            until the line leaves. Read as the "downbeat" closing each four-line phrase.
+   RE-ENTRY the first line after an instrumental gap (unless it is, or directly precedes, a cadence line) opens on red: its first character wipes in --red,
+            holds ~580ms (past the slide-in), then the normal colour wipes over it left-to-right (red is a flash, not a resting colour).
+   Title    the song title's last character is a cadence red. */
+function prep(s){
+ const L=[{t:0,text:s.title,trans:s.artist,title:true}].concat(s.lines.map(l=>({...l})));
+ let n=0;
+ L.forEach((l,i)=>{
+  l.red=new Map();
+  if(!l.text){l.gap=true;return}
+  const ch=[...l.text],real=ch.map((c,j)=>j).filter(j=>ch[j]!==' '&&!isPunct(ch[j]));
+  if(l.title){l.red.set(real[real.length-1],'stay')}
+  else{
+   n++;
+   if(n%4===0)l.red.set(real[real.length-1],'stay');
+   // at most one red per line, and never on the line right before a cadence (no back-to-back reds)
+   else if(L[i-1]&&L[i-1].gap&&(n+1)%4!==0)l.red.set(real[0],'flash');
+  }
+ });
+ L.forEach((l,i)=>{
+  const nt=i+1<L.length?L[i+1].t:s.end,dur=nt-l.t;
+  if(!l.text)return;
+  const ch=[...l.text],ws=ch.map(weight),tot=ws.reduce((a,b)=>a+b,0);
+  // singing span: leave slack at the line end; never stretch across an instrumental gap
+  const span=l.title?.55:Math.min(dur*.82,dur-.35,tot*.34+.4);
+  let acc=0;l.starts=ws.map(w=>{const v=l.t+.12+acc/tot*span;acc+=w;return v});
+  l.cd=ws.map(w=>w/tot*span);
+ });
+ return L;
+}
+
+function glyph(ch,cls){
+ const g=document.createElement('span');g.className='g';
+ for(const k of cls){const i=document.createElement('i');i.className=k;i.textContent=ch;g.appendChild(i)}
+ return g;
+}
+/* Layout: the wallpaper is white on the left and deep blue on the right (x>=760 at y>=480).
+   White text over the white side reads as an outlined word, so every line lives inside the dark band
+   [X_MIN, X_MAX]. Long lines wrap into two staggered rows instead of shrinking. */
+const X_MIN=790,X_MAX=1860,MAXW=X_MAX-X_MIN-40,CX=(X_MIN+X_MAX)/2,BASE_Y=880,ROT=5*Math.PI/180,FS=76,ROWSTEP=.98,STAG=.9,SUBGAP=.08;
+function makeChar(l,ch,j){
+ const c=document.createElement('span');
+ if(ch===' '){c.className='c sp';return c}
+ const r=l.red.get(j);
+ c.className='c '+(isCJK(ch)?'k':'l')+(r?' r':'');
+ c.appendChild(glyph(ch,r==='flash'?['s','b','f','f f2']:['s','b','f']));
+ if(r==='flash')c.dataset.flash=1;
+ return c;
+}
+/* ink extents of a line-height:1 box, measured from the box top with the font the browser renders */
+const MC=document.createElement('canvas').getContext('2d');
+function lineBox(el,text){
+ const cs=getComputedStyle(el),F=parseFloat(cs.fontSize);
+ MC.font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+ const m=MC.measureText(text),asc=m.fontBoundingBoxAscent,desc=m.fontBoundingBoxDescent;
+ const base=(F-(asc+desc))/2+asc;
+ return {inkTop:base-m.actualBoundingBoxAscent,inkBottom:base+m.actualBoundingBoxDescent};
+}
+function splitAt(chars,ws){
+ // break nearest the visual middle; Latin only at spaces, CJK never before punctuation or after an opening bracket
+ const tot=ws.reduce((a,b)=>a+b,0);let acc=0,best=-1,bd=1e9;
+ for(let j=1;j<chars.length;j++){
+  acc+=ws[j-1];
+  const a=chars[j-1],b=chars[j],latin=!isCJK(a)&&!isCJK(b);
+  if(latin&&b!==' ')continue;
+  if(isPunct(b)&&b!==' '||/[「（(]/.test(a))continue;
+  let d=Math.abs(acc-tot/2);if(/[，、,]/.test(a))d*=.6;
+  if(d<bd){bd=d;best=j}
+ }
+ return best;
+}
+function build(l){
+ const ln=document.createElement('div');ln.className='ln';ln.lang=song.lang;
+ const chars=[...l.text];
+ l.els=chars.map((ch,j)=>makeChar(l,ch,j));
+ const row=()=>{const m=document.createElement('div');m.className='main';ln.appendChild(m);return m};
+ let rows=[row()];l.els.forEach(c=>rows[0].appendChild(c));
+ lyr.appendChild(ln);
+ let fs=FS;
+ if(rows[0].scrollWidth>MAXW){
+  const ws=l.els.map(c=>c.getBoundingClientRect().width||0);
+  const k=splitAt(chars,ws);
+  if(k>0){
+   const r2=row();
+   l.els.slice(chars[k]===' '?k+1:k).forEach(c=>r2.appendChild(c));
+   if(chars[k]===' ')l.els[k].remove();
+   rows.push(r2);
+  }
+ }
+ const sc=()=>Math.max(...rows.map((r,i)=>r.scrollWidth+(i?STAG*fs:0)));
+ if(sc()>MAXW){fs=Math.max(52,Math.floor(FS*MAXW/sc()));rows.forEach(r=>r.style.fontSize=fs+'px')}
+ rows.forEach((r,i)=>{r.style.translate=(i?STAG*fs:0)+'px '+(i*ROWSTEP*fs)+'px'});
+ const last=rows.length-1,lastLeft=last?STAG*fs:0;
+ let sub=null;
+ if(l.trans){
+  sub=document.createElement('div');sub.className='sub'+(/[a-z]/i.test(l.trans)&&!/[㐀-鿿]/.test(l.trans)?' en':'');
+  sub.innerHTML='<i class="s"></i><i class="t"></i>';
+  sub.querySelector('.s').textContent=l.trans;sub.querySelector('.t').textContent=l.trans;
+  sub.style.fontSize=Math.round(Math.max(28,Math.min(34,fs*.45)))+'px';
+  sub.style.left=Math.round(lastLeft+fs*.5)+'px';
+  ln.appendChild(sub);
+  // gap is ink-to-ink: lowest ink of the last main row -> highest ink of the translation
+  const rowTxt=[...rows[last].querySelectorAll('.b')].map(b=>b.textContent).join('');
+  const mainBox=lineBox(rows[last],rowTxt),subBox=lineBox(sub,l.trans);
+  const rowTop=-fs*.86+last*ROWSTEP*fs; // .main sits at bottom:-.14em with line-height:1
+  sub.style.top=Math.round(rowTop+mainBox.inkBottom+fs*SUBGAP-subBox.inkTop)+'px';
+ }
+ // centre the block in the dark band; rotation lifts the right end, so drop the pivot by half the rise
+ const ww=Math.max(sc(),sub?lastLeft+fs*.5+sub.scrollWidth:0);
+ const left=Math.max(X_MIN,Math.round(CX-ww/2*Math.cos(ROT)));
+ ln.style.left=left+'px';
+ ln.style.top=Math.round(BASE_Y-last*ROWSTEP*fs*.5+ww/2*Math.sin(ROT))+'px';
+ setSub(ln,sub,true);
+ l.done=l.els.map(()=>false);
+ return {l,ln,rows,sub};
+}
+function setSub(ln,sub,instant){
+ ln.style.setProperty('--lift',(sub&&showTrans?-18:0)+'px');
+ if(!sub)return;
+ if(instant){sub.style.visibility=showTrans?'':'hidden';return}
+ sub.style.visibility='';
+ const a=showTrans
+  ?A(sub,[{translate:'60px 0',clipPath:'inset(-20% 100% -20% 0)'},{translate:'0 0',clipPath:'inset(-20% -5% -20% 0)'}],300,EO)
+  :A(sub,[{translate:'0 0',clipPath:'inset(-20% -5% -20% 0)'},{translate:'-40px 0',clipPath:'inset(-20% -5% -20% 100%)'}],200,EI);
+ a.onfinish=()=>{if(!showTrans)sub.style.visibility='hidden';a.cancel()};
+}
+
+function leave(o,fast){
+ const cs=o.l.els,n=cs.length;
+ cs.forEach((c,j)=>A(c,[{transform:'translateX(0)',opacity:1},{transform:'translateX(-130px)',opacity:0}],fast?140:190,EI,fast?0:j*6));
+ if(o.sub)A(o.sub,[{transform:'skewX(-14deg) translateX(0)',opacity:1},{transform:'skewX(-14deg) translateX(-160px)',opacity:0}],240,EI,30);
+ setTimeout(()=>o.ln.remove(),RM.matches?0:(fast?180:240+n*6));
+}
+function show(i,instant){
+ if(cur){leave(cur,instant);cur=null}
+ const l=lines[i];
+ if(!l||!l.text)return;
+ cur=build(l);
+ if(!instant){
+  const d0=150;
+  cur.l.els.forEach((c,j)=>A(c,[{transform:'translateX(170px)',opacity:0},{transform:'translateX(0)',opacity:1,offset:1}],420,EO,d0+j*16));
+  if(cur.sub&&showTrans)A(cur.sub,[{transform:'skewX(-14deg) translateX(220px)',opacity:0},{transform:'skewX(-14deg) translateX(0)',opacity:1}],460,EO,d0+80);
+ }
+ fillTo(time,instant);
+}
+
+function wipe(el,d,delay=0){
+ return A(el,[{clipPath:'inset(-20% 100% -20% 0)'},{clipPath:'inset(-20% -10% -20% 0)'}],d,'cubic-bezier(.45,0,.25,1)',delay);
+}
+function fillTo(t,instant){
+ if(!cur)return;
+ const l=cur.l;
+ l.els.forEach((c,j)=>{
+  if(l.done[j]||t<l.starts[j])return;
+  l.done[j]=true;
+  if(c.classList.contains('sp'))return;
+  const f=c.querySelector('.f'),f2=c.querySelector('.f2'),red=c.classList.contains('r');
+  const late=instant||t-l.starts[j]>.3||RM.matches;
+  const d=Math.max(55,Math.min(140,l.cd[j]*1000*.6));
+  if(late){
+   c.classList.add('on');
+   if(f2)f2.style.clipPath='inset(-20% -10% -20% 0)';
+   return;
+  }
+  wipe(f,red?120:d).onfinish=()=>c.classList.add('on');
+  if(f2)wipe(f2,110,700);
+  if(red){
+   c.style.transformOrigin='0 100%';
+   A(c,[{translate:'0 0',rotate:'0deg',scale:'1'},{translate:'0 -12px',rotate:'-7deg',scale:'1.16',offset:.3},{translate:'0 0',rotate:'0deg',scale:'1'}],380,'cubic-bezier(.2,.9,.3,1)');
+  }else{
+   A(c,[{translate:'0 0'},{translate:'0 -5px',offset:.35},{translate:'0 0'}],200,'cubic-bezier(.2,.8,.3,1)');
+  }
+ });
+}
+
+function lineAt(t){let k=0;for(let i=0;i<lines.length;i++)if(lines[i].t<=t)k=i;return k}
+function seek(t,instant){time=t;root.dataset.t=t.toFixed(2);root.dataset.song=si;const k=lineAt(t);if(k!==idx){idx=k;show(k,instant)}else fillTo(t,instant)}
+function startSong(n){
+ si=(n+SONGS.length)%SONGS.length;song=SONGS[si];lines=prep(song);
+ idx=-1;seek(0,false);
+}
+function jump(d){
+ let k=idx+d;
+ while(lines[k]&&!lines[k].text&&lines[k+d])k+=d; // skip the empty gap marker
+ k=Math.max(0,Math.min(lines.length-1,k));
+ seek(lines[k].t,false);
+}
+
+function tick(now){
+ const dt=Math.min(.1,(now-last)/1000);last=now;
+ if(!paused&&!hold){
+  time+=dt;
+  if(time>=song.end)startSong(si+1);
+  else seek(time,false);
+ }
+ requestAnimationFrame(tick);
+}
+
+function cmd(c){
+ if(c==='pause'){paused=!paused;stage.classList.toggle('paused',paused)}
+ else if(c==='trans'){showTrans=!showTrans;if(cur)setSub(cur.ln,cur.sub,false)}
+ else if(c==='song')startSong(si+1);
+ else if(c==='lineNext')jump(1);
+ else if(c==='linePrev')jump(-1);
+ else if(c==='theme'){if(root.dataset.theme)delete root.dataset.theme;else root.dataset.theme='lavender'}
+ else if(c==='bg'){if(root.dataset.bg)delete root.dataset.bg;else root.dataset.bg='light'}
+}
+addEventListener('keydown',e=>{
+ const m={' ':'pause',t:'trans',n:'song',ArrowRight:'lineNext',ArrowLeft:'linePrev',l:'theme',b:'bg'}[e.key.length===1?e.key.toLowerCase():e.key];
+ if(m){e.preventDefault();cmd(m)}
+});
+// read-only probe for automated checks
+document.documentElement.dataset.t='0';
+addEventListener('message',e=>{const d=e.data;if(d&&typeof d.cmd==='string')cmd(d.cmd)});
+
+function fitStage(){const s=Math.min(innerWidth/1920,innerHeight/1080);stage.style.transform=`translate(${(innerWidth-1920*s)/2}px,${(innerHeight-1080*s)/2}px) scale(${s})`}
+addEventListener('resize',fitStage);fitStage();
+
+Promise.all([
+ document.fonts.load('italic 900 76px "P3"','Ag'),
+ document.fonts.load('900 76px "Noto Sans CJK SC"','字'),
+ document.fonts.load('900 76px "Noto Sans CJK JP"','字')
+]).catch(()=>{}).then(()=>{
+ si=((si%SONGS.length)+SONGS.length)%SONGS.length;song=SONGS[si];lines=prep(song);
+ const t0=parseFloat(Q.get('t'));
+ if(!isNaN(t0))seek(t0,true);else seek(0,false);
+ last=performance.now();requestAnimationFrame(tick);
+});
+</script>
+</body>
+</html>

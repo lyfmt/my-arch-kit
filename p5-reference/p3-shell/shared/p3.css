@@ -1,0 +1,280 @@
+@font-face { font-family: "P3"; src: url("../../p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2"); font-weight: 900; font-style: italic; }
+@font-face { font-family: "P3"; src: url("../../p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-daLY50.woff2") format("woff2"); font-weight: 900; font-style: italic; unicode-range: U+0100-02BA, U+2020, U+20A0-20AB, U+2113; }
+@font-face { font-family: "BarlowC"; src: url("../../save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+
+/* ============================================================
+   P3 SHELL 共用设计系统（菜单 + 子面板）
+   颜色：唯一的渐变是背景图里的水；面板、控件全部平涂
+         --fill 是唯一的实心色（开关、水位、今日、标签），上面一律 --ink
+         --red 只用于：选中项的残影/碎片、危险、未读
+   字体：.d 展示字（P3R Nunito Sans 900 斜体窄体）只给名词和数字
+         .l 标签字（Barlow Condensed 直立大写）给其余一切
+         .zh 中文说明（系统 Noto Sans CJK）
+   形状：直角面板 + 右上 12px 切角；
+         主菜单列沿头发斜排（P3R 的例外），面板内只有选中项是斜的
+   ============================================================ */
+:root, [data-theme="p3"] {
+  --ink: #04103c; --tx: #ecfcff; --fill: #a3f0ff;
+  --c1: #a1eefd; --c2: #90e1f2; --c3: #7ccdf4; --c4: #c2f6ff; --c5: #74c9ff;
+  --dim: rgba(163,240,255,.62);
+  --line: rgba(163,240,255,.22);
+  --panel: rgba(2,10,60,.55);
+  --well: rgba(163,240,255,.10);
+  --red: #e3121b;
+  --shard: #fff;
+}
+[data-theme="lavender"] {
+  --ink: #1b0f33; --tx: #f6f0ff; --fill: #d0bcff;
+  --c1: #efe6ff; --c2: #d0bcff; --c3: #b39dfa; --c4: #e3d6ff; --c5: #c2a9ff;
+  --dim: rgba(208,188,255,.62);
+  --line: rgba(208,188,255,.24);
+  --panel: rgba(20,10,50,.6);
+  --well: rgba(208,188,255,.10);
+  --red: #ff3d6e;
+}
+:root {
+  --ease: cubic-bezier(.22,.9,.24,1);
+  --cut: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+[data-theme="lavender"] .bg img { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000510; }
+body { user-select: none; -webkit-user-select: none; color: var(--tx); cursor: default; }
+p, h1, h2, h3, ul { margin: 0; padding: 0; }
+.d { font-family: "P3", sans-serif; font-style: italic; font-weight: 900; line-height: .86; letter-spacing: -.01em; }
+.l { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; line-height: 1; }
+.zh { font-family: "Noto Sans CJK SC", "Noto Sans SC", sans-serif; font-weight: 500; letter-spacing: .08em; }
+.dim { color: var(--dim); }
+.acc { color: var(--fill); }
+.red { color: var(--red); }
+
+#stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1920px; height: 1080px; margin: -540px 0 0 -960px;
+  overflow: hidden;
+}
+
+/* ---------- 背景（照搬 p3-miku） ---------- */
+.bg { position: absolute; inset: -30px; transition: transform .9s var(--ease); }
+.bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rays { position: absolute; left: 900px; top: -80px; width: 1100px; height: 900px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 15%, transparent 70%);
+          mask-image: linear-gradient(200deg, #000 15%, transparent 70%); }
+.rays i { position: absolute; top: 0; height: 1000px;
+  background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 85%);
+  transform-origin: 50% 0; rotate: 24deg; animation: sway 12s ease-in-out infinite alternate; }
+.rays i:nth-child(1) { left: 260px; width: 40px; animation-duration: 14s; }
+.rays i:nth-child(2) { left: 420px; width: 90px; opacity: .6; }
+.rays i:nth-child(3) { left: 610px; width: 26px; animation-duration: 9s; }
+.rays i:nth-child(4) { left: 720px; width: 70px; opacity: .5; animation-duration: 16s; }
+.rays i:nth-child(5) { left: 900px; width: 34px; animation-duration: 11s; }
+@keyframes sway { from { transform: skewX(-5deg); opacity: .55; } to { transform: skewX(6deg); opacity: 1; } }
+.caustic { position: absolute; left: 820px; top: -60px; width: 1300px; height: 520px; opacity: .2;
+  mix-blend-mode: screen; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+          mask-image: linear-gradient(180deg, #000 20%, transparent 90%);
+  animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { to { translate: -90px 26px; } }
+.bubbles i { position: absolute; border-radius: 50%; border: 2px solid rgba(190,245,255,.75);
+  opacity: 0; animation: rise linear infinite; }
+@keyframes rise {
+  0% { transform: translate(0,0); opacity: 0; } 12% { opacity: .7; }
+  50% { transform: translate(14px,-480px); } 85% { opacity: .4; }
+  100% { transform: translate(-6px,-960px); opacity: 0; }
+}
+
+/* ============================================================
+   MOTION 动效约定（面板 agent 必读）
+   缓动：--e-out  出场/进场，快起慢停（默认用这个）
+         --e-snap 选中移动，带一点回弹
+         --e-io   来回/循环
+         --ease   旧名，保留兼容
+   时长：--d-fast 160ms（颜色、小反馈）
+         --d-med  320ms（选中滑动、关闭）
+         --d-slow 600ms（面板擦入、子项入场）
+   只动 transform / opacity / clip-path（含 translate/scale/rotate 独立属性）
+   子项入场：P3.stagger(container, selector) 给元素加 .st 和 --i，
+             动画 p3-in，延迟 = --i × --d-step + --d-lead
+   选中滑块：P3.slideSel(container, target) → 容器内共用 .p3-hl（白楔 + 红碎片）
+             容器得到 .p3-slide，里面 .li.sel 的伪元素楔形自动隐藏
+   数字滚动：P3.countUp(el, to, {dur, fmt})
+   ?static 下所有动画、过渡时长为 0，上面三个 helper 直接落到终态
+   ============================================================ */
+:root {
+  --e-out: cubic-bezier(.16,1,.3,1);
+  --e-snap: cubic-bezier(.3,1.35,.4,1);
+  --e-io: cubic-bezier(.65,0,.35,1);
+  --d-fast: 160ms; --d-med: 320ms; --d-slow: 600ms;
+  --d-step: 40ms; --d-lead: 140ms;
+  --slant: polygon(18px 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+}
+.st { animation: p3-in var(--d-slow) var(--e-out) backwards;
+  animation-delay: calc(var(--i, 0) * var(--d-step) + var(--d-lead)); }
+@keyframes p3-in { from { opacity: 0; translate: 56px 0; clip-path: inset(0 0 0 100%); } }
+
+/* 共用滑动选中块：100×100 单位盒，由 JS 用 translate + scale 对齐目标 */
+.p3-slide { position: relative; isolation: isolate; }
+.p3-hl { position: absolute; left: 0; top: 0; width: 100px; height: 100px; z-index: 0; pointer-events: none;
+  transform-origin: 0 0; transition: transform var(--d-med) var(--e-snap); }
+.p3-hl::before, .p3-hl::after { content: ""; position: absolute; }
+.p3-hl::after { left: -6%; right: -4%; top: -14%; bottom: -16%; background: var(--shard);
+  clip-path: polygon(0 74%, 100% 0, 98% 100%, 6% 94%); }
+.p3-hl::before { left: -14%; width: 40%; top: -30%; bottom: 18%; background: var(--red);
+  clip-path: polygon(0 92%, 100% 0, 82% 36%); transition: translate var(--d-med) var(--e-out); }
+.p3-slide .li.sel::before, .p3-slide .li.sel::after { display: none; }
+.p3-slide > :not(.p3-hl) { position: relative; z-index: 1; }
+
+/* ---------- 动感背景条（P3R 斜向色带） ---------- */
+.kin { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.kin i { position: absolute; left: 700px; width: 1800px; background: var(--fill); rotate: -14deg;
+  transform-origin: 0 50%; animation: kin 14s var(--e-io) infinite alternate; }
+.kin i:nth-child(1) { top: 1000px; height: 10px; opacity: .55; animation-duration: 9s; }
+.kin i:nth-child(2) { top: 250px; left: 1300px; height: 3px; opacity: .45; rotate: -9deg; animation-duration: 11s; }
+@keyframes kin { from { translate: -120px 0; } to { translate: 60px 0; } }
+body.open .kin { opacity: .4; transition: opacity var(--d-slow); }
+
+/* ---------- 右上日期 ---------- */
+.date { position: absolute; right: 86px; top: 50px; text-align: right; color: var(--ink); z-index: 1;
+  transition: transform var(--d-slow) var(--e-out) 180ms, opacity var(--d-med); }
+.date .md { font-size: 132px; letter-spacing: -.03em; }
+.date .md small { font-size: 56px; margin-left: 8px; }
+.date .row { display: flex; justify-content: flex-end; align-items: center; gap: 0; margin-top: 6px; }
+.date .tod { background: var(--ink); color: var(--fill); padding: 7px 22px 6px 26px; font-size: 18px; clip-path: var(--slant); }
+.date .hm { font-size: 24px; letter-spacing: .1em; margin-left: 12px; }
+body.open .date { transform: translate(0,-14px) scale(.5); transform-origin: 100% 0; transition-delay: 0s; }
+
+/* ---------- 主菜单列 ---------- */
+#menu { position: absolute; left: 0; top: 0; z-index: 3; transform-origin: 0 0;
+  transition: transform var(--d-slow) var(--e-out) 180ms, translate .4s var(--e-out); }
+/* 关闭时等面板淡出大半（180ms）再放大回来，避免两层叠在一起 */
+body.open #menu { transform: translate(236px, 200px) scale(.46); transition-delay: 0s; }
+.it { position: absolute; left: var(--x); top: var(--y); z-index: 2; transform: rotate(var(--r)); transform-origin: 0 60%;
+  font-size: 76px; color: var(--c); cursor: pointer;
+  transition: transform var(--d-med) var(--e-snap), opacity var(--d-med);
+  animation: enter var(--d-slow) var(--e-out) both; animation-delay: calc(var(--i) * 50ms + .12s); }
+@keyframes enter { from { opacity: 0; translate: 180px 0; clip-path: inset(0 0 0 100%); } }
+body.open .it:not(.on) { opacity: .4; }
+.it .tx { position: relative; display: block; white-space: nowrap; transition: color var(--d-fast) 60ms; }
+.it .echo { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--red); opacity: 0;
+  transition: opacity var(--d-fast), translate var(--d-med) var(--e-out); }
+.it.on { z-index: 3; transform: rotate(var(--r)) translate(-22px,0) scale(1.36); }
+.it.on .tx { color: var(--ink); }
+.it.on .echo { opacity: 1; translate: 7px 5px; }
+
+/* 共用选中块：.hl.r 红碎片（稍慢，拖尾）+ .hl.w 白楔，一起滑到当前项 */
+.hl { position: absolute; left: 0; top: 0; width: 100px; height: 100px; transform-origin: 0 0; pointer-events: none;
+  z-index: 1; transition: transform var(--d-med) var(--e-snap); }
+.hl.r { transition-delay: 50ms; transition-duration: calc(var(--d-med) + 80ms); }
+.hl i { position: absolute; display: block; }
+.hl.w i { left: -16%; right: -20%; top: -22%; bottom: -34%; background: var(--shard);
+  clip-path: polygon(0 66%, 100% 0, 97% 100%, 12% 92%); }
+.hl.r i { left: -34%; right: -8%; top: -62%; bottom: 8%; background: var(--red);
+  clip-path: polygon(0 88%, 100% 0, 88% 34%); }
+.hl.hit.w i { animation: hit .38s var(--e-snap); }
+@keyframes hit { 40% { transform: scale(1.1,1.3); } }
+
+/* 超大序号：跟着选中项上下走，描边空心数字 */
+.big { position: absolute; left: 1600px; top: 0; z-index: 0; pointer-events: none; white-space: nowrap;
+  transition: transform var(--d-med) var(--e-snap), opacity var(--d-med); }
+.big b { display: inline-block; font-size: 240px; color: transparent; -webkit-text-stroke: 3px var(--fill); }
+.big b.flip { animation: flip var(--d-med) var(--e-out); }
+@keyframes flip { from { clip-path: inset(0 0 100% 0); translate: 0 40px; } }
+.big span { font-size: 40px; color: var(--fill); margin-left: 8px; }
+body.open .big { opacity: 0; }
+
+/* ---------- 底部说明 + 按键提示 ---------- */
+.desc { position: absolute; left: 960px; right: 0; bottom: 46px; height: 68px; z-index: 4;
+  display: flex; align-items: center; gap: 24px; padding-left: 46px;
+  background: var(--panel); border-top: 1px solid var(--line);
+  clip-path: polygon(26px 0, 100% 0, 100% 100%, 0 100%); }
+.desc .tag { background: var(--fill); color: var(--ink); padding: 8px 24px 7px 22px; font-size: 22px; clip-path: var(--slant);
+  transition: background var(--d-fast), color var(--d-fast); }
+.desc .zh { font-size: 21px; color: var(--tx); }
+.desc .txt { transition: opacity var(--d-fast), translate var(--d-med) var(--e-out); }
+.desc .txt.swap { opacity: 0; translate: 24px 0; transition: none; }
+.desc.go .tag { background: var(--red); color: #fff; }
+.keys { position: absolute; right: 64px; bottom: 14px; display: flex; gap: 22px; color: var(--dim); font-size: 15px; z-index: 4; }
+.keys kbd { font: inherit; display: inline-block; min-width: 24px; padding: 4px 6px 3px; margin-right: 7px;
+  text-align: center; background: var(--well); color: var(--tx); }
+.keys .zh { font-size: 14px; letter-spacing: .04em; text-transform: none; }
+
+/* ---------- 子面板宿主：开 = 斜切擦入，关 = 反向擦出 + 淡出 ---------- */
+#panel { position: absolute; left: 1020px; top: 150px; width: 836px; height: 796px; z-index: 3;
+  pointer-events: none; visibility: hidden;
+  clip-path: polygon(100% 0, 100% 0, calc(100% - 120px) 100%, calc(100% - 120px) 100%);
+  transition: clip-path var(--d-slow) var(--e-out), opacity var(--d-med), visibility 0s var(--d-slow); }
+body.open #panel { visibility: visible; pointer-events: auto; opacity: 1;
+  clip-path: polygon(0 0, 120% 0, 100% 100%, -20% 100%); transition: clip-path var(--d-slow) var(--e-out), visibility 0s; }
+#panel.out { visibility: visible; opacity: 0; pointer-events: none;
+  clip-path: polygon(0 0, 0 0, -120px 100%, -120px 100%);
+  transition: clip-path var(--d-med) var(--e-io), opacity var(--d-med) var(--e-io), visibility 0s var(--d-med); }
+#panel.out .st { animation: none; }
+/* 擦入不再带单独的实心斜刃：标题右侧是空的，斜刃无论怎么跟随都会单独悬在水面上；
+   开场由菜单选中楔形 + 面板斜切擦入 + 子项错峰承担 */
+
+/* 面板标题：超大名词 + 斜切副标签 + 大序号 */
+.pn-head { position: relative; display: flex; align-items: flex-end; gap: 18px; height: 96px; margin-bottom: 18px;
+  border-bottom: 3px solid var(--fill); padding-bottom: 10px; }
+.pn-head .t { font-size: 96px; line-height: .86; color: var(--tx); letter-spacing: -.01em; }
+.pn-head .s { font-size: 16px; color: var(--ink); background: var(--fill); padding: 6px 18px 5px 16px; margin-bottom: 10px; clip-path: var(--slant); }
+.pn-head .n { margin-left: auto; font-size: 18px; color: var(--ink); padding-bottom: 6px; }
+
+/* 平涂面板块 */
+.box { position: relative; background: var(--panel); border-top: 1px solid var(--line); clip-path: var(--cut); padding: 18px 22px; }
+.sec { color: var(--dim); font-size: 13px; margin: 0 0 12px; display: flex; gap: 10px; align-items: center; }
+.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* 实心标签 / 次要标签 */
+.chip { display: inline-block; background: var(--fill); color: var(--ink); padding: 5px 9px 4px; font-size: 13px; }
+.chip.ghost { background: var(--well); color: var(--tx); }
+.chip.hot { background: var(--red); color: #fff; }
+
+/* 列表行 .li；选中行 = 白楔形 + 红碎片，文字转 ink。选中瞬间楔形从左擦出 */
+.li { position: relative; display: flex; align-items: center; gap: 16px; height: 58px; padding: 0 16px;
+  transition: color var(--d-fast); }
+.li + .li { border-top: 1px solid var(--line); }
+.li .nm { font-size: 34px; }
+.li .v { margin-left: auto; font-size: 17px; color: var(--dim); }
+.li.sel { z-index: 1; border-color: transparent; }
+.li.sel + .li { border-color: transparent; }
+.li.sel::before, .li.sel::after { content: ""; position: absolute; z-index: -1; pointer-events: none; }
+.li.sel::before { inset: -8px -10px -10px -18px; background: var(--shard); clip-path: polygon(0 74%, 100% 0, 98% 100%, 6% 94%);
+  animation: wedge var(--d-med) var(--e-out); }
+.li.sel::after { left: -34px; width: 40%; top: -18px; bottom: 10px; background: var(--red); clip-path: polygon(0 92%, 100% 0, 82% 36%);
+  animation: shard var(--d-med) var(--e-snap) 40ms backwards; }
+@keyframes wedge { from { clip-path: polygon(0 74%, 0 74%, 6% 94%, 6% 94%); } }
+@keyframes shard { from { opacity: 0; translate: -30px 10px; } }
+.li.sel, .li.sel .v, .li.sel .dim { color: var(--ink); }
+
+/* 开关 .tg：钮用 transform 滑动 */
+.tg { position: relative; width: 58px; height: 28px; background: var(--well); flex: none; transition: background var(--d-fast); }
+.tg::after { content: ""; position: absolute; left: 4px; top: 4px; width: 20px; height: 20px; background: var(--dim);
+  transition: transform var(--d-med) var(--e-snap), background var(--d-fast); }
+.tg.on { background: var(--fill); }
+.tg.on::after { transform: translateX(30px); background: var(--ink); }
+
+/* 滑条：平涂水位 */
+.slider { position: relative; height: 14px; background: var(--well); }
+.slider > i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 50%); background: var(--fill); }
+.slider > i::after { content: ""; position: absolute; right: -4px; top: -6px; width: 8px; height: 26px; background: var(--tx); }
+
+/* 水箱：数值读数（竖向水位）。水体整高，用 clip-path 露出 --v，变化走 clip-path 过渡 */
+.tank { position: relative; overflow: hidden; background: var(--well); clip-path: var(--cut); }
+.tank > .w { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: var(--fill);
+  clip-path: inset(calc(100% - var(--v, 50%)) 0 0 0); transition: clip-path 1s var(--e-out); }
+.tank.warn > .w { background: var(--c5); }
+.tank.crit > .w { background: var(--red); }
+
+/* 主按钮 / 危险按钮 */
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 46px; padding: 0 18px;
+  background: var(--well); color: var(--tx); font-size: 15px; clip-path: var(--cut);
+  transition: background var(--d-fast), color var(--d-fast), transform var(--d-fast) var(--e-snap); }
+.btn:active { transform: scale(.96); }
+.btn.pri { background: var(--fill); color: var(--ink); }
+.btn.danger { background: var(--red); color: #fff; }
+
+/* 截图模式 */
+.static *, .static *::before, .static *::after { animation-duration: 0s !important; animation-delay: 0s !important;
+  transition-duration: 0s !important; transition-delay: 0s !important; }
+.static .bubbles i { opacity: .35; }

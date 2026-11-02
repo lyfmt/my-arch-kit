@@ -1,0 +1,12 @@
+[Unit]
+Description=在多个屏幕上随机轮换 Pixiv 壁纸
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# 安装位置默认 ~/Projects/pixiv-wallpaper；装到别处时改下面两处 %h/Projects/pixiv-wallpaper
+Type=oneshot
+WorkingDirectory=%h/Projects/pixiv-wallpaper
+ExecStart=/usr/bin/python3 %h/Projects/pixiv-wallpaper/pixiv_wallpaper.py --rotate
+Nice=5
+TimeoutStartSec=2min

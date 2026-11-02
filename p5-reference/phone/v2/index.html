@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="p3">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P-Phone v2 — prototype</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <!-- 假桌面：手机是叠在聚焦显示器上的浮层 -->
+  <div id="desk">
+    <div class="bar"></div>
+    <div class="win w1"><i></i></div>
+    <div class="win w2"><i></i></div>
+  </div>
+  <div id="scrim"></div>
+  <div id="glow"></div>
+
+  <div id="phone">
+    <div class="ph-body">
+      <i class="ph-btn b1"></i><i class="ph-btn b2"></i><i class="ph-btn b3"></i>
+      <div class="ph-screen" id="screen">
+
+        <!-- 水下背景：渐变 + 焦散 + 光柱 + 气泡，翻页时视差平移 -->
+        <div class="bg">
+          <div class="bg-base"></div>
+          <svg class="bg-caustic" width="760" height="900">
+            <filter id="caustic" x="0" y="0" width="100%" height="100%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.011 0.018" numOctaves="2" seed="7"/>
+              <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1 0 0 0 0"/>
+              <feComponentTransfer><feFuncA type="table" tableValues="0 0 0 0 .9 0 0 0 0"/></feComponentTransfer>
+            </filter>
+            <rect width="100%" height="100%" filter="url(#caustic)"/>
+          </svg>
+          <div class="bg-rays"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="bg-bubbles"></div>
+        </div>
+
+        <div class="notch"></div>
+        <div class="sbar">
+          <span class="l sb-time">20:46</span>
+          <span class="sb-icons"><span data-g="wifi"></span><span data-g="bt"></span><span class="batt"><i></i></span></span>
+        </div>
+
+        <!-- 常驻头部：P3R 左上角日历 —— 日期 / 时段 / 月相 -->
+        <header class="hd">
+          <div class="hd-date">
+            <b class="d">10/18</b><span class="d hd-dow">SU</span>
+            <div class="l hd-tod">EVENING</div>
+          </div>
+          <div class="hd-moon">
+            <svg id="moon" width="46" height="46" viewBox="-12 -12 24 24"></svg>
+            <div>
+              <div class="l hd-phase" id="moonName"></div>
+              <div class="l dim"><span data-g="cloud"></span>17° CLOUDY</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="viewport">
+          <div class="track">
+
+            <!-- ========== 0 · STATUS（左侧副页：性能） ========== -->
+            <section class="page" data-name="STATUS">
+              <div class="tanks" id="tanks"></div>
+              <div class="panel spark">
+                <div class="sp-head"><span class="l">CPU · LAST 60 S</span><span class="l dim" id="load"></span></div>
+                <svg id="spark" width="340" height="56" viewBox="0 0 340 56" preserveAspectRatio="none"><path class="sp-area"/><path class="sp-line"/></svg>
+              </div>
+              <div class="rows">
+                <div class="row"><span class="l dim">NETWORK</span><b class="v" id="net"></b></div>
+                <div class="row"><span class="l dim">DISK /</span><b class="v">412 <small>GB FREE</small></b></div>
+                <div class="row"><span class="l dim">NVME</span><b class="v">41<small>°C</small></b></div>
+                <div class="row"><span class="l dim">FANS</span><b class="v" id="fans"></b></div>
+                <div class="row"><span class="l dim">UPTIME</span><b class="v">3<small>D</small> 04:12</b></div>
+              </div>
+            </section>
+
+            <!-- ========== 1 · APPS（主页） ========== -->
+            <section class="page" data-name="APPS">
+              <div class="plist">
+                <div class="pl nav" data-open="music"><span class="pl-g" data-g="music"></span><span class="pl-w"><b>MUSIC</b></span><span class="l pl-m">COLOR YOUR NIGHT</span><span class="pl-k" data-g="chev"></span></div>
+                <div class="pl nav" data-open="messages"><span class="pl-g" data-g="chat"></span><span class="pl-w"><b>MESSAGES</b></span><span class="l pl-m hot">2 NEW</span><span class="pl-k" data-g="chev"></span></div>
+                <div class="pl nav" data-open="wifi"><span class="pl-g" data-g="wifi"></span><span class="pl-w"><b>WI-FI</b></span><span class="l pl-m">HOME-5G</span><span class="pl-k" data-g="chev"></span></div>
+                <div class="pl nav" data-open="bluetooth"><span class="pl-g" data-g="bt"></span><span class="pl-w"><b>BLUETOOTH</b></span><span class="l pl-m">2 ON</span><span class="pl-k" data-g="chev"></span></div>
+                <div class="pl nav" data-launch="kanban"><span class="pl-g" data-g="kanban"></span><span class="pl-w"><b>KANBAN</b></span><span class="l pl-m">3 DOING</span><span class="pl-k" data-g="ext"></span></div>
+                <div class="pl nav" data-launch="terminal"><span class="pl-g" data-g="term"></span><span class="pl-w"><b>TERMINAL</b></span><span class="l pl-m">FOOT</span><span class="pl-k" data-g="ext"></span></div>
+                <div class="pl nav" data-launch="files"><span class="pl-g" data-g="folder"></span><span class="pl-w"><b>FILES</b></span><span class="l pl-m">~/</span><span class="pl-k" data-g="ext"></span></div>
+                <div class="pl nav" data-launch="browser"><span class="pl-g" data-g="globe"></span><span class="pl-w"><b>BROWSER</b></span><span class="l pl-m">FIREFOX</span><span class="pl-k" data-g="ext"></span></div>
+                <div class="pl nav" data-launch="screenshot"><span class="pl-g" data-g="shot"></span><span class="pl-w"><b>SCREENSHOT</b></span><span class="l pl-m">REGION</span><span class="pl-k" data-g="ext"></span></div>
+              </div>
+            </section>
+
+            <!-- ========== 2 · CONTROL（右侧副页：管理） ========== -->
+            <section class="page" data-name="CONTROL">
+              <div class="tiles">
+                <div class="tile nav on" data-toggle data-on="HOME-5G"><span data-g="wifi"></span><b class="d">WI-FI</b><small class="l">HOME-5G</small></div>
+                <div class="tile nav on" data-toggle data-on="2 DEVICES"><span data-g="bt"></span><b class="d">BLUETOOTH</b><small class="l">2 DEVICES</small></div>
+                <div class="tile nav" data-toggle data-on="UNTIL 08:00"><span data-g="dnd"></span><b class="d">DND</b><small class="l">OFF</small></div>
+                <div class="tile nav" data-toggle data-on="4500 K"><span data-g="bulb"></span><b class="d">NIGHT LIGHT</b><small class="l">OFF</small></div>
+              </div>
+              <div class="slider nav" data-v="70"><div class="sl-top"><span class="l"><span data-g="vol"></span>VOLUME</span><b class="d sl-val"></b></div><div class="sl-track"><i></i></div></div>
+              <div class="slider nav" data-v="45"><div class="sl-top"><span class="l"><span data-g="sun"></span>BRIGHTNESS</span><b class="d sl-val"></b></div><div class="sl-track"><i></i></div></div>
+              <div class="row link nav"><span data-g="out"></span><span class="l dim">OUTPUT</span><b class="v">Speakers · Built-in</b><span data-g="chev"></span></div>
+              <div class="row link nav"><span data-g="mic"></span><span class="l dim">INPUT</span><b class="v">Blue Yeti</b><span data-g="chev"></span></div>
+              <div class="sec l">SESSION</div>
+              <div class="pbtns">
+                <div class="pbtn nav" data-power="lock"><span data-g="lock"></span><span class="l">LOCK</span></div>
+                <div class="pbtn nav" data-power="sleep"><span data-g="dnd"></span><span class="l">SLEEP</span></div>
+                <div class="pbtn nav" data-power="logout"><span data-g="exit"></span><span class="l">LOG OUT</span></div>
+                <div class="pbtn nav" data-power="reboot"><span data-g="reboot"></span><span class="l">REBOOT</span></div>
+                <div class="pbtn nav danger" data-power="off"><span data-g="power"></span><span class="l">OFF</span></div>
+              </div>
+            </section>
+
+            <!-- ========== 3 · CALENDAR（右侧副页：日程） ========== -->
+            <section class="page" data-name="CALENDAR">
+              <div class="cal-head">
+                <div><b class="d cal-m">OCTOBER</b><span class="l dim">2026</span></div>
+                <div class="l cal-next"><svg id="moonFull" width="18" height="18" viewBox="-12 -12 24 24"></svg><span id="moonNext"></span></div>
+              </div>
+              <div class="cal-wd l"><span>SU</span><span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span></div>
+              <div class="cal-grid" id="calGrid"></div>
+              <div class="sec l">TODAY · REQUESTS</div>
+              <div class="agenda">
+                <div class="ag nav doing"><span class="tag l">DOING</span><div><b>Port phone prototype to QML</b><small class="l">KANBAN · DUE 10/20</small></div></div>
+                <div class="ag nav"><span class="tag l">TODO</span><div><b>Wire nmcli into the Wi-Fi app</b><small class="l">KANBAN</small></div></div>
+                <div class="ag nav daily"><span class="tag l">DAILY</span><div><b>Water the plants</b><small class="l">RESETS 04:00</small></div></div>
+                <div class="ag nav done"><span class="tag l">DONE</span><div><b>Collect P-series references</b><small class="l">CLEARED 10/14</small></div></div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ========== 应用二级界面 ========== -->
+        <section class="sub" id="sub-music">
+          <div class="sub-head"><span class="back" data-g="back"></span><b class="d">MUSIC</b><span class="l dim sub-r">NETEASE · MPV</span></div>
+          <div class="mu-top">
+            <div class="mu-art"><i></i><i></i><i></i><span data-g="music"></span></div>
+            <div class="mu-info">
+              <span class="l acc">NOW PLAYING</span>
+              <b class="d">COLOR YOUR NIGHT</b>
+              <span class="l dim">LOTUS JUICE · P3 RELOAD OST</span>
+            </div>
+          </div>
+          <div class="mu-prog"><div class="mu-bar"><i></i></div><div class="l dim mu-t"><span>2:46</span><span>4:12</span></div></div>
+          <div class="mu-ctl">
+            <span class="cbtn nav" data-g="prev"></span>
+            <span class="cbtn nav big" data-g="pause"></span>
+            <span class="cbtn nav" data-g="next"></span>
+          </div>
+          <div class="mu-lyr">
+            <p class="l">city lights are fading out</p>
+            <p class="d cur">under the moon we move</p>
+            <p class="l">midnight is on our side</p>
+            <p class="l">lyrics · synced from netease</p>
+          </div>
+        </section>
+
+        <section class="sub" id="sub-messages">
+          <div class="sub-head"><span class="back" data-g="back"></span><b class="d">MESSAGES</b><span class="l acc sub-r">2 NEW</span></div>
+          <div class="msgs">
+            <div class="msg nav unread"><span class="av d">J</span><div><b class="d">JUNPEI</b><small>Dark Hour tonight? Bring snacks.</small></div><span class="l dim">20:41</span></div>
+            <div class="msg nav unread"><span class="av d">Y</span><div><b class="d">YUKARI</b><small>Did you finish the report?</small></div><span class="l dim">19:02</span></div>
+            <div class="msg nav"><span class="av d">M</span><div><b class="d">MITSURU</b><small>Meeting at the dorm, 21:00.</small></div><span class="l dim">18:10</span></div>
+            <div class="msg nav"><span class="av d">A</span><div><b class="d">AIGIS</b><small>Status: standing by.</small></div><span class="l dim">YDAY</span></div>
+            <div class="msg nav"><span class="av d">K</span><div><b class="d">KOROMARU</b><small>Woof.</small></div><span class="l dim">MON</span></div>
+          </div>
+        </section>
+
+        <section class="sub" id="sub-wifi">
+          <div class="sub-head"><span class="back" data-g="back"></span><b class="d">WI-FI</b><span class="sw on"><i></i></span></div>
+          <div class="panel cur-net">
+            <span class="l acc">CONNECTED</span>
+            <b class="d">HOME-5G</b>
+            <small class="l dim">5 GHZ · 866 MBPS · 192.168.1.24</small>
+            <span class="bars" data-n="4"></span>
+          </div>
+          <div class="sec l">NEARBY · 5</div>
+          <div class="plist sm">
+            <div class="pl nav"><span class="pl-w"><b>HOME-2.4G</b></span><span class="pl-m"><span class="bars" data-n="3"></span><span data-g="lock"></span></span></div>
+            <div class="pl nav"><span class="pl-w"><b>PAULOWNIA_CAFE</b></span><span class="pl-m"><span class="bars" data-n="3"></span></span></div>
+            <div class="pl nav"><span class="pl-w"><b>GEKKOUKAN-GUEST</b></span><span class="pl-m"><span class="bars" data-n="2"></span><span data-g="lock"></span></span></div>
+            <div class="pl nav"><span class="pl-w"><b>TARTARUS</b></span><span class="pl-m"><span class="bars" data-n="1"></span><span data-g="lock"></span></span></div>
+            <div class="pl nav"><span class="pl-w"><b>TP-LINK_3F2A</b></span><span class="pl-m"><span class="bars" data-n="1"></span><span data-g="lock"></span></span></div>
+          </div>
+        </section>
+
+        <section class="sub" id="sub-bluetooth">
+          <div class="sub-head"><span class="back" data-g="back"></span><b class="d">BLUETOOTH</b><span class="sw on"><i></i></span></div>
+          <div class="sec l">PAIRED · 4</div>
+          <div class="plist sm">
+            <div class="pl nav"><span class="pl-g" data-g="head"></span><span class="pl-w"><b>WH-1000XM5</b></span><span class="l pl-m acc">82%</span></div>
+            <div class="pl nav"><span class="pl-g" data-g="kbd"></span><span class="pl-w"><b>MX KEYS</b></span><span class="l pl-m acc">60%</span></div>
+            <div class="pl nav off"><span class="pl-g" data-g="mouse"></span><span class="pl-w"><b>MX MASTER 3S</b></span><span class="l pl-m">CONNECT</span></div>
+            <div class="pl nav off"><span class="pl-g" data-g="phone"></span><span class="pl-w"><b>PIXEL 9</b></span><span class="l pl-m">CONNECT</span></div>
+          </div>
+          <div class="row link nav pair"><span data-g="plus"></span><span class="l">PAIR NEW DEVICE</span><span data-g="chev"></span></div>
+        </section>
+
+        <!-- 底部：页签 + 按键提示 -->
+        <div class="dock">
+          <div class="tabs"></div>
+          <div class="hints l"></div>
+        </div>
+
+        <!-- 危险操作确认：底部抽屉 + 长按 -->
+        <div class="sheet" id="sheet">
+          <div class="sh-panel">
+            <span class="l dim">SESSION</span>
+            <b class="d sh-title">POWER OFF?</b>
+            <span class="l dim sh-sub">ALL WINDOWS CLOSE · UNSAVED WORK IS LOST</span>
+            <div class="sh-hold"><i></i><span class="l">HOLD ↵ OR PRESS HERE TO CONFIRM</span></div>
+            <span class="l sh-cancel">ESC · CANCEL</span>
+          </div>
+        </div>
+
+        <!-- 应用打开态：水位上涨盖满屏幕，随后手机收起 -->
+        <div class="launch" id="launch">
+          <div class="lw-water"><svg class="lw-wave" width="760" height="24" viewBox="0 0 760 24"><path/></svg><div class="lw-body"></div></div>
+          <div class="lw-rings"><i></i><i></i></div>
+          <div class="lw-text">
+            <span class="lw-g"></span>
+            <span class="l lw-k">OPENING</span>
+            <b class="d lw-name"></b>
+            <span class="l lw-hint"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="help">← → page · ↑ ↓ select · Enter / click open · Esc back · T theme · ?page=0‑3 · ?app=wifi|music|messages|bluetooth|kanban · ?sheet=off · ?theme=lavender · ?static</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

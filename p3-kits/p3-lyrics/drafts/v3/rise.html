@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rise Lyrics</title>
+<style>
+/* 字体：照 p3-shell 的分工
+   .lat  拉丁主句、拉丁歌名 = P3 展示字（Nunito Sans 900 斜体），和菜单项同一张脸
+   .k    中日主句 = Noto Sans CJK 500，直立、不斜切、字距 .07em，就是 shell 的 .zh 放大（CJK 没有 600，700 会像视频字幕）
+   .lat  拉丁主句字号收到 .94em，900 斜体的黑度和 CJK 500 站在一起不压过它
+   .tr   翻译 = Noto Sans CJK 500 / .08em，就是 shell 的 .zh 原样放大
+   .bc   拉丁歌手 = BarlowC 700 大写 .14em，就是 shell 的 .l
+   全部平涂，没有阴影、描边、发光、模糊、渐变 */
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");font-weight:900;font-style:italic}
+@font-face{font-family:"BarlowC";src:url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype");font-weight:700}
+:root,[data-theme="p3"]{--ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--dim:rgba(163,240,255,.62)}
+:root[data-theme="lavender"]{--ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--dim:rgba(208,188,255,.62)}
+/* 浅底：主句换 ink，翻译与歌手换半透明 ink，仍是平涂 */
+:root[data-bg="light"]{--tx:var(--ink);--fill:color-mix(in srgb,var(--ink) 74%,transparent);--dim:color-mix(in srgb,var(--ink) 58%,transparent)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000510}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;margin:-540px 0 0 -960px;overflow:hidden;user-select:none;-webkit-user-select:none;cursor:default}
+.bg{position:absolute;inset:0;background:#04103c}
+.bg img{width:100%;height:100%;object-fit:cover;display:block}
+:root[data-theme="lavender"] .bg img{filter:hue-rotate(38deg) saturate(.55) brightness(.92)}
+:root[data-bg="light"] .bg{background:#e8edf1}
+:root[data-bg="light"] .bg img{display:none}
+
+/* 锚点：壁纸右下深蓝区，左对齐，块的顶边固定，双行和翻译往下长 */
+#lyr{position:absolute;left:760px;top:752px;width:1040px;height:0;
+  transition:opacity calc(200ms*var(--slow)) cubic-bezier(.16,1,.3,1),transform calc(240ms*var(--slow)) cubic-bezier(.16,1,.3,1)}
+.paused #lyr{opacity:.42;transform:translateY(6px);
+  transition:opacity calc(320ms*var(--slow)) cubic-bezier(.16,1,.3,1),transform calc(320ms*var(--slow)) cubic-bezier(.16,1,.3,1)}
+.blk{position:absolute;left:0;top:0;width:max-content;color:var(--tx);will-change:transform,opacity}
+.row{display:block;white-space:nowrap;width:max-content;font-size:var(--fs);line-height:1.2;will-change:transform,opacity}
+.k{font-family:"Noto Sans CJK SC","Source Han Sans CN",sans-serif;font-weight:500;font-style:normal;letter-spacing:.07em;font-synthesis:none}
+.blk:lang(ja) .k{font-family:"Noto Sans CJK JP","Noto Sans CJK SC",sans-serif}
+.lat{font-family:"P3",sans-serif;font-weight:900;font-style:italic;letter-spacing:-.005em;font-size:.94em}
+.tr{display:block;white-space:nowrap;width:max-content;margin-top:6px;font-family:"Noto Sans CJK SC","Source Han Sans CN",sans-serif;font-weight:500;font-size:28px;line-height:1.3;letter-spacing:.08em;color:var(--fill);will-change:transform,opacity}
+.tr.off{display:none}
+.by{display:block;white-space:nowrap;margin-top:10px;font-size:26px;line-height:1.2;color:var(--dim);will-change:transform,opacity}
+.by.bc{font-family:"BarlowC",sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.by.zh{font-family:"Noto Sans CJK SC",sans-serif;font-weight:500;letter-spacing:.14em;font-size:24px}
+.blk:lang(ja) .by.zh{font-family:"Noto Sans CJK JP","Noto Sans CJK SC",sans-serif}
+@media (prefers-reduced-motion:reduce){#lyr,.paused #lyr{transition:opacity 120ms linear!important;transform:none!important}}
+</style>
+</head>
+<body>
+<div id="stage"><div class="bg"><img src="../../../../p5-reference/p3-miku/bg.png" alt=""></div><div id="lyr"></div></div>
+<script>
+(()=>{
+const Q=new URLSearchParams(location.search);
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SLOW=Math.max(.1,parseFloat(Q.get('slow'))||1);
+const root=document.documentElement,stage=document.getElementById('stage'),lyr=document.getElementById('lyr');
+root.style.setProperty('--slow',SLOW);
+if(Q.get('bg')==='light')root.dataset.bg='light';
+if(Q.get('theme')==='lavender')root.dataset.theme='lavender';
+
+/* 原创假歌，行级时间戳（照搬 v2/slab.html） */
+const SONGS=[
+ {title:'铁皮屋顶的夏天',artist:'灯塔与猫',lang:'zh-CN',end:38,lines:[
+  {t:2.0,text:'蝉声把午后拉得很长',trans:''},
+  {t:5.6,text:'我数着铁轨上的光',trans:''},
+  {t:9.0,text:'跑',trans:''},
+  {t:10.0,text:'再快一点',trans:''},
+  {t:12.0,text:'直到风也追不上我们那年|骑着单车穿过整条没有尽头的河堤',trans:''},
+  {t:18.0,text:'夏天不说再见',trans:''},
+  {t:30.0,text:'屋顶又落雨',trans:''},
+  {t:33.4,text:'我还在等你',trans:''}]},
+ {title:'硝子の月',artist:'宵町ユラ',lang:'ja',end:35,lines:[
+  {t:2.0,text:'硝子の月が割れる夜に',trans:'在玻璃月亮碎裂的夜里'},
+  {t:5.4,text:'名前を呼んで',trans:'呼唤我的名字'},
+  {t:8.2,text:'ねえ',trans:'呐'},
+  {t:9.2,text:'聞こえる？',trans:'听得见吗'},
+  {t:11.0,text:'遠く離れても消えない光を|胸の奥にずっと抱いて走るから',trans:'就算相隔遥远 我也会把不灭的光抱在心底一直奔跑'},
+  {t:16.4,text:'もう一度だけ',trans:'再一次就好'},
+  {t:27.0,text:'朝が来る前に',trans:'在清晨到来之前'},
+  {t:30.4,text:'また会おう',trans:'再相见吧'}]},
+ {title:'Paper Satellites',artist:'Low Orbit',lang:'en',end:34,lines:[
+  {t:2.0,text:'Paper satellites over the bay',trans:'海湾上空的纸卫星'},
+  {t:5.0,text:'Fold the night and throw it away',trans:'折起夜色 把它扔远'},
+  {t:8.0,text:'Spin',trans:'旋转'},
+  {t:8.6,text:'Fall',trans:'坠落'},
+  {t:9.2,text:'Light it all',trans:'点亮一切'},
+  {t:11.0,text:'We could burn like neon in the rain | until the morning finds our names',trans:'我们像雨里的霓虹一样燃烧 直到清晨找到我们的名字'},
+  {t:16.6,text:'Stay loud',trans:'别安静下来'},
+  {t:26.0,text:"Signal fades but I'm still here",trans:'信号渐弱 但我还在'},
+  {t:30.0,text:'Still here',trans:'还在'}]}
+];
+
+/* ---------- 动效编排 ----------
+   距离单位 H = 主句行高（字号 × 1.2）。
+   原则：先出后进。新旧两条在空间上有方向（旧往上走、新从下面来），
+        但视觉上的交接靠透明度错开：旧块的透明度掉到 .1 以下之后，新块才开始亮起。
+   浮出：从下方 .35H 上浮到位，位移 560ms rise（快出、尾段短阻尼停住），透明度 300ms；
+         多行之间错开 40ms，翻译在最后一行之后 50ms、位移只走 .6 倍。
+   替换（行间隔 ≥ 1.3s）：旧块透明度 170ms ease-out（开头就掉得快），同时上浮 .3H / 360ms；
+         旧翻译与旧主句同时起步、透明度 150ms，比主句先走完，不会留在新主句旁边。
+         新块晚 150ms 起步（≥ .8 × 170ms），此时旧块已低于 .05。
+   快歌（行间隔 < 1.3s）：不交叠，硬交接。旧块整块（含翻译）100ms 淡出、上移 .15H；
+         新块晚 90ms 起步，.25H / 290ms 浮入，透明度 200ms，行间错开 20ms。
+         压缩的是位移和时长，交接延迟始终 ≥ .8 × 旧块淡出时长。
+   保险：每帧检查，新块任一部分 > .15 时如果还有旧块 > .15，直接把旧块收掉。
+   间奏：后面 ≥6.5s 没有歌词（或是全曲最后一行），这一行唱完后自己退场：
+         上浮 .3H，760ms，透明度 560ms，之后屏幕上什么都没有。下一行直接浮出，不等交接。
+   切歌：旧块 180ms 淡出、上浮 .4H，160ms 后歌名 + 歌手按浮出规则进场，第一句到点时按替换规则顶掉。
+   ←/→ 跳行：用快歌的硬交接。
+   暂停：整组降到 .42 透明度、下沉 6px（320ms），进行中的动画原地冻结，恢复时接着走。
+   翻译开关：关时翻译上移 10px 淡出 180ms 后收起；开时从下方半个翻译行高浮入 480ms。
+            主句顶边固定，开关翻译时主句不动。
+   ?slow=n：动画时长和歌词时钟一起放慢 n 倍。
+   prefers-reduced-motion：没有位移，只做 120~180ms 的淡入淡出，同样先出后进。 */
+const E={rise:'cubic-bezier(.18,.9,.22,1)',fadeIn:'cubic-bezier(.33,0,.2,1)',drift:'cubic-bezier(.32,.52,.24,1)',fadeOut:'cubic-bezier(.2,0,.4,1)',restOut:'cubic-bezier(.35,0,.65,1)'};
+/* 进场档位：dist(×H) / 位移时长 / 透明度时长 / 行间错开 / 翻译额外错开 */
+const IN={norm:[.35,560,300,40,50],fast:[.25,290,200,20,30]};
+/* 退场档位：dist(×H) / 位移时长 / 主句透明度时长 / 翻译透明度时长 / 交接延迟 / 曲线 */
+const OUT={line:[.3,360,170,150,150,'fadeOut'],fast:[.15,200,100,90,90,'fadeOut'],
+           rest:[.3,760,560,520,0,'restOut'],song:[.4,340,180,160,160,'fadeOut']};
+const FS=72,MAXW=1060,GAP=6.5;
+const anim=(el,kf,dur,ease,delay=0)=>el.animate(kf,{duration:Math.max(1,dur*SLOW),delay:delay*SLOW,easing:ease,fill:'both'});
+
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LATRUN=/[A-Za-z0-9][A-Za-z0-9'’ ,.!?\-]*/g;
+function rich(s){
+ let out='',last=0;
+ s.replace(LATRUN,(m,off)=>{
+  if(off>last)out+=`<span class="k">${esc(s.slice(last,off))}</span>`;
+  out+=`<span class="lat">${esc(m)}</span>`;last=off+m.length;return m;
+ });
+ if(last<s.length)out+=`<span class="k">${esc(s.slice(last))}</span>`;
+ return out;
+}
+
+let si=0,song=SONGS[0],time=0,idx=-1,cur=null,paused=false,transOn=Q.get('trans')!=='0';
+window.__lyr={get time(){return time},get index(){return idx},get paused(){return paused},get song(){return si},get trans(){return transOn}};
+
+function build(main,sub,kind,lang){
+ const el=document.createElement('div');el.className='blk';el.lang=lang;
+ el.style.setProperty('--fs',FS+'px');
+ const rows=main.split('|').map(s=>s.trim()).filter(Boolean).map(p=>{
+  const r=document.createElement('span');r.className='row';r.innerHTML=rich(p);el.appendChild(r);return r;
+ });
+ let tr=null;
+ if(sub){
+  tr=document.createElement('span');
+  if(kind==='title')tr.className='by '+(/^[\x20-\x7e]+$/.test(sub)?'bc':'zh');
+  else tr.className='tr'+(transOn?'':' off');
+  tr.textContent=sub;el.appendChild(tr);
+ }
+ el.style.opacity='0';lyr.appendChild(el);
+ const w=Math.max(...rows.map(r=>r.offsetWidth));
+ const fs=w>MAXW?Math.max(44,FS*MAXW/w):FS;
+ el.style.setProperty('--fs',fs.toFixed(2)+'px');
+ if(tr&&tr.offsetWidth>MAXW)tr.style.fontSize=(28*MAXW/tr.offsetWidth).toFixed(2)+'px';
+ el.style.opacity='';
+ return {el,rows,tr,kind,H:fs*1.2,gone:false,hold:0};
+}
+const partsOf=c=>c.tr&&!c.tr.classList.contains('off')?[...c.rows,c.tr]:[...c.rows];
+
+function enter(c,prof='norm',delay=0){
+ const [k,td,od,st,trx]=IN[prof];
+ const d=RM?0:c.H*k;
+ partsOf(c).forEach((p,i)=>{
+  const isTr=p===c.tr;
+  const dl=delay+(RM?0:(isTr?(c.rows.length-1)*st+trx:i*st));
+  const pd=isTr?d*.6:d;
+  anim(p,[{transform:`translateY(${pd}px)`},{transform:'translateY(0px)'}],RM?1:td,E.rise,dl);
+  anim(p,[{opacity:0},{opacity:1}],RM?180:od,E.fadeIn,dl);
+ });
+}
+
+/* 返回新块应等待的交接延迟（ms，未乘 slow） */
+function exit(c,mode){
+ if(!c||c.gone)return 0;c.gone=true;
+ const [k,td,od,otr,hand,ease]=OUT[mode];
+ const all=[];
+ partsOf(c).forEach(p=>{
+  const isTr=p===c.tr;
+  const cs=getComputedStyle(p),m=cs.transform;
+  const ty=m&&m!=='none'?parseFloat(m.split(',')[5])||0:0,op=parseFloat(cs.opacity);
+  p.getAnimations().forEach(a=>a.cancel());
+  const dist=RM?0:c.H*k*(isTr?.6:1);
+  all.push(anim(p,[{transform:`translateY(${ty}px)`},{transform:`translateY(${ty-dist}px)`}],RM?1:td,E.drift));
+  all.push(anim(p,[{opacity:op},{opacity:0}],RM?140:(isTr?otr:od),E[ease]));
+ });
+ const rm=()=>c.el.remove();
+ Promise.all(all.map(a=>a.finished)).then(rm,rm);
+ return RM?150:hand;
+}
+
+function holdEnd(k){
+ const L=song.lines,l=L[k],last=k===L.length-1;
+ const g=(last?song.end:L[k+1].t)-l.t;
+ if(g<GAP&&!last)return 0;
+ const s=l.text.replace('|','');
+ const units=/[A-Za-z]/.test(s)?s.split(/\s+/).filter(Boolean).length*.42:[...s].length*.3;
+ return l.t+Math.min(Math.max(1+units,1.8),g-1.2);
+}
+
+function showLine(k,mode){
+ const L=song.lines,l=L[k];
+ let fast=mode==='seek';
+ if(!fast){
+  const gp=k>0?l.t-L[k-1].t:99,gn=k<L.length-1?L[k+1].t-l.t:99;
+  fast=Math.min(gp,gn)<1.3;
+ }
+ const wait=exit(cur,fast?'fast':'line');
+ cur=build(l.text,l.trans,'line',song.lang);
+ cur.hold=holdEnd(k);
+ enter(cur,fast?'fast':'norm',wait);
+}
+function showTitle(delay){
+ cur=build(song.title,song.artist,'title',song.lang);
+ enter(cur,'norm',delay);
+}
+function startSong(i,at=0){
+ si=(i%SONGS.length+SONGS.length)%SONGS.length;song=SONGS[si];time=at;idx=-1;
+ const wait=exit(cur,'song');cur=null;
+ if(time<song.lines[0].t-.3)showTitle(wait);
+}
+function step(d){
+ const L=song.lines;let k=idx+d;
+ if(k>=L.length){startSong(si+1);return}
+ if(k<0)k=0;
+ if(k===idx&&cur&&!cur.gone)return;
+ time=L[k].t;idx=k;showLine(k,'seek');
+}
+const frozen=new Set();
+function togglePause(){
+ paused=!paused;stage.classList.toggle('paused',paused);
+ if(paused){
+  lyr.querySelectorAll('.blk *').forEach(el=>el.getAnimations().forEach(a=>{if(a.playState==='running'){a.pause();frozen.add(a)}}));
+ }else{frozen.forEach(a=>{if(a.playState==='paused')a.play()});frozen.clear()}
+}
+function toggleTrans(){
+ transOn=!transOn;
+ const c=cur;if(!c||c.gone||c.kind!=='line'||!c.tr)return;
+ const tr=c.tr;tr.getAnimations().forEach(a=>a.cancel());
+ if(transOn){
+  tr.classList.remove('off');
+  const d=RM?0:tr.offsetHeight*.5;
+  anim(tr,[{transform:`translateY(${d}px)`},{transform:'translateY(0px)'}],RM?1:480,E.rise);
+  anim(tr,[{opacity:0},{opacity:1}],RM?160:280,E.fadeIn);
+ }else{
+  anim(tr,[{transform:'translateY(0px)'},{transform:`translateY(${RM?0:-10}px)`}],RM?1:220,E.drift);
+  anim(tr,[{opacity:1},{opacity:0}],RM?120:180,E.fadeOut).finished.then(()=>{
+   if(!transOn&&!c.gone){tr.classList.add('off');tr.getAnimations().forEach(a=>a.cancel())}
+  },()=>{});
+ }
+}
+function cmd(c){
+ if(c==='pause')togglePause();
+ else if(c==='trans')toggleTrans();
+ else if(c==='song')startSong(si+1);
+ else if(c==='lineNext')step(1);
+ else if(c==='linePrev')step(-1);
+ else if(c==='theme')root.dataset.theme=root.dataset.theme==='lavender'?'p3':'lavender';
+ else if(c==='bg')root.dataset.bg=root.dataset.bg==='light'?'':'light';
+}
+addEventListener('keydown',e=>{
+ const map={' ':'pause',t:'trans',n:'song',arrowright:'lineNext',arrowleft:'linePrev',l:'theme',b:'bg'};
+ const c=map[e.key.toLowerCase()];if(c){e.preventDefault();cmd(c)}
+});
+addEventListener('message',e=>{const c=e.data&&e.data.cmd;if(typeof c==='string')cmd(c)});
+
+/* 保险：新块已经亮起（> .15）时，旧块任何部分仍 > .15 就直接收掉，保证两条不会同时可读 */
+const opOf=el=>parseFloat(getComputedStyle(el).opacity);
+function guard(){
+ const blks=lyr.children;if(blks.length<2||!cur||cur.gone)return;
+ if(!partsOf(cur).some(p=>opOf(p)>.15))return;
+ for(const b of [...blks]){
+  if(b===cur.el)continue;
+  if([...b.children].some(p=>opOf(p)>.15)){window.__lyrGuard=(window.__lyrGuard||0)+1;b.remove()}
+ }
+}
+let last=performance.now();
+function tick(now){
+ requestAnimationFrame(tick);
+ try{
+  const dt=Math.min(Math.max(now-last,0),100);last=now;
+  if(paused)return;
+  time+=dt/1000/SLOW;
+  if(time>=song.end){startSong(si+1);return}
+  const L=song.lines;let k=-1;
+  for(let i=0;i<L.length;i++)if(L[i].t<=time)k=i;
+  if(k!==idx&&k>=0){
+   idx=k;const h=holdEnd(k);
+   /* 跳进间奏（?t= 或掉帧）时这一行已该退场：不再浮出，只把旧行带走 */
+   if(h&&time>=h)exit(cur,'rest');else showLine(k,'auto');
+  }
+  if(cur&&!cur.gone&&cur.kind==='line'&&cur.hold&&time>=cur.hold)exit(cur,'rest');
+  guard();
+ }catch(err){console.error(err)}
+}
+function fit(){stage.style.transform='scale('+Math.min(innerWidth/1920,innerHeight/1080)+')'}
+addEventListener('resize',fit);fit();
+const fonts=['900 italic 72px P3','700 26px BarlowC','500 72px "Noto Sans CJK SC"','500 72px "Noto Sans CJK JP"','500 28px "Noto Sans CJK SC"','500 28px "Noto Sans CJK JP"'];
+Promise.all(fonts.map(f=>document.fonts.load(f,'あ字Aa'))).catch(()=>{}).then(()=>{
+ const s=parseInt(Q.get('song'))||0,t=parseFloat(Q.get('t'))||0;
+ startSong(s,t);
+ last=performance.now();requestAnimationFrame(tick);
+});
+})();
+</script>
+</body>
+</html>

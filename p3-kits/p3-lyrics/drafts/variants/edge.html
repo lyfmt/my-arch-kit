@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tideline Lyrics</title>
+<style>
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-laLQ.woff2") format("woff2");font-weight:900;font-style:italic;}
+@font-face{font-family:"P3";src:url("../../../../p5-reference/p3-menu/fonts/pe0RMImSLYBIv1o4X1M8cce4OdVisMz5nZRqy6cmmmU3t3NeCAAFOvV9FtjrwlNwjM6W3Y6K5co2d-daLY50.woff2") format("woff2");font-weight:900;font-style:italic;unicode-range:U+0100-02BA,U+2020,U+20A0-20AB,U+2113;}
+@font-face{font-family:"BarlowC";src:url("../../../../p5-reference/save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype");font-weight:700;}
+
+:root,[data-theme="p3"]{
+  --ink:#04103c;--tx:#ecfcff;--fill:#a3f0ff;--dim:rgba(163,240,255,.62);--red:#e3121b;--shard:#fff;
+  --sh:0 3px 0 rgba(4,16,60,.45),0 0 2px rgba(4,16,60,.55);
+}
+[data-theme="lavender"]{
+  --ink:#1b0f33;--tx:#f6f0ff;--fill:#d0bcff;--dim:rgba(208,188,255,.62);--red:#ff3d6e;--shard:#fff;
+  --sh:0 3px 0 rgba(27,15,51,.45),0 0 2px rgba(27,15,51,.55);
+}
+[data-bg="light"]{--sh:0 3px 0 rgba(4,16,60,.6),0 0 2px rgba(4,16,60,.7);}
+[data-bg="light"][data-theme="lavender"]{--sh:0 3px 0 rgba(27,15,51,.6),0 0 2px rgba(27,15,51,.7);
+}
+:root{--e-out:cubic-bezier(.16,1,.3,1);--e-snap:cubic-bezier(.3,1.35,.4,1);--e-exit:cubic-bezier(.4,0,1,1);}
+
+html,body{margin:0;height:100%;overflow:hidden;background:#000;}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;overflow:hidden;transform-origin:50% 50%;}
+.bg{position:absolute;inset:0;}
+.bg img{display:block;width:100%;height:100%;object-fit:cover;}
+[data-theme="lavender"] .bg img{filter:hue-rotate(38deg) saturate(.55) brightness(.92);}
+.bg.light{background:#e9eef1;}
+.bg.light img{display:none;}
+#grp{position:absolute;inset:0;}
+
+.ln{position:absolute;left:260px;width:1400px;text-align:center;font-weight:900;font-size:52px;line-height:1.15;letter-spacing:.02em;white-space:nowrap;font-synthesis:none;}
+.ln.s44{font-size:44px;}
+.ln.wrap{white-space:normal;line-height:52px;text-wrap:balance;}
+.ja{font-family:"Noto Sans CJK JP",sans-serif;}
+.zh{font-family:"Noto Sans CJK SC",sans-serif;}
+.txt{position:relative;}
+.base{color:color-mix(in srgb,var(--tx) 50%,transparent);text-shadow:var(--sh);}
+.fill{position:absolute;left:0;top:0;width:100%;color:var(--fill);text-shadow:none;clip-path:inset(0 100% 0 0);}
+.u{display:inline-block;}
+.base,.fill,.tr,.art{-webkit-text-stroke:3px color-mix(in srgb,var(--ink) 70%,transparent);paint-order:stroke fill;}
+[data-bg="light"] .base{color:color-mix(in srgb,var(--tx) 82%,transparent);}
+.tr,.art{position:absolute;left:260px;width:1400px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-bottom:8px;text-shadow:var(--sh);}
+.tr{font:500 30px/1.15 "Noto Sans CJK SC",sans-serif;letter-spacing:.08em;color:var(--dim);}
+.art{color:var(--tx);}
+.art.lat{font:700 26px/1.15 "BarlowC","Noto Sans CJK SC",sans-serif;letter-spacing:.14em;text-transform:uppercase;}
+.art.cjk{font:500 30px/1.15 "Noto Sans CJK SC",sans-serif;letter-spacing:.08em;}
+
+.card{position:absolute;left:0;width:1920px;text-align:center;font-size:0;line-height:0;}
+.cbox{display:inline-block;position:relative;}
+.cw{position:absolute;top:-18px;left:-34px;right:-12px;bottom:-14px;}
+.shard{position:absolute;left:0;top:0;bottom:24px;width:40%;background:var(--red);clip-path:polygon(0 92%,100% 0,82% 36%);animation:shard 320ms var(--e-snap) 40ms backwards;}
+.wedge{position:absolute;top:8px;left:12px;right:0;bottom:0;background:var(--shard);clip-path:polygon(0 74%,100% 0,98% 100%,6% 94%);animation:wedge 320ms var(--e-out);}
+.ctt{position:relative;color:var(--ink);white-space:nowrap;text-shadow:none;font-synthesis:none;}
+.ctt.lat{font:italic 900 64px/.86 "P3","Noto Sans CJK SC",sans-serif;letter-spacing:-.01em;}
+.ctt.cjk{font-weight:900;font-size:52px;line-height:1.15;letter-spacing:.02em;}
+@keyframes wedge{from{clip-path:polygon(0 74%,0 74%,6% 94%,6% 94%);}}
+@keyframes shard{from{opacity:0;translate:-30px 10px;}}
+.static *{animation:none !important;}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;}}
+.probe{visibility:hidden;position:absolute;white-space:nowrap;}
+.row{position:absolute;left:0;right:0;text-align:center;white-space:nowrap;}
+.mk{display:inline-block;width:0;height:0;}
+.ln{top:0;height:0;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg"><img src="../../../../p5-reference/p3-miku/bg.png" alt=""></div>
+  <div id="grp"></div>
+</div>
+<script>
+(()=>{
+'use strict';
+const Q=new URLSearchParams(location.search);
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+const STATIC=Q.has('static')||RM.matches;
+const html=document.documentElement;
+if(STATIC)html.classList.add('static');
+if(Q.get('theme')==='lavender')html.dataset.theme='lavender';
+const stage=document.getElementById('stage');
+const grp=document.getElementById('grp');
+const bgEl=stage.querySelector('.bg');
+function setBg(light){bgEl.classList.toggle('light',light);html.dataset.bg=light?'light':'img';}
+setBg(Q.get('bg')==='light');
+
+let SC=1;
+function fit(){SC=Math.min(innerWidth/1920,innerHeight/1080);stage.style.transform=`translate(-50%,-50%) scale(${SC})`;}
+addEventListener('resize',fit);fit();
+
+/* ---------- songs (original, fake) : {t,text,trans} like merge_lyric ---------- */
+const SONGS=[
+ {title:'潮线',artist:'白浪',lines:[
+  {t:3.0,text:'把整座城市的灯都调暗一点',trans:''},
+  {t:7.2,text:'我在退潮的边缘等你',trans:''},
+  {t:11.0,text:'风把旧名字吹成泡沫',trans:''},
+  {t:15.0,text:'一层一层漫过我们没说出口的那些夏天黄昏和凌晨三点的站台',trans:''},
+  {t:20.0,text:'别回头',trans:''},
+  {t:20.5,text:'别停下',trans:''},
+  {t:21.0,text:'往前跑',trans:''},
+  {t:21.5,text:'直到海面把月亮完整地还给我们',trans:''},
+  {t:26.0,text:'如果明天的浪会把今天写下的所有字迹都抹平，那就让我在被抹平之前再大声念一遍你的名字',trans:''},
+  {t:33.0,text:'潮水来了',trans:''},
+  {t:46.0,text:'我还在这里',trans:''},
+  {t:50.0,text:'潮线以下 全是你',trans:''},
+ ]},
+ {title:'夜明けの水位',artist:'水無瀬ユウ',lines:[
+  {t:1.0,text:'まだ眠らない街の底で',trans:'在尚未入睡的城市底部'},
+  {t:5.0,text:'君の声だけが浮かんでいた',trans:'只有你的声音浮了上来'},
+  {t:9.0,text:'青空',trans:'蓝天'},
+  {t:11.0,text:'遠回りした帰り道も 今なら全部光って見える',trans:'那些绕远的归途 如今看来全都闪着光'},
+  {t:16.0,text:'ねえ',trans:'呐'},
+  {t:16.4,text:'ねえ',trans:'呐'},
+  {t:16.8,text:'聞こえる？',trans:'听得见吗？'},
+  {t:17.6,text:'夜明けの水位が上がって僕らの影を少しずつ消していくその前に もう一度だけ',trans:'黎明的水位上涨，在一点点抹去我们的影子之前，再一次就好'},
+  {t:24.0,text:'手を伸ばして',trans:''},
+  {t:28.0,text:'届くまで',trans:'直到够到为止'},
+ ]},
+ {title:'Low Tide Signal',artist:'Harbor Nine',lines:[
+  {t:2.8,text:'Static on the shoreline',trans:'海岸线上的杂音'},
+  {t:6.6,text:'I keep your signal low',trans:'我把你的信号调低'},
+  {t:10.2,text:'Every wave that leaves the harbor carries one more word I never said out loud to you',trans:'每一道离港的浪，都带走一句我从没对你说出口的话'},
+  {t:16.5,text:'Go',trans:'走'},
+  {t:17.0,text:'Go',trans:'走'},
+  {t:17.5,text:'Go',trans:'走吧'},
+  {t:18.0,text:'Low tide, low light',trans:'低潮，微光'},
+  {t:32.0,text:'Come back to me slowly',trans:'慢慢回到我身边'},
+  {t:36.0,text:'Signal',trans:'信号'},
+ ]},
+];
+
+/* ---------- text helpers ---------- */
+const KANA=/[぀-ヿㇰ-ㇿｦ-ﾟ]/, HAN=/[㐀-鿿豈-﫿]/;
+const CJKCH='\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff00-\\uffef';
+const TOK=new RegExp(`[${CJKCH}]|[^\\s${CJKCH}]+|\\s+`,'g');
+const tokens=s=>s.match(TOK)||[];
+const isSp=s=>/^\s+$/.test(s);
+const NOHEAD='，。、！？」』）：；…ー〜,.!?)';
+function prep(song){
+ let lang='zh';
+ song.lines.forEach((l,i)=>{
+  if(KANA.test(l.text))lang='ja';else if(!HAN.test(l.text))lang='zh';
+  l.lang=lang;l.toks=tokens(l.text);
+  const n=l.toks.filter(x=>!isSp(x)).length;
+  const next=song.lines[i+1];
+  const last=!next;
+  let dur=last?4:next.t-l.t;
+  if(!last)dur=Math.min(dur,Math.max(4,0.42*n+1.2)); // sung-length estimate so long gaps read as interludes
+  const D=Math.min(dur,Math.max(dur*0.88,dur-0.6));
+  l.D=D;l.wipeEnd=l.t+D;
+  l.inter=last||(next.t-l.wipeEnd>6);
+  l.gapIn=i?l.t-song.lines[i-1].t:99;
+ });
+ song.tlang=KANA.test(song.title)?'ja':'zh';
+ song.tlat=!/[　-鿿豈-￯]/.test(song.title);
+ song.alat=!/[　-鿿豈-￯]/.test(song.artist);
+}
+SONGS.forEach(prep);
+
+const el=(tag,cls,parent)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(parent)parent.appendChild(e);return e;};
+
+/* ---------- motion: springs + waapi ---------- */
+const springs=new Set();
+function spring(els,o){
+ const s={els,y:o.from,to:o.to||0,v:0,k:o.k||340,c:o.c||24,t0:performance.now()+(o.delay||0),opDur:o.opDur||160,opFrom:o.opFrom??0};
+ if(STATIC){finishSpring(s);return s;}
+ els.forEach(e=>{e.style.transform=`translateY(${s.y}px)`;e.style.opacity=s.opFrom;});
+ springs.add(s);return s;
+}
+function finishSpring(s){s.els.forEach(e=>{e.style.transform='';e.style.opacity='';});springs.delete(s);}
+function stepSprings(now,dt){
+ for(const s of springs){
+  if(!s.els[0].isConnected){springs.delete(s);continue;}
+  if(now<s.t0)continue;
+  let h=Math.min(dt,0.05);const n=Math.ceil(h/0.004);const d=h/n;
+  for(let i=0;i<n;i++){const a=-s.k*(s.y-s.to)-s.c*s.v;s.v+=a*d;s.y+=s.v*d;}
+  const op=Math.min(1,(now-s.t0)/s.opDur);
+  if(op>=1&&Math.abs(s.y-s.to)<0.05&&Math.abs(s.v)<0.05){finishSpring(s);continue;}
+  const o=s.opFrom+(1-s.opFrom)*op;
+  s.els.forEach(e=>{e.style.transform=`translateY(${s.y}px)`;e.style.opacity=o;});
+ }
+}
+function exitEls(els,dur){
+ for(const e of els){
+  if(!e)continue;
+  if(STATIC){e.remove();continue;}
+  e.getAnimations().forEach(a=>a.cancel());
+  const a=e.animate([{transform:'none'},{transform:'translateY(-36px) scale(.94)',opacity:0}],{duration:dur,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
+  a.onfinish=()=>e.remove();
+ }
+}
+
+/* ---------- building ---------- */
+function buildRow(toks,parent){
+ const row=el('div','row',parent);
+ const txt=el('span','txt',row);
+ const base=el('span','base',txt), fill=el('span','fill',txt);
+ const units=[];
+ for(const t of toks){
+  if(isSp(t)){base.appendChild(document.createTextNode(t));fill.appendChild(document.createTextNode(t));continue;}
+  const a=el('span','u',base),b=el('span','u',fill);a.textContent=b.textContent=t;units.push([a,b]);
+ }
+ const mk=el('span','mk',base);
+ return {row,txt,fill,units,mk};
+}
+function baseOff(node,mk){return (mk.getBoundingClientRect().top-node.getBoundingClientRect().top)/SC;}
+function place(node,mk,y){node.style.top='0px';node.style.top=(y-baseOff(node,mk))+'px';}
+const W=n=>n.offsetWidth;
+function bestSplit(toks,probe){
+ let best=null;
+ const latin=toks.some(isSp)&&!HAN.test(toks.join(''))&&!KANA.test(toks.join(''));
+ for(let k=1;k<toks.length;k++){
+  if(latin&&!isSp(toks[k]))continue;
+  if(!latin&&(isSp(toks[k-1])||NOHEAD.includes(toks[k][0])))continue;
+  const a=toks.slice(0,k),b=toks.slice(k).filter((x,i)=>!(i===0&&isSp(x)));
+  probe.textContent=a.join('').trimEnd();const w1=W(probe);
+  probe.textContent=b.join('');const w2=W(probe);
+  const m=Math.max(w1,w2);
+  if(!best||m<best.m)best={m,a:a.filter((x,i,arr)=>!(i===arr.length-1&&isSp(x))),b};
+ }
+ return best||{a:toks,b:[]};
+}
+function buildLine(L){
+ const blk=el('div','ln '+L.lang,grp);
+ blk.style.transformOrigin='50% 936px';
+ let r=buildRow(L.toks,blk);
+ let rows=[r];
+ if(W(r.txt)>1400){
+  blk.classList.add('s44');
+  if(W(r.txt)>1400){
+   const probe=el('span','probe',blk);
+   const sp=bestSplit(L.toks,probe);probe.remove();r.row.remove();
+   blk.classList.add('wrap');
+   rows=[buildRow(sp.a,blk),buildRow(sp.b,blk)];
+  }
+ }
+ const ys=rows.length===2?[884,936]:[936];
+ rows.forEach((r,i)=>{place(r.row,r.mk,ys[i]);r.w=Math.max(1,W(r.txt));});
+ return {blk,rows,units:rows.flatMap(r=>r.units),L,tr:null};
+}
+function setWipe(b,p){
+ const tot=b.rows.reduce((a,r)=>a+r.w,0);let acc=p*tot;
+ for(const r of b.rows){const q=Math.max(0,Math.min(1,acc/r.w));acc-=r.w;r.fill.style.clipPath=`inset(-40px ${((1-q)*100).toFixed(3)}% -40px 0)`;}
+}
+function buildSlot(cls,text){
+ const t=el('div',cls,grp);t.textContent=text;const mk=el('span','mk',t);
+ place(t,mk,990);t.style.transformOrigin=`50% ${baseOff(t,mk)}px`;
+ return t;
+}
+
+/* ---------- state ---------- */
+const S={si:0,song:null,t:0,playing:true,phase:'idle',cur:null,curIdx:-1,card:null,cardOut:0,trans:true,gen:0,endAt:Infinity};
+
+function enterLine(i,fast){
+ const L=S.song.lines[i];const b=buildLine(L);
+ const n=b.units.length;const step=fast?0:Math.min(14,220/Math.max(1,n-1));
+ b.units.forEach((u,j)=>spring(u,{from:28,k:340,c:24,delay:90+j*step}));
+ setWipe(b,0);
+ if(S.trans&&L.trans){b.tr=buildSlot('tr',L.trans);spring([b.tr],{from:18,k:340,c:24,delay:160});}
+ return b;
+}
+function exitBlock(b,dur){if(!b)return;exitEls([b.blk,b.tr],dur);}
+function changeTo(idx){
+ const L=S.song.lines[idx];
+ const seq=idx===S.curIdx+1;
+ const fast=seq&&L.gapIn<0.6;
+ exitBlock(S.cur,fast?160:260);
+ S.cur=enterLine(idx,fast);S.curIdx=idx;
+}
+function findIdx(t){const ls=S.song.lines;let k=-1;for(let i=0;i<ls.length;i++){if(ls[i].t<=t)k=i;else break;}return k;}
+
+function showCard(song){
+ const card=el('div','card',grp);
+ const box=el('span','cbox',card);
+ const cw=el('span','cw',box);
+ const shard=el('span','shard',cw),wedge=el('span','wedge',cw);
+ const ctt=el('span','ctt '+(song.tlat?'lat':'cjk '+song.tlang),box);
+ const units=[];
+ for(const t of tokens(song.title)){if(isSp(t)){ctt.appendChild(document.createTextNode(t));continue;}const u=el('span','u',ctt);u.textContent=t;units.push([u]);}
+ const mk=el('span','mk',ctt);
+ place(card,mk,936);
+ shard.style.width=(W(ctt)*0.4)+'px';
+ const art=buildSlot('art '+(song.alat?'lat':'cjk'),song.artist);
+ const step=Math.min(14,220/Math.max(1,units.length-1));
+ units.forEach((u,j)=>spring(u,{from:28,delay:290+j*step}));
+ spring([art],{from:18,delay:290});
+ // translate origin for title exit: baseline centre
+ ctt.style.transformOrigin=`50% ${baseOff(ctt,mk)}px`;
+ S.card={card,cw,ctt,art};
+}
+function exitCard(){
+ const c=S.card;if(!c)return;S.card=null;
+ if(STATIC){c.card.remove();c.art.remove();return;}
+ c.cw.animate([{clipPath:'inset(0 0 0 0)'},{clipPath:'inset(0 0 0 100%)'}],{duration:240,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'});
+ exitEls([c.ctt,c.art],260);
+ setTimeout(()=>c.card.remove(),280);
+}
+
+function startSong(si,t0=0){
+ const g=++S.gen;
+ const had=!!(S.cur||S.card);
+ exitBlock(S.cur,260);S.cur=null;exitCard();
+ S.phase='switch';
+ const go=()=>{
+  if(g!==S.gen)return;
+  S.si=(si+SONGS.length)%SONGS.length;S.song=SONGS[S.si];S.t=t0;S.curIdx=-1;S.endAt=Infinity;
+  const ls=S.song.lines;
+  if(!ls.length)S.cardOut=2.4;
+  else if(ls[0].t<1.5)S.cardOut=1.2;
+  else S.cardOut=Math.max(1.2,Math.min(2.4,ls[0].t-0.3));
+  if(t0<S.cardOut)showCard(S.song);
+  S.phase='run';
+ };
+ if(had&&!STATIC)setTimeout(go,260+120);else go();
+}
+function stop(){S.gen++;exitBlock(S.cur,260);S.cur=null;exitCard();S.phase='idle';}
+
+function tick(dt){
+ if(S.phase!=='run')return;
+ if(S.playing)S.t+=dt;
+ const ls=S.song.lines;
+ if(S.card&&S.t>=S.cardOut)exitCard();
+ if(!ls.length){if(S.t>=4)startSong(S.si+1);return;}
+ const idx=findIdx(S.t);
+ if(idx>=0&&idx!==S.curIdx)changeTo(idx);
+ if(S.cur){
+  const L=S.cur.L;
+  setWipe(S.cur,Math.max(0,Math.min(1,(S.t-L.t)/L.D)));
+  if(L.inter&&S.t>=L.wipeEnd+1.2){exitBlock(S.cur,260);S.cur=null;if(S.curIdx===ls.length-1)S.endAt=S.t+2;}
+ }
+ if(S.t>=S.endAt)startSong(S.si+1);
+}
+
+/* ---------- controls ---------- */
+const ease='cubic-bezier(.3,0,.2,1)';
+let grpSpring=null;
+function setPause(p){
+ if(p===!S.playing)return;
+ S.playing=!p;
+ if(grpSpring){springs.delete(grpSpring);grpSpring=null;}
+ if(p){
+  grp.getAnimations().forEach(a=>a.cancel());
+  if(STATIC){grp.style.transform='translateY(6px)';grp.style.opacity='.38';return;}
+  const cs=getComputedStyle(grp);
+  const from={transform:cs.transform==='none'?'translateY(0px)':cs.transform,opacity:cs.opacity};
+  grp.style.transform='translateY(6px)';grp.style.opacity='.38';
+  grp.animate([from,{transform:'translateY(6px)',opacity:.38}],{duration:420,easing:ease});
+ }else{
+  const cs=getComputedStyle(grp);
+  const m=new DOMMatrixReadOnly(cs.transform==='none'?undefined:cs.transform);
+  const y=m.m42,op=parseFloat(cs.opacity);
+  grp.getAnimations().forEach(a=>a.cancel());
+  if(STATIC){grp.style.transform='';grp.style.opacity='';return;}
+  grpSpring=spring([grp],{from:y,k:300,c:26,opDur:240,opFrom:op});
+ }
+}
+function toggleTrans(){
+ S.trans=!S.trans;
+ const b=S.cur;if(!b)return;
+ if(!S.trans){
+  const tr=b.tr;b.tr=null;if(!tr)return;
+  springs.forEach(s=>{if(s.els[0]===tr)springs.delete(s);});
+  if(STATIC){tr.remove();return;}
+  tr.getAnimations().forEach(a=>a.cancel());
+  const op=getComputedStyle(tr).opacity;
+  tr.animate([{opacity:op},{transform:'translateY(-8px)',opacity:0}],{duration:160,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}).onfinish=()=>tr.remove();
+ }else if(b.L.trans&&!b.tr){
+  const tr=b.tr=buildSlot('tr',b.L.trans);
+  if(STATIC)return;
+  tr.animate([{clipPath:'inset(0 100% 0 0)',transform:'translateY(10px)'},{clipPath:'inset(0 0% 0 0)',transform:'translateY(0)'}],{duration:320,easing:'cubic-bezier(.16,1,.3,1)'});
+  tr.animate([{opacity:0},{opacity:1}],{duration:160,easing:'linear'});
+ }
+}
+function jump(d){
+ if(S.phase!=='run'||!S.song.lines.length)return;
+ const n=S.song.lines.length;
+ let k=S.curIdx<0?(d>0?0:0):S.curIdx+d;
+ k=Math.max(0,Math.min(n-1,k));
+ S.t=S.song.lines[k].t;S.endAt=Infinity;
+ if(k===S.curIdx)S.curIdx=-2;
+}
+function toggleTheme(){if(html.dataset.theme==='lavender')delete html.dataset.theme;else html.dataset.theme='lavender';}
+const CMD={pause:()=>setPause(S.playing),trans:toggleTrans,next:()=>startSong(S.si+1),prev:()=>startSong(S.si-1),theme:toggleTheme,bg:()=>setBg(!bgEl.classList.contains('light')),stop};
+addEventListener('keydown',e=>{
+ if(e.repeat&&e.code==='Space')return;
+ switch(e.code){
+  case 'Space':e.preventDefault();CMD.pause();break;
+  case 'KeyT':CMD.trans();break;
+  case 'KeyN':CMD.next();break;
+  case 'ArrowLeft':e.preventDefault();jump(-1);break;
+  case 'ArrowRight':e.preventDefault();jump(1);break;
+  case 'KeyL':CMD.theme();break;
+  case 'KeyB':CMD.bg();break;
+ }
+});
+addEventListener('message',e=>{const c=e.data&&e.data.cmd;if(CMD[c])CMD[c]();});
+/* 外层对比页的统一指令：song=下一首，lineNext/linePrev=逐句 */
+addEventListener('message',e=>{const c=e.data&&e.data.cmd;if(c==='lineNext')jump(1);else if(c==='linePrev')jump(-1);else if(c==='song')CMD.next();});
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){const dt=Math.min(0.1,(now-last)/1000);last=now;tick(dt);stepSprings(now,dt);requestAnimationFrame(frame);}
+const fontLoads=[
+ '900 52px "Noto Sans CJK SC"','900 52px "Noto Sans CJK JP"','500 30px "Noto Sans CJK SC"','italic 900 64px "P3"','700 26px "BarlowC"'
+].map(f=>document.fonts.load(f,'潮あA').catch(()=>{}));
+Promise.all(fontLoads).then(()=>document.fonts.ready).then(()=>{
+ const si=Math.max(0,Math.min(SONGS.length-1,parseInt(Q.get('song')||'0',10)||0));
+ const t0=Math.max(0,parseFloat(Q.get('t')||'0')||0);
+ startSong(si,t0);
+ if(STATIC)tick(0);
+ last=performance.now();requestAnimationFrame(frame);
+});
+})();
+
+</script>
+</body>
+</html>

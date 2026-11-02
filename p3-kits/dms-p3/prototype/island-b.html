@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Island B Bubbles</title>
+<link rel="stylesheet" href="shared/tokens.css">
+<style>
+/* ============================================================
+   岛 B · BUBBLES 气泡串
+   形状层 = N 个胶囊（圆角矩形）的 SDF 平滑并集，单趟逐像素求值（<canvas> 里用 JS 模拟，
+   和 QML 里的 ShaderEffect 是同一段数学）；文字/图标在上面一层，跟着同一组弹簧走。
+   QML 移植（一个 fragment shader，一趟完成，分辨率无关）：
+     uniform vec4 box[N];   // (cx, cy, halfW, halfH)   逻辑像素，来自同一组弹簧
+     // 颜色：平涂 --isl（降饱和的深海蓝），无渐变
+     float sdCap(vec2 p, vec4 b){ vec2 q = abs(p-b.xy) - b.zw + min(b.z,b.w);
+                                  return length(max(q,0.)) + min(max(q.x,q.y),0.) - min(b.z,b.w); }
+     // 多项式平滑并集，颜色按同一个 h 混合 → 颈子处颜色像液体一样渗开
+     h = clamp(.5 + .5*(dB-dA)/K, 0., 1.);  d = mix(dB,dA,h) - K*h*(1.-h);  v = mix(vB,vA,hc);
+     alpha = clamp(.5 - d*pxPerUnit, 0., 1.) * .93;           // 精确抗锯齿边
+     面板（通知中心）同一张场，只是圆角半径封顶 r=22：sdBox 的 r = min(hw, hh, rMax)
+     shadow: 同一距离场在 p-(0,3) 处取 smoothstep(-2., 9., d)（原型里用 CSS drop-shadow 近似）
+   运动移植：每个气泡 = 4 个 SpringAnimation（x/y/w/h），spring = √k、damping = c/(2√k)；宽高用单独的 cs（ζ≈.85），
+     位置可以弹，尺寸只轻微过冲。to() 的 d = PauseAnimation，内容层 = Behavior on opacity，延迟 --fd。
+   K = 12 逻辑 px：两个气泡间隙 < K/2 = 6px 时连成颈子。
+   ============================================================ */
+:root { --isl: #14306e; --isl2: #1d3d82; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+body { color: var(--tx); user-select: none; -webkit-user-select: none; cursor: default; }
+
+#stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #000; }
+.desk { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.win { position: absolute; border-radius: 12px; background: rgba(4,16,60,.16); border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 10px 40px rgba(0,0,0,.12); }
+.win .tb { position: absolute; left: 18px; top: 14px; color: rgba(255,255,255,.55); font-size: 11px; }
+.win .ln { position: absolute; left: 18px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); }
+
+/* ---------- 岛 ---------- */
+#island { position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 5; }
+#cv, #ui, #hit { position: absolute; left: -560px; top: 0; width: 1120px; height: 780px; pointer-events: none; }
+/* 两层阴影：贴身一圈压住亮壁纸，远一点的柔影把岛从桌面上托起来 */
+#cv { filter: drop-shadow(0 2px 4px rgba(0,4,40,.30)); }
+#ui .u { position: absolute; left: 0; top: 0; border-radius: 999px; overflow: hidden; will-change: transform; }
+#hit i { position: absolute; display: none; pointer-events: auto; cursor: pointer; border-radius: 999px; }
+:root { --soft: cubic-bezier(.3,1.22,.5,1); }
+
+/* 面：同一个气泡里的不同内容。形状先动，内容晚 60ms（--fd 由 JS 按气泡自己的延迟写入）再淡入滑入 */
+.face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+  opacity: 0; transform: translateY(5px) scale(.96);
+  transition: opacity .1s, transform .18s var(--ease); white-space: nowrap; }
+.face.on { opacity: 1; transform: none; transition: opacity .22s var(--fd, 60ms), transform .46s var(--soft) var(--fd, 60ms); }
+
+/* 时间 */
+.ft { gap: 0; }
+.ft .tm { font-size: 21px; color: var(--tx); letter-spacing: .005em; padding-top: 1px; }
+.ft .dt { display: inline-flex; align-items: baseline; gap: 5px; max-width: 0; opacity: 0; overflow: hidden;
+  transition: max-width .45s var(--ease), opacity .2s, margin .45s var(--ease); }
+.ft .dt .d { font-size: 15px; color: var(--dim); padding-top: 2px; }
+#island[data-s="2"] .ft .dt { max-width: 60px; opacity: 1; margin-left: 10px; transition: max-width .55s var(--soft) .06s, opacity .3s .12s, margin .55s var(--soft) .06s; }
+
+/* 音频：柱子安静地动，静置 4s 后落成静态轮廓 */
+.viz { display: inline-flex; align-items: center; gap: 2px; height: 13px; }
+.viz i { width: 2.5px; height: 13px; border-radius: 2px; background: var(--fill); opacity: .85; transform-origin: 50% 50%;
+  animation: vz 1s ease-in-out infinite alternate; }
+.viz i:nth-child(1) { animation-duration: .74s; } .viz i:nth-child(2) { animation-duration: 1.02s; animation-delay: -.3s; }
+.viz i:nth-child(3) { animation-duration: .62s; animation-delay: -.1s; } .viz i:nth-child(4) { animation-duration: .9s; animation-delay: -.5s; }
+@keyframes vz { 0% { transform: scaleY(.34); } 100% { transform: scaleY(.8); } }
+/* 暂停 / 静置几秒后：柱子落成静态轮廓，不再常驻动画 */
+.paused .viz i, .rest .viz i { animation: none; transform: scaleY(var(--r, .3)); transition: transform .6s var(--spring); }
+.viz i:nth-child(1) { --r: .35; } .viz i:nth-child(2) { --r: .7; } .viz i:nth-child(3) { --r: .5; } .viz i:nth-child(4) { --r: .85; }
+.paused .viz i { --r: .22 !important; }
+.fa-peek { justify-content: flex-start; padding-left: 13px; }
+.fa-peek .ti { font-size: 13px; color: var(--tx); }
+.fa-peek .ar { font-size: 12px; color: var(--dim); }
+.fa-media { justify-content: flex-start; padding-left: 14px; gap: 11px; }
+.fa-media .tx { display: flex; flex-direction: row; align-items: baseline; gap: 9px; min-width: 0; margin-top: -3px; }
+.fa-m2 { padding-left: 18px; gap: 13px; }
+.fa-m2 .tx { flex-direction: column; gap: 6px; margin-top: -7px; }
+.fa-media .ti { font-size: 13.5px; color: var(--tx); line-height: 1.05; }
+.fa-media .ar { font-size: 12px; color: var(--dim); line-height: 1; }
+.prog { position: absolute; left: 44px; right: 22px; bottom: 6px; height: 2px; border-radius: 2px; background: rgba(163,240,255,.22); overflow: hidden; }
+.prog b { position: absolute; left: 0; top: 0; bottom: 0; width: 42%; background: var(--fill); border-radius: 2px; transition: width .6s var(--ease); }
+.fa-m2 .prog { left: 50px; right: 26px; bottom: 9px; }
+.fa-m2 .ti { font-size: 15px; }
+
+/* OSD 条：水面横着涨 */
+.osd { justify-content: flex-start; padding: 0 14px 0 13px; gap: 10px; }
+.osd svg { width: 15px; height: 15px; fill: var(--fill); flex: none; }
+.osd .bar { position: relative; flex: 1; height: 8px; border-radius: 6px; background: rgba(163,240,255,.22); overflow: hidden; }
+.osd .bar b { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; border-radius: 6px;
+  background: var(--fill); transition: width .5s var(--spring); }
+.osd .n { font-size: 17px; color: var(--tx); min-width: 22px; text-align: right; }
+
+/* 通知计数 */
+.fn { gap: 3px; }
+.fn .cnt { position: relative; display: inline-block; height: 18px; min-width: 9px; overflow: hidden; }
+.fn .cnt b { display: block; font-size: 17px; color: var(--fill); line-height: 18px; padding-top: 1px; text-align: center; }
+.fn .cnt b.in  { animation: rollIn .5s var(--spring) both; }
+.fn .cnt b.out { position: absolute; left: 0; right: 0; top: 0; animation: rollOut .3s var(--ease) both; }
+@keyframes rollIn  { from { transform: translateY(18px); } }
+@keyframes rollOut { to { transform: translateY(-18px); opacity: 0; } }
+/* 唯一的强调：有“还没看过”的新通知时右上角一颗 --accent 小点；打开通知中心即清掉 */
+.fn .dot { position: absolute; right: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  opacity: 0; transform: scale(0); transition: transform .4s var(--spring), opacity .2s; }
+.u.notif.new .dot { opacity: 1; transform: none; }
+.fn .moon { display: none; width: 10px; height: 10px; fill: var(--dim); margin-right: 2px; }
+.u.notif.dnd .dot { opacity: 0; transform: scale(0); }
+.u.notif.dnd .moon { display: block; }
+.u.notif.dnd .cnt b { color: var(--dim); }
+#island[data-s="2"] .fn .cnt b { font-size: 18px; }
+
+/* 电量气泡：墨底上一条半透明的海蓝内胶囊 = 电量，从左往右涨；数字始终是 --tx，任何水位都读得清
+   QML：Rectangle(radius) 宽度绑定 lv，颜色随状态（平时 sea / 充电 sky / 低电 accent） */
+@property --lv { syntax: '<number>'; inherits: true; initial-value: .78; }
+.u.batt .lvl { --lv: .78; transition: --lv .9s var(--soft), background-color .4s, opacity .25s; }
+.bl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px; color: var(--tx); padding-top: 1px; z-index: 1; }
+.bl .bp { font-size: 13px; transition: font-size .45s var(--soft); }
+.bl .pc { font-size: 12px; max-width: 0; overflow: hidden; color: var(--dim); transition: max-width .4s var(--ease); }
+.bl svg { width: 0; height: 12px; fill: var(--fill); transition: width .4s var(--soft); }
+/* 左侧让开 OV 重叠区，不压到邻居 */
+.lvl { position: absolute; inset: 0; background-color: rgba(11,143,232,.75);
+  clip-path: inset(4px max(4px, min(calc(4px + (100% - 16px) * (1 - var(--lv))), calc(100% - 24px))) 4px 12px round 999px); }
+.u.batt .bl { padding-left: 8px; transition: opacity .2s; }
+.u.batt[data-face="none"] .bl, .u.batt[data-face="info"] .bl { opacity: 0; }
+.u.batt[data-face="pct"] .bp, .u.batt[data-face="chg"] .bp { font-size: 16px; }
+.u.batt[data-face="pct"] .pc, .u.batt[data-face="chg"] .pc { max-width: 12px; }
+.u.batt[data-face="chg"] svg { width: 10px; margin-right: 3px; }
+/* 充电：天蓝水位，至少 32px 宽，闪电让出 14px */
+.u.batt.chg .lvl { background-color: rgba(163,240,255,.45);
+  clip-path: inset(4px max(4px, min(calc(4px + (100% - 16px) * (1 - var(--lv))), calc(100% - 44px))) 4px 12px round 999px); }
+.u.batt.chg .bl { padding-left: 14px; }
+/* 低电：左侧一颗固定 4px 宽的红色竖胶囊，数字让开 */
+.u.batt.low .lvl { background-color: var(--accent); clip-path: inset(7px calc(100% - 18px) 7px 14px round 999px); }
+.u.batt.low .bl { padding-left: 22px; }
+.u.batt[data-face="info"] .lvl { opacity: 0; }
+/* 电源信息（点电量气泡） */
+.fpw { gap: 16px; padding-left: 10px; }
+.fpw span { display: inline-flex; align-items: baseline; gap: 3px; }
+.fpw .d { font-size: 16px; color: var(--tx); padding-top: 1px; }
+.fpw .l { font-size: 12px; color: var(--dim); font-style: normal; }
+.fizz i { position: absolute; bottom: -4px; width: 4px; height: 4px; border-radius: 50%; border: 1.2px solid var(--fill);
+  opacity: 0; }
+#island[data-s="6b"] .fizz i { animation: fz 1.6s cubic-bezier(.3,.6,.5,1) infinite; }
+.fizz i:nth-child(1) { left: 22%; } .fizz i:nth-child(2) { left: 48%; animation-delay: .55s; width: 3px; height: 3px; }
+.fizz i:nth-child(3) { left: 70%; animation-delay: 1.1s; } .fizz i:nth-child(4) { left: 86%; animation-delay: .3s; width: 3px; height: 3px; }
+@keyframes fz { 0% { opacity: 0; transform: translate(0,0); } 20% { opacity: .9; } 100% { opacity: 0; transform: translate(2px,-26px); } }
+.fizz { position: absolute; inset: 0; opacity: 0; transition: opacity .3s; }
+#island[data-s="6b"] .fizz { opacity: 1; }
+
+/* 通知卡（升上来的气泡胀开） */
+.fc { justify-content: flex-start; padding: 0 22px 0 16px; gap: 12px; }
+.fc img { width: 32px; height: 32px; border-radius: 50%; flex: none; }
+.fc .tx { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding-top: 2px; }
+.fc .hd { display: flex; gap: 8px; align-items: center; }
+.fc .hd .ap { font-size: 12px; color: var(--fill); letter-spacing: .1em; }
+.fc .hd .t { font-size: 12px; color: var(--dim); }
+.fc .ti { font-size: 14px; color: var(--tx); line-height: 1; }
+.fc .bd { font-size: 12px; color: var(--dim); line-height: 1; }
+.fc .ti, .fc .bd, .fc .hd { opacity: 0; transform: translateX(-10px); transition: opacity .15s, transform .2s; }
+.fc.on .hd { opacity: 1; transform: none; transition: opacity .3s .1s, transform .5s var(--spring) .1s; }
+.fc.on .ti { opacity: 1; transform: none; transition: opacity .3s .16s, transform .5s var(--spring) .16s; }
+.fc.on .bd { opacity: 1; transform: none; transition: opacity .3s .22s, transform .5s var(--spring) .22s; }
+
+/* ---------- 通知中心：从计数气泡里垂下来的一块水（同一张 SDF，圆角封顶 22） ---------- */
+#ui .u.nc { border-radius: 22px; }
+.fnc { inset: auto; left: 50%; top: 0; width: 384px; margin-left: -192px; display: block; padding: 0 6px 8px; box-sizing: border-box;
+  white-space: normal; transform: translateY(-6px); }
+.fnc.on { pointer-events: auto; }
+/* 头：大号计数 + 标签，右侧两个无底按钮 */
+.nch { display: flex; align-items: center; gap: 10px; height: 58px; padding: 6px 10px 0 16px; box-sizing: border-box; }
+.nch .nn { font-size: 30px; color: var(--tx); min-width: 14px; }
+.nch > .l { font-size: 13px; color: var(--dim); padding-top: 6px; }
+.nch .sp { flex: 1; }
+.ncb { height: 28px; min-width: 28px; padding: 0 8px; border: 0; border-radius: 14px; background: transparent; color: var(--dim);
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; font: inherit; transition: color .2s, background .2s; }
+.ncb .l { font-size: 13px; color: inherit; padding-top: 1px; }
+.ncb svg { width: 13px; height: 13px; fill: currentColor; }
+.ncb.on { background: var(--fill); color: var(--ink); }
+.ncb:disabled { opacity: .35; cursor: default; }
+.ncl { position: relative; max-height: 444px; overflow-y: auto; scroll-padding-bottom: 40px; scrollbar-width: none; overscroll-behavior: contain;
+  display: flex; flex-direction: column; }
+.ncl::-webkit-scrollbar { display: none; }
+.ncl.ovf { -webkit-mask-image: linear-gradient(#000 calc(100% - 40px), transparent); mask-image: linear-gradient(#000 calc(100% - 40px), transparent); }
+.ng { flex: none; overflow: hidden; }
+/* 一行一条：无卡片底，只靠留白和一根细分隔线；选中 = 左上角一颗呼吸光点（与菜单同款）+ 极淡底 */
+.nk { position: relative; display: flex; align-items: flex-start; gap: 12px; height: 72px; padding: 13px 40px 0 14px;
+  border-radius: 14px; box-sizing: border-box; overflow: visible; touch-action: pan-y; cursor: pointer; transition: background .2s; }
+.nk + .nk, .ng + .ng .nk:first-child { box-shadow: inset 0 1px 0 rgba(163,240,255,.10); }
+.nk.sel { background: rgba(163,240,255,.07); box-shadow: none; }
+.nk.sel + .nk { box-shadow: none; }
+.nk::before { content: ""; position: absolute; left: 6px; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--fill);
+  box-shadow: 0 0 6px 2px rgba(11,143,232,.85), 0 0 14px 4px rgba(11,143,232,.3); opacity: 0; scale: .3; transition: opacity .2s, scale .35s var(--spring); }
+.nk.sel::before { opacity: 1; scale: 1; animation: nkGlow 1.8s ease-in-out infinite; }
+@keyframes nkGlow { 50% { box-shadow: 0 0 9px 3px rgba(11,143,232,.95), 0 0 20px 7px rgba(11,143,232,.25); } }
+.nk img { width: 32px; height: 32px; border-radius: 9px; flex: none; pointer-events: none; margin-top: 2px; }
+.nk .nt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.nk .r1 { display: flex; align-items: baseline; gap: 8px; }
+.nk .ap { flex: 1; min-width: 0; font-size: 12px; color: var(--dim); }
+.nk .ap.zh { letter-spacing: .04em; }
+.nk .t { flex: none; font-size: 13px; color: var(--dim); }
+.nk .ti { font-size: 14px; color: var(--tx); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nk .bd { font-size: 12.5px; color: var(--dim); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nk .x { position: absolute; right: 10px; top: 50%; width: 24px; height: 24px; margin-top: -12px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer; display: grid; place-items: center; opacity: .45; transition: opacity .15s; }
+.nk.sel .x { opacity: 1; }
+.nk .x svg { width: 10px; height: 10px; stroke: var(--tx); stroke-width: 2.2; stroke-linecap: round; fill: none; }
+.nce { display: none; height: 56px; align-items: center; justify-content: center; font-size: 12px; color: var(--dim); }
+.fnc.empty .nce { display: flex; }
+.fnc.empty .ncl { display: none; }
+.u.notif.zero .dot { opacity: 0; transform: scale(0); }
+.u.notif.zero .cnt { display: none; }
+
+.frz *, .frz *::before, .frz *::after { animation-play-state: paused !important; }
+
+/* 媒体控制小气泡 */
+.fk svg { width: 12px; height: 12px; fill: var(--tx); }
+.fk.big svg { width: 14px; height: 14px; fill: var(--fill); }
+
+/* 波纹环 */
+.ring { position: absolute; border-radius: 50%; border: 1.5px solid var(--fill); pointer-events: none;
+  animation: ring .9s cubic-bezier(.2,.7,.3,1) forwards; }
+.ring.red { border-color: var(--accent); }
+@keyframes ring { from { transform: scale(1); opacity: .8; } to { transform: scale(1.9); opacity: 0; } }
+
+/* ---------- 打开菜单：整屏水幕 ---------- */
+#wipe { position: absolute; inset: 0; z-index: 8; visibility: hidden; pointer-events: none;
+  background: var(--isl);
+  clip-path: circle(0px at 50% 28px); }
+#wipe.show, #wrim.show { visibility: visible; }
+/* 水幕刚破开时是墨色（和水滴同色），涨开过程中才透出海蓝；收回时反过来 */
+#wipe .ink { position: absolute; inset: 0; background: var(--isl); opacity: 1; }
+/* 水幕边缘一圈 --fill 表面张力，和水滴是同一层水 */
+#wrim { position: absolute; z-index: 9; visibility: hidden; pointer-events: none; border-radius: 50%;
+  border: 2px solid var(--fill); box-sizing: border-box; transform: translate(-50%,-50%); opacity: .9; }
+#wipe .rays i { position: absolute; top: -40px; height: 120%; background: rgba(255,255,255,.08); transform: rotate(18deg); transform-origin: 50% 0; }
+#wipe .bub i { position: absolute; bottom: -60px; border-radius: 50%; border: 2px solid rgba(190,245,255,.6); }
+#wipe.show .bub i { animation: up 2.2s cubic-bezier(.3,.5,.5,1) infinite; }
+@keyframes up { from { transform: translateY(0); opacity: .9; } to { transform: translateY(-900px); opacity: 0; } }
+#wipe .hint { position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%); text-align: center; color: var(--fill);
+  opacity: 0; transition: opacity .3s, transform .6s var(--spring); }
+#wipe.full .hint { opacity: 1; transform: translate(-50%,-56%); transition-delay: .15s; }
+#wipe .hint .d { font-size: 150px; color: var(--c4); text-shadow: 0 6px 0 rgba(2,16,70,.35); }
+
+/* ---------- 调试坞 ---------- */
+#dock { position: fixed; left: 16px; bottom: 16px; z-index: 20; display: flex; gap: 2px; align-items: center;
+  padding: 4px; border-radius: 999px; background: rgba(4,10,30,.62); backdrop-filter: blur(8px); }
+#dock button { font-family: "BarlowC", sans-serif; font-weight: 700; border: 0; background: transparent; color: rgba(255,255,255,.62); padding: 7px 10px 6px; border-radius: 999px;
+  cursor: pointer; font-size: 11px; transition: background .2s, color .2s; }
+#dock button kbd { font-family: inherit; color: var(--fill); margin-right: 5px; }
+#dock button.on { background: var(--fill); color: var(--ink); }
+#dock button.on kbd { color: var(--ink); }
+#dock .sep { width: 1px; height: 16px; background: rgba(255,255,255,.18); margin: 0 4px; }
+
+.static *, .static *::before, .static *::after { animation-play-state: paused !important; transition: none !important; }
+.static .face, .static .fc *, .static .dt { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .viz i, .fizz i, #wipe .bub i { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <img class="desk" src="shared/desk.jpg" alt="" onerror="this.remove()">
+  <div id="wins"></div>
+  <div id="island" data-s="1">
+    <canvas id="cv"></canvas>
+    <div id="ui"></div>
+    <div id="hit"></div>
+  </div>
+  <div id="wipe">
+    <div class="ink"></div>
+    <div class="rays"><i style="left:58%;width:60px"></i><i style="left:66%;width:140px"></i><i style="left:80%;width:40px"></i></div>
+    <div class="bub"></div>
+    <div class="hint"><div class="d">MENU</div></div>
+  </div>
+  <div id="wrim"></div>
+</div>
+
+<div id="dock"></div>
+
+<script src="shared/data.js"></script>
+<script src="shared/backend.js"></script>
+<script>
+(() => {
+/* 数据和动作全部走 P3Sys（shared/backend.js）：读 P3Sys.<ns>.state 快照，调异步动作，P3Sys.on(ns) 订阅变化。
+   QML 映射见 backend.js 各动作的 @dms JSDoc 和 INTEGRATION.md：
+   岛 ↔ DMS 2.0 Modules/DIsland 的 activity：音频气泡 = MediaCompact / MediaExpanded（3 / 3b），
+   通知到达卡 = NotificationCompact / NotificationExpanded（4），通知中心 = NotificationCenterExpanded（n），
+   音量 / 亮度 OSD = SystemLevel*（5）。 */
+const SYS = window.P3Sys, NS = SYS.notify.state, M = SYS.media.state, AU = SYS.audio.state, BAT = SYS.battery.state;
+const Q = new URLSearchParams(location.search);
+const W = Q.get('w') === '1706' ? 1706 : 2560, H = W === 1706 ? 1066 : 1440;
+const STATIC = Q.get('static') === '1';
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const root = document.documentElement;
+if (STATIC) document.body.classList.add('static');
+const $ = (s, el = document) => el.querySelector(s);
+const stage = $('#stage'), island = $('#island'), uiL = $('#ui'), hit = $('#hit'), wipe = $('#wipe'), wrim = $('#wrim');
+const OX = 560; // canvas/ui 层左边距 → 岛中心
+
+/* ---------- 舞台缩放 ---------- */
+stage.style.width = W + 'px'; stage.style.height = H + 'px';
+let scale = 1;
+function fit() {
+  scale = Math.min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `translate(${(innerWidth - W * scale) / 2}px, ${(innerHeight - H * scale) / 2}px) scale(${scale})`;
+  if (window.__cvReady) { sizeCanvas(); draw(); }
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- 假窗口（niri 间距 12） ---------- */
+const half = (W - 36) / 2;
+$('#wins').innerHTML = [
+  { x: 12, w: half, t: 'kitty · ~/Projects/my-arch-kit' },
+  { x: 24 + half, w: half, t: 'chromium · dms-p3' },
+].map(o => `<div class="win" style="left:${o.x}px;top:54px;width:${o.w}px;height:${H - 66}px">
+  <div class="tb l">${o.t}</div>
+  ${[0,1,2,3,4].map(i => `<div class="ln" style="top:${52 + i * 22}px;width:${[38,52,24,44,30][i]}%"></div>`).join('')}</div>`).join('');
+
+/* ---------- 图标 ---------- */
+const IC = {
+  vol: '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/><path d="M15.5 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18.3 5.7a9 9 0 0 1 0 12.6l-1.4-1.4a7 7 0 0 0 0-9.8z"/></svg>',
+  sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M11 1h2v4h-2zM11 19h2v4h-2zM1 11h4v2H1zM19 11h4v2h-4zM4.2 5.6l1.4-1.4 2.8 2.8-1.4 1.4zM15.6 17l1.4-1.4 2.8 2.8-1.4 1.4zM4.2 18.4l2.8-2.8 1.4 1.4-2.8 2.8zM15.6 7l2.8-2.8 1.4 1.4-2.8 2.8z"/></svg>',
+  bolt: '<svg viewBox="0 0 12 16"><path d="M7 0 0 9h5l-1 7 8-10H7z"/></svg>',
+  prev: '<svg viewBox="0 0 24 24"><path d="M5 5h2.5v14H5zM20 5v14L8.5 12z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M16.5 5H19v14h-2.5zM4 5v14l11.5-7z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M6 4v16l14-8z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M20 15.3A8.5 8.5 0 0 1 8.7 4a8.5 8.5 0 1 0 11.3 11.3z"/></svg>',
+  x: '<svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6"/></svg>',
+};
+const viz = '<span class="viz"><i></i><i></i><i></i><i></i></span>';
+const pad = n => String(n).padStart(2, '0');
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NOW = SYS.clock.now(), C = { h: NOW.getHours(), m: NOW.getMinutes(), month: NOW.getMonth() + 1, day: NOW.getDate() };
+
+/* ---------- 通知：P3Sys.notify.state.items ----------
+   gone = 已在界面上划走、等后端确认的 id；incoming = 正在播到达动画的那条（滚进计数之前不算数）。 */
+const gone = new Set();
+let incoming = null;
+const list = () => NS.items.filter(x => !gone.has(x.id) && x !== incoming);
+const N0 = NS.items[0] || { icon: '', app: '', t: '', title: '', body: '' };
+
+/* ---------- 气泡 ---------- */
+const DEF = {
+  time: `<div class="face" data-f="none"></div><div class="face ft" data-f="t"><span class="d tm">${pad(C.h)}:${pad(C.m)}</span><span class="dt"><span class="d">${C.month}/${C.day}</span></span></div>`,
+  audio: `<div class="face" data-f="viz">${viz}</div>
+    <div class="face fa-peek" data-f="peek">${viz}<span class="zh ti">${esc(M.title)}</span><span class="zh ar">${esc(M.artist)}</span></div>
+    <div class="face fa-media" data-f="media">${viz}<span class="tx"><span class="zh ti">${M.title}</span><span class="zh ar">${M.artist}</span></span><span class="prog"><b></b></span></div>
+    <div class="face fa-media fa-m2" data-f="media2">${viz}<span class="tx"><span class="zh ti">${M.title}</span><span class="zh ar">${M.artist}</span></span><span class="prog"><b></b></span></div>
+    <div class="face osd" data-f="osd"><span class="ico">${IC.vol}</span><span class="bar"><b></b></span><span class="d n">62</span></div>`,
+  notif: `<div class="face fn" data-f="n"><i class="dot"></i>${IC.moon.replace('<svg', '<svg class="moon"')}<span class="cnt"><b class="d">${list().length}</b></span></div>`,
+  batt: (() => { const lab = `<span class="bl">${IC.bolt}<span class="d bp">${BAT.pct}</span><span class="l pc">%</span></span>`;
+    const P = BAT;
+    return `<div class="lvl"></div>${lab}<div class="fizz"><i></i><i></i><i></i><i></i></div>
+    <div class="face" data-f="none"></div><div class="face" data-f="num"></div><div class="face" data-f="pct"></div><div class="face" data-f="chg"></div>
+    <div class="face fpw" data-f="info"><span><b class="d">${P.pct}</b><i class="l">%</i></span><span><b class="d">${P.remain}</b><i class="l">left</i></span><span><b class="d">${P.watts}</b><i class="l">W</i></span><span><b class="d">${P.health}</b><i class="l">% health</i></span></div>`; })(),
+  card: `<div class="face fc" data-f="card"><img src="${esc(N0.icon)}" alt=""><span class="tx"><span class="hd"><span class="zh ap">${esc(N0.app)}</span><span class="d t">${esc(N0.t)}</span></span><span class="zh ti">${esc(N0.title)}</span><span class="zh bd">${esc(N0.body)}</span></span></div>`,
+  prev: `<div class="face fk" data-f="k">${IC.prev}</div>`,
+  play: `<div class="face fk big" data-f="k">${IC.pause}</div>`,
+  next: `<div class="face fk" data-f="k">${IC.next}</div>`,
+  nc: `<div class="face fnc" data-f="nc"><div class="nch"><b class="d nn"></b><span class="l">Notifications</span><span class="sp"></span>
+    <button class="ncb" data-a="dnd" title="勿扰">${IC.moon}</button><button class="ncb" data-a="clr"><span class="l">Clear</span></button></div>
+    <div class="ncl"></div><div class="nce zh">没有新通知</div></div>`,
+};
+const B = {};
+for (const [name, html] of Object.entries(DEF)) {
+  const u = document.createElement('div'); u.className = 'u ' + name; u.innerHTML = html; uiL.appendChild(u);
+  const hi = document.createElement('i'); hi.dataset.n = name; hit.appendChild(hi);
+  B[name] = { name, u, hi, x: 0, y: 20, w: 0, h: 0, vx: 0, vy: 0, vw: 0, vh: 0, t: { x: 0, y: 20, w: 0, h: 0 }, k: 300, c: 22, cs: 26, at: 0, face: null, r: name === 'nc' ? 22 : Infinity };
+}
+if (!M.playing) B.audio.u.classList.add('paused');
+if (!M.playing) $('.fk', B.play.u).innerHTML = IC.play;
+/* 媒体：标题 / 歌手 / 播放态 / 进度都跟 P3Sys.media.state 走；后端每秒推一次 'media'（?static=1 不推）。
+   静态截图保留 CSS 里固定的 42% 进度条，避免 data.js 的 pos 单位（0.42）把它压成 0 */
+function syncMedia() {
+  B.audio.u.querySelectorAll('.ti').forEach(e => { if (e.textContent !== M.title) e.textContent = M.title; });
+  B.audio.u.querySelectorAll('.ar').forEach(e => { if (e.textContent !== M.artist) e.textContent = M.artist; });
+  B.audio.u.classList.toggle('paused', !M.playing);
+  const fk = $('.fk', B.play.u), ic = M.playing ? IC.pause : IC.play; if (fk.innerHTML !== ic) fk.innerHTML = ic;
+  if (!STATIC && M.len > 0) B.audio.u.querySelectorAll('.prog b').forEach(e => e.style.width = Math.min(100, 100 * M.pos / M.len) + '%');
+}
+SYS.on('media', syncMedia);
+
+function face(name, key, fd) {     // fd：内容比形状晚的毫秒数（形状延迟 + 60ms）
+  const b = B[name]; if (b.face === key) return; b.face = key;
+  b.u.dataset.face = key;
+  b.u.querySelectorAll('.face').forEach(f => {
+    const on = f.dataset.f === key;
+    if (on && fd != null) f.style.setProperty('--fd', fd + 'ms');
+    f.classList.toggle('on', on);
+  });
+}
+/* 目标：x 为中心，y 为顶边 */
+function to(name, x, y, w, h, o = {}) {
+  const b = B[name];
+  b.t = { x, y, w, h };
+  b.k = o.k ?? 300; b.c = o.c ?? 21;
+  b.cs = o.cs ?? Math.max(b.c, 1.7 * Math.sqrt(b.k));   // 尺寸单独阻尼（ζ≈.85）：位置可以弹，宽高只轻轻过冲
+  if (RM) b.c = b.cs = 2 * Math.sqrt(b.k);
+  b.at = performance.now() + (STATIC || RM ? 0 : (o.d ?? 0));
+  if (o.face) face(name, o.face, STATIC || RM ? 0 : (o.d ?? 0) + (o.fd ?? 60));
+  if (o.r != null) b.r = o.r;
+  if (STATIC || o.snap) { Object.assign(b, b.t, { vx: 0, vy: 0, vw: 0, vh: 0 }); }
+  placeHit(b); wake();
+}
+const hide = (name, x, y, o = {}) => to(name, x, y, 0, 0, o);
+function kick(name, dw, dh = 0) { if (STATIC || RM) return; B[name].vw += dw; B[name].vh += dh; wake(); }
+
+/* ---------- 状态数据 ---------- */
+let count = list().length, dnd = !!NS.dnd, vol = AU.vol, bri = SYS.display.state.bright, batt = BAT.pct, hasPlayer = true;
+function setCount(n) {
+  count = n; const box = $('.cnt', B.notif.u);
+  const old = box.querySelector('b:not(.out)');
+  const nb = document.createElement('b'); nb.className = 'd' + (STATIC ? '' : ' in'); nb.textContent = n;
+  if (old && !STATIC) { old.classList.add('out'); setTimeout(() => old.remove(), 320); } else if (old) old.remove();
+  box.appendChild(nb);
+  B.notif.u.classList.toggle('zero', !n); B.notif.u.classList.toggle('two', n > 9);
+  const w0 = B.notif.t.w;   // 计数在 0 / 个位 / 两位之间切换：重排这一行，邻居跟着让位
+  if (w0 && w0 !== NW() && (state === '1' || state === 'n') && ['1', '3'].includes(baseState)) L[baseState]();
+  $('.nn', B.nc.u).textContent = n || '';
+  $('[data-a="clr"]', B.nc.u).disabled = !n;
+}
+function setWater(p, low, chg) {
+  $('.lvl', B.batt.u).style.setProperty('--lv', p / 100);   // 设在子元素上：外层 style 每帧被弹簧重写
+  B.batt.u.classList.toggle('low', !!low);    // 低电：水位那条细胶囊变成 --accent，胶囊本身仍是墨
+  B.batt.u.classList.toggle('chg', !!chg);    // 充电：水位变 --fill，冒小气泡
+  B.batt.u.querySelectorAll('.bp').forEach(e => e.textContent = Math.round(p));
+}
+function setOsd(mode, v) {
+  const f = $('.osd', B.audio.u);
+  $('.ico', f).innerHTML = mode === 'vol' ? IC.vol : IC.sun;
+  $('.bar b', f).style.width = v + '%';
+  $('.n', f).textContent = v;
+}
+function ring(name, red, grow) {
+  if (STATIC || RM) return;
+  const b = B[name], s = Math.max(b.t.w, b.t.h) * (grow || 1);
+  const r = document.createElement('div'); r.className = 'ring' + (red ? ' red' : '');
+  Object.assign(r.style, { width: s + 'px', height: s + 'px', left: OX + b.t.x - s / 2 + 'px', top: b.t.y + b.t.h / 2 - s / 2 + 'px' });
+  uiL.appendChild(r); setTimeout(() => frozen || r.remove(), 950);
+}
+function trail(x, y) {
+  if (STATIC || RM) return;
+  const r = document.createElement('div'); r.className = 'ring'; const s = 3 + Math.random() * 4;
+  Object.assign(r.style, { width: s + 'px', height: s + 'px', left: OX + x - s / 2 + (Math.random() - .5) * 10 + 'px', top: y + 'px', animation: 'none', opacity: .8, borderWidth: '1px' });
+  uiL.appendChild(r);
+  r.animate([{ transform: 'translate(0,0)', opacity: .8 }, { transform: `translate(${(Math.random() - .5) * 16}px,-34px)`, opacity: 0 }], { duration: 700 + Math.random() * 300, easing: 'cubic-bezier(.3,.6,.5,1)' }).onfinish = () => r.remove();
+}
+
+/* ---------- 布局 ---------- */
+/* 一行分子：时间胶囊居中，两侧气泡互相压进去 OV px，颈子 ≥ 70% 气泡高 → 读作一整条有轻微腰身的胶囊。
+   深的颈子（分离）只留给过渡：通知到达、菜单吸入、低电量抻颈。 */
+const OV = 12, CY = 24;
+const NW = () => !count ? (dnd ? 24 : 18) : count > 9 ? 36 : 30;   // 0 条：缩成一颗小珠（勿扰时留出月亮）
+function row(time, left, right, o = {}) {
+  to('time', 0, CY - time.h / 2, time.w, time.h, { face: 't', k: 320, c: 22, ...time.o });
+  let e = -time.w / 2, i = 0;
+  for (const [n, w, h, oo] of left) {
+    if (n === 'audio' && !hasPlayer) { hide('audio', e + 6, CY, { k: 420, c: 28 }); continue; }
+    to(n, e - w / 2 + OV, CY - h / 2, w, h, { d: 40 + i++ * 40, ...oo }); e += -w + OV;
+  }
+  e = time.w / 2; i = 0;
+  for (const [n, w, h, oo] of right) { to(n, e + w / 2 - OV, CY - h / 2, w, h, { d: 40 + i++ * 40, ...oo }); e += w - OV; }
+  if (!o.keepCard) hide('card', 0, 24, o.card);
+  if (!o.keepCtl) ['prev', 'play', 'next'].forEach(n => hide(n, 0, 30));
+  if (state !== 'n' && B.nc.t.w) { face('nc', null); hide('nc', B.nc.t.x, CY + 6, { k: 380, c: 30 }); }   // 面板缩回计数气泡
+}
+const base = (o = {}) => row({ w: 100, h: 34, o: o.time },
+  [['audio', 30, 30, { face: 'viz', ...o.audio }]],
+  [['notif', NW(), 30, { face: 'n', ...o.notif }], ['batt', 42, 26, { face: 'num', ...o.batt }]], o);
+const L = {
+  1() { base(); setWater(batt, false); },
+  2() {
+    row({ w: 182, h: 36, o: { k: 260, c: 18 } },
+      [['audio', 150, 32, { face: 'peek', k: 240, c: 18 }]],
+      [['notif', 60, 32, { face: 'n', k: 240, c: 18 }], ['batt', 58, 30, { face: 'pct', k: 230, c: 17 }]]);
+  },
+  3() {
+    hasPlayer = true;
+    row({ w: 100, h: 34, o: { k: 300, c: 20, d: 30 } },
+      [['audio', 214, 34, { face: 'media', k: 230, c: 17, d: 0 }]],
+      [['notif', NW(), 30, { face: 'n' }], ['batt', 42, 26, { face: 'num' }]]);
+  },
+  '3b'() {
+    hasPlayer = true;
+    row({ w: 92, h: 32 }, [], [['notif', 28, 28, { face: 'n', d: 30 }], ['batt', 40, 24, { face: 'num', d: 60 }]], { keepCtl: true });
+    to('audio', 0, 41, 300, 56, { face: 'media2', k: 210, c: 18 });
+    for (const n of ['prev', 'play', 'next']) if (B[n].w < 2) to(n, 0, 70, 0, 0, { snap: true });   // 从卡片里面长出来
+    to('prev', -42, 96, 28, 28, { face: 'k', d: 180, k: 260, c: 20 });
+    to('play', 0, 94, 36, 36, { face: 'k', d: 120, k: 260, c: 19 });
+    to('next', 42, 96, 28, 28, { face: 'k', d: 240, k: 260, c: 20 });
+  },
+  5() {
+    const had = hasPlayer; hasPlayer = true;   // OSD 借音频气泡；无播放器时它从时间胶囊里长出来
+    row({ w: 96, h: 34, o: { k: 300, c: 20 } },
+      [['audio', 226, 34, { face: 'osd', k: 280, c: 18, d: 0 }]],
+      [['notif', NW(), 30, { face: 'n' }], ['batt', 42, 26, { face: 'num', d: 0 }]]);
+    hasPlayer = had;
+  },
+  '6a'() {
+    // 低电量：墨胶囊里只剩一小截红水位 + 12%，仍粘在分子上；每 1.7s 颈子被抻长一下再弹回
+    setWater(12, true);
+    const lay = (dx, o) => row({ w: 100, h: 34 }, [['audio', 30, 30, { face: 'viz' }]],
+      [['notif', NW(), 30, { face: 'n' }], ['batt', 50, 28, { face: 'pct', ...o }]]), bx = () => B.batt.t.x;
+    lay(0, { k: 260, c: 18 });
+    const pulse = () => {
+      const b = B.batt.t; to('batt', b.x + 11, b.y + 1, b.w - 4, b.h - 2, { k: 520, c: 26 });
+      later(200, () => { lay(0, { k: 340, c: 16, d: 0 }); ring('batt', true, 1.05); });
+    };
+    [500, 2200, 3900].forEach(t => later(t, pulse));   // 只抻三下，之后安静地停在低电样子
+  },
+  pw() {        // 点电量：气泡横向胀开成电源信息
+    row({ w: 100, h: 34 }, [['audio', 30, 30, { face: 'viz' }]],
+      [['notif', NW(), 30, { face: 'n' }], ['batt', 278, 32, { face: 'info', k: 230, c: 18 }]]);
+  },
+  n() {         // 通知中心：底下的分子保持原状，面板从计数气泡垂下来
+    L[['3', '6a', '6b'].includes(baseState) ? baseState : '1']();
+    openNC();
+  },
+  '6b'() {
+    setWater(12, false, true);
+    row({ w: 100, h: 34 }, [['audio', 30, 30, { face: 'viz' }]],
+      [['notif', NW(), 30, { face: 'n', k: 380, c: 18 }], ['batt', 70, 30, { face: 'chg', k: 200, c: 15 }]]);
+    later(280, () => { ring('batt', false, 1); slosh(); });
+  },
+};
+function slosh() {        // 插上电：水位冲高再回落（只在变化时动，平时静止）
+  if (STATIC || RM) return;
+  $('.lvl', B.batt.u).animate([{ '--lv': .12 }, { '--lv': .62, offset: .35 }, { '--lv': .08, offset: .7 }, { '--lv': .12 }], { duration: 1100, easing: 'cubic-bezier(.3,.7,.3,1)' });
+}
+
+/* ---------- 通知中心 ----------
+   面板是第 9 个气泡（r 封顶 22），和分子在同一张距离场里，顶边压进计数气泡 → 颈子。
+   先滴下一颗小水滴，90ms 后横向摊开成面板；内容比形状晚 60ms。关掉时缩回计数气泡。
+   删一条：卡片高度收成 0（WAAPI ≈ QML NumberAnimation on height），面板目标高度同时减去这一行 → 一起收。 */
+const NCW = 384, NCY = 38, NCMAX = 444;
+const fnc = $('.fnc', B.nc.u), ncl = $('.ncl', fnc);
+let sel = -1, pend = 0;
+function cardHTML(it) {
+  const lat = /^[\x20-\x7e]+$/.test(it.app) ? 'l' : 'zh';
+  return `<div class="nk" data-id="${it.id}"><img src="${esc(it.icon)}" alt=""><span class="nt"><span class="r1"><span class="${lat} ap">${esc(it.app)}</span><span class="d t">${esc(it.t)}</span></span><span class="zh ti">${esc(it.title)}</span><span class="zh bd">${esc(it.body)}</span></span><button class="x" aria-label="dismiss">${IC.x}</button></div>`;
+}
+function renderNC() {
+  const g = new Map();
+  const items = list();
+  items.forEach(it => { if (!g.has(it.app)) g.set(it.app, []); g.get(it.app).push(it); });
+  ncl.innerHTML = [...g].map(([app, l]) => `<div class="ng" data-app="${esc(app)}">${l.map(cardHTML).join('')}</div>`).join('');
+  fnc.classList.toggle('empty', !items.length); pend = 0; selSet(-1);
+}
+function ncH() {
+  const items = list();
+  const tot = ncl.scrollHeight - pend;
+  let l = tot;
+  if (items.length && tot > NCMAX + 1) {      // 封顶落在某张卡的中线：露半张 = 一看就知道还能往下滚
+    l = 0; for (const k of cards()) { const y = k.offsetTop + 36; if (y <= NCMAX) l = y; }
+  }
+  if (!items.length) l = 56;
+  ncl.style.maxHeight = (items.length ? l : NCMAX) + 'px';
+  ncl.classList.toggle('ovf', items.length > 0 && tot > NCMAX + 1);
+  return 58 + l + 8;
+}
+function placeNC(o = {}) { to('nc', B.notif.t.x, NCY, NCW, ncH(), { face: 'nc', k: 230, c: 21, ...o }); }
+function openNC() {
+  renderNC(); $('[data-a="dnd"]', fnc).classList.toggle('on', dnd);
+  const nx = B.notif.t.x;
+  B.notif.u.classList.remove('new');                                    // 看过了：未读红点消失
+  if (STATIC || RM) return placeNC();
+  if (B.nc.w < 2) to('nc', nx, CY, 16, 12, { snap: true });
+  to('nc', nx, NCY - 2, 34, 34, { k: 320, c: 19 });                    // 先滴一颗
+  kick('notif', 90, 70);
+  later(90, () => placeNC({ k: 260, c: 28, fd: 220 }));               // 再摊开；内容等面板大致成形再进
+}
+function closeNC() { if (state === 'n') setState(baseState, { keepBase: true }); }
+const cards = () => [...ncl.querySelectorAll('.nk:not(.gone)')];
+function selSet(i) {
+  const l = cards(); sel = l.length ? Math.max(-1, Math.min(l.length - 1, i)) : -1;
+  ncl.querySelectorAll('.nk').forEach(k => k.classList.remove('sel'));
+  if (sel >= 0) { l[sel].classList.add('sel'); l[sel].scrollIntoView({ block: 'nearest' }); }
+}
+function collapse(el, dir, gapSide) {
+  const h = el.offsetHeight, cs = getComputedStyle(el), mt = cs.marginTop;
+  const end = { height: '0px', marginTop: gapSide === 't' ? '-10px' : '0px', marginBottom: gapSide === 'b' ? '-10px' : '0px', opacity: 0 };
+  if (STATIC || RM) { el.remove(); return Promise.resolve(); }
+  const out = dir ? `translateX(${dir * 400}px)` : 'scale(.94)';
+  const a = el.animate([
+    { height: h + 'px', marginTop: mt, marginBottom: '0px', opacity: 1, transform: el.style.transform || 'none' },
+    { height: h + 'px', marginTop: mt, marginBottom: '0px', opacity: 0, transform: out, offset: .4 },
+    { ...end, transform: out },
+  ], { duration: dir ? 440 : 400, easing: 'cubic-bezier(.45,0,.2,1)', fill: 'forwards' });
+  return a.finished.then(() => el.remove(), () => {});
+}
+/* 删一条 / 打开一条：先在界面上划走（gone），再交给后端；失败就把列表按后端状态重画 */
+function dismiss(id, dir = 0, how = 'dismiss') {
+  const it = list().find(o => o.id === id); if (!it) return;
+  gone.add(id);
+  SYS.notify[how](id).then(() => gone.delete(id), () => { gone.delete(id); syncNotify(true); });
+  const items = list();
+  const k = ncl.querySelector(`.nk[data-id="${id}"]`); if (!k) return;
+  const g = k.closest('.ng'), last = !items.some(o => o.app === it.app);
+  const el = last ? g : k;
+  const gap = !last ? '' : g.previousElementSibling ? 't' : g.nextElementSibling ? 'b' : '';
+  const rm = last ? g.offsetHeight + (gap ? 10 : 0) : 56;
+  el.classList.add('gone'); k.classList.add('gone');
+  setCount(items.length);
+  pend += rm;
+  const fin = () => { pend -= rm; if (!items.length) { fnc.classList.add('empty'); pend = 0; } };
+  if (!items.length) { pend = ncl.scrollHeight; }
+  later(170, () => state === 'n' && placeNC({ k: 260, c: 24 }));   // 卡片先淡出，面板随后收（和卡片的高度动画同一拍）
+  kick('notif', -120, -120);
+  collapse(el, dir, gap).then(() => { fin(); if (state === 'n') placeNC({ k: 260, c: 22 }); });
+  selSet(Math.min(sel, cards().length - 1));
+}
+function clearAll() {
+  const ids = list().map(o => o.id); if (!ids.length) return;
+  ids.forEach(id => gone.add(id));
+  SYS.notify.clearAll().then(() => ids.forEach(id => gone.delete(id)), () => { ids.forEach(id => gone.delete(id)); syncNotify(true); });
+  const gs = [...ncl.querySelectorAll('.ng')];
+  ncl.querySelectorAll('.nk').forEach(k => k.classList.add('gone'));
+  setCount(0);
+  // 卡片依次向右滑走，面板同时收到空态高度（列表被面板的圆角裁掉，像水退回去）
+  if (!STATIC && !RM) gs.forEach((g, i) => g.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateX(60px)', opacity: 0 }],
+    { duration: 240, delay: i * 35, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' }));
+  kick('notif', -120, -120); ring('notif', false, 1);
+  const done = () => { fnc.classList.add('empty'); ncl.innerHTML = ''; pend = 0; if (state === 'n') placeNC({ k: 240, c: 24 }); };
+  later(STATIC || RM ? 0 : gs.length * 35 + 240, done);   // 先滑走，再收成空态（“没有新通知”）
+}
+function activate(id) {     // 打开 = 跳到应用：消掉这一条并收起面板
+  dismiss(id, 0, 'activate'); later(160, closeNC);
+}
+function setDnd(on, quiet) {      // 只管样子；开关走 toggleDnd → P3Sys.mode.setDnd
+  dnd = on; B.notif.u.classList.toggle('dnd', on);
+  $('[data-a="dnd"]', fnc).classList.toggle('on', on); if (!quiet) kick('notif', 140, 60);
+}
+function toggleDnd() {
+  const on = !dnd; setDnd(on);
+  SYS.mode.setDnd(on).catch(() => setDnd(!!NS.dnd, true));
+}
+fnc.addEventListener('click', e => {
+  const bt = e.target.closest('button'); if (!bt) return;
+  e.stopPropagation();
+  if (bt.dataset.a === 'dnd') toggleDnd();
+  else if (bt.dataset.a === 'clr') clearAll();
+  else if (bt.classList.contains('x')) dismiss(+bt.closest('.nk').dataset.id);
+});
+ncl.addEventListener('pointerdown', e => {      // 横滑删除：超过 90px 甩出去，否则弹回
+  const k = e.target.closest('.nk'); if (!k || k.classList.contains('gone') || e.target.closest('.x')) return;
+  const x0 = e.clientX; let dx = 0, moved = false;
+  k.setPointerCapture(e.pointerId);
+  const mv = ev => { dx = (ev.clientX - x0) / scale; if (Math.abs(dx) > 4) moved = true;
+    k.style.transform = `translateX(${dx}px)`; k.style.opacity = 1 - Math.min(.6, Math.abs(dx) / 300); };
+  const up = () => {
+    k.removeEventListener('pointermove', mv); k.removeEventListener('pointerup', up); k.removeEventListener('pointercancel', up);
+    if (Math.abs(dx) > 90) return dismiss(+k.dataset.id, Math.sign(dx));
+    if (moved) k.animate([{ transform: k.style.transform, opacity: k.style.opacity }, { transform: 'none', opacity: 1 }], { duration: 460, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+    k.style.transform = k.style.opacity = '';
+    if (!moved) activate(+k.dataset.id);
+  };
+  k.addEventListener('pointermove', mv); k.addEventListener('pointerup', up); k.addEventListener('pointercancel', up);
+});
+addEventListener('pointerdown', e => {       // 点面板外面 = 收起
+  if (state === 'n' && !e.target.closest('.fnc, #hit i, #dock')) closeNC();
+});
+
+/* 新通知：P3Sys.on('notify:new') 给一条（勿扰时后端不发）。先写进卡片，滚进计数时才算数（incoming 不进 list()） */
+let simWait = false, simGot = null;
+function fillCard(it) {
+  const f = $('.fc', B.card.u);
+  $('img', f).src = it.icon; $('.ap', f).textContent = it.app; $('.t', f).textContent = STATIC ? `${pad(C.h)}:${pad(C.m)}` : it.t;   // simulate() 盖的是真实时间：静态截图用钉住的时钟
+  $('.ti', f).textContent = it.title; $('.bd', f).textContent = it.body;
+}
+function commitArrival() { if (incoming) { incoming = null; B.notif.u.classList.add('new'); } setCount(list().length); }
+SYS.on('notify:new', it => {
+  if (simWait) { simGot = it; return; }              // 本页 notifySeq 自己要的那条
+  if (state === 'n') return;                         // 面板开着：'notify' 刷新列表就够了
+  stopDemo(); setState('4', { item: it });           // 外部来的通知（真后端）：播到达动画
+});
+/* 'notify' 变化（删除 / 清空 / 勿扰 / 新到）：计数和面板跟后端对齐。放进微任务：紧跟着的 notify:new 先认领 incoming */
+let syncQ = false;
+function syncNotify(force) {
+  if (!!NS.dnd !== dnd) setDnd(!!NS.dnd, true);
+  const l = list();
+  if (l.length !== count) setCount(l.length);
+  if (state === 'n' && (force || !pend)) {
+    const shown = cards().map(k => +k.dataset.id).join(), want = l.map(o => o.id).join();
+    if (shown !== want) { renderNC(); placeNC(); }
+  }
+}
+SYS.on('notify', () => { if (!syncQ) { syncQ = true; queueMicrotask(() => { syncQ = false; syncNotify(); }); } });
+
+/* ---------- 编排 ---------- */
+let state = '1', timers = [], baseState = '1', notifyOpen = false, restT;
+const later = (ms, f) => { if (STATIC) return f(); timers.push(setTimeout(f, ms)); };
+const every = (ms, f) => { if (STATIC) return; timers.push(setInterval(f, ms)); };
+function clearT() { timers.forEach(t => { clearTimeout(t); clearInterval(t); }); timers = []; }
+function resetWipe() {
+  $('.ink', wipe).getAnimations().forEach(a => a.cancel());
+  [wipe, wrim].forEach(el => { el.getAnimations().forEach(a => a.cancel()); el.classList.remove('show', 'full'); });
+  wipe.style.clipPath = ''; wrim.style.width = wrim.style.height = '0px';
+}
+function rest(on) { B.audio.u.classList.toggle('rest', on); }
+function settle1() {    // 回到 IDLE；几秒后可视化柱子停下
+  state = '1'; baseState = '1'; island.dataset.s = '1'; syncDock();
+  clearTimeout(restT); if (!STATIC) restT = setTimeout(() => state === '1' && rest(true), 4000); else rest(true);
+  // 呼吸：静置时每 5.2s 给时间胶囊一点速度，弹簧自己回来（≈1.5px，QML 同一个 SpringAnimation）
+  every(5200, () => { if (state === '1' && !hovering && !frozen) kick('time', 30, 10); });
+}
+
+function setState(s, opt = {}) {
+  s = String(s);
+  clearT(); resetWipe(); clearTimeout(restT); rest(false);
+  if (notifyOpen) { notifyOpen = false; commitArrival(); }   // 被打断的通知也要计数
+  if (s !== 'n') sel = -1;
+  const prev = state; state = s; island.dataset.s = s;
+  if (!opt.keepBase && !['2', '5', 'n', 'pw'].includes(s)) baseState = (s === '4' || s === '7') ? '1' : s;   // 一次性序列结束后回 IDLE
+  if (s !== '6a' && s !== '6b') setWater(batt, false);
+  if (s === '4') return notifySeq(opt.item);
+  if (s === '7') return openSeq(prev);
+  if (s === '5' && !opt.keepOsd) setOsd('vol', vol);
+  L[s]();
+  if (s === '1') settle1();
+  syncDock();
+}
+
+function notifySeq(item) {
+  base({ card: { snap: true } });
+  syncDock();
+  const card = B.card;
+  if (!item) {               // 演示 / 调试坞：让 mock 推一条，notify:new 同步回到 simGot
+    simWait = true; simGot = null;
+    try { SYS.notify.simulate(); } finally { simWait = false; }
+    item = simGot; simGot = null;
+  }
+  if (!item) {               // 勿扰：后端不发 notify:new → 不升卡片，计数（'notify' 已刷新）静静滚一格
+    later(300, () => kick('notif', 120, 80));
+    later(900, settle1); return;
+  }
+  notifyOpen = true; incoming = item; fillCard(item);
+  if (STATIC) { arrive(); settled(); B.notif.u.classList.add('new'); return; }
+  // 1 气泡从下方水里浮上来
+  face('card', null);
+  to('card', -26, 120, 10, 10, { snap: true });
+  later(30, () => to('card', 18, 150, 18, 18, { k: 90, c: 11 }));
+  later(380, () => to('card', -6, 52, 26, 26, { k: 160, c: 12 }));
+  const tr = setInterval(() => { if (card.y > 60) trail(card.x, card.y + card.h); }, 70); timers.push(tr);
+  // 2 撞进时间胶囊：胶囊被顶一下
+  later(720, () => { to('time', 0, 5, 110, 36, { k: 520, c: 22 }); ring('time', false, 1.1); });
+  later(900, () => to('time', 0, 7, 100, 34, { k: 300, c: 18 }));
+  // 3 胀开成通知卡，邻居被挤开（深颈子只在这一刻出现），随后再粘回来
+  later(860, arrive);
+  later(1700, settled);
+  // 4 收成一颗，滚进通知气泡，计数 +1
+  later(4200, () => { face('card', null); base({ keepCard: true }); to('card', 30, 30, 26, 26, { k: 260, c: 20 }); });
+  later(4550, () => to('card', B.notif.t.x - 2, 17, 14, 14, { k: 300, c: 20 }));
+  later(4800, () => {
+    notifyOpen = false;
+    hide('card', B.notif.t.x, 24, { k: 400, c: 26 }); commitArrival();
+    base({ keepCard: true });
+    const n = B.notif.t; to('notif', n.x, n.y - 4, n.w + 8, n.h + 8, { k: 480, c: 20 }); ring('notif', false, 1);
+  });
+  later(5100, () => base({ keepCard: true, notif: { k: 260, c: 16 } }));
+  later(5600, settle1);
+  function arrive() {
+    to('card', 0, 44, 344, 64, { face: 'card', k: 200, c: 16 });
+    to('audio', -76, 10, 30, 30, { k: 420, c: 19 });
+    to('notif', 75, 10, 30, 30, { k: 420, c: 19 });
+    to('batt', 111, 12, 42, 26, { k: 380, c: 18, d: 40 });
+  }
+  function settled() { base({ keepCard: true, audio: { k: 260, c: 16 }, notif: { k: 260, c: 16 }, batt: { k: 240, c: 15 } }); }
+}
+
+function openSeq(prev) {
+  syncDock();
+  const R = Math.hypot(W / 2, H) + 40;
+  let cx = W / 2, cy = 35;
+  const clip = r => `circle(${r}px at ${cx}px ${cy}px)`;
+  const rim = r => ({ left: cx + 'px', top: cy + 'px', width: 2 * r + 'px', height: 2 * r + 'px' });
+  if (STATIC) { base(); wipe.classList.add('show', 'full'); wipe.style.clipPath = clip(R); $('.ink', wipe).style.opacity = 0; return; }
+  // 1 所有气泡被吸进时间胶囊，缩成一颗水滴（深颈子：被吸进去的过程）
+  face('time', 'none'); face('notif', null); face('audio', null);   // 内容先退，形状才吸进去
+  to('batt', 20, 12, 18, 18, { k: 420, c: 26, face: 'none' });
+  to('notif', 18, 12, 20, 20, { k: 420, c: 26, d: 30 });
+  to('audio', -18, 12, 20, 20, { k: 420, c: 26, d: 30, face: 'viz' });
+  to('time', 0, 4, 44, 44, { k: 360, c: 20, d: 60 });
+  ['prev', 'play', 'next', 'card'].forEach(n => hide(n, 0, 30, { k: 420, c: 26 }));
+  // 2 蓄力：水滴下坠胀大
+  later(340, () => { ['batt', 'notif', 'audio'].forEach(n => hide(n, 0, 20, { k: 500, c: 30 })); to('time', 0, 6, 54, 58, { k: 260, c: 14 }); });
+  // 3 从水滴此刻的中心破开成整屏的水，边缘一圈 --fill 表面张力
+  later(560, () => {
+    const t = B.time; cx = W / 2 + t.x; cy = t.y + t.h / 2;
+    const r0 = Math.max(t.w, t.h) / 2;
+    wipe.classList.add('show'); wrim.classList.add('show');
+    const opt = { duration: RM ? 200 : 680, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'forwards' };
+    wipe.animate([{ clipPath: clip(r0) }, { clipPath: clip(R) }], opt);
+    wrim.animate([rim(r0), rim(R)], opt);
+    $('.ink', wipe).animate([{ opacity: 1 }, { opacity: 1, offset: .15 }, { opacity: 0 }], opt);   // 破开时是墨，涨开后透出水
+    later(360, () => wipe.classList.add('full'));
+  });
+  // 4 约 1.5s 后收回岛里，分子重新长出来
+  later(2500, () => {
+    wipe.classList.remove('full');
+    hide('time', 0, 6, { snap: true });
+    const opt = { duration: RM ? 200 : 560, easing: 'cubic-bezier(.6,0,.3,1)', fill: 'forwards' };
+    wrim.animate([rim(R), rim(20)], opt);
+    $('.ink', wipe).animate([{ opacity: 0 }, { opacity: 1, offset: .8 }, { opacity: 1 }], opt);   // 收回时重新变成墨，接上岛
+    wipe.animate([{ clipPath: clip(R) }, { clipPath: clip(20) }], opt)
+      .onfinish = () => {
+        to('time', 0, 4, 40, 40, { snap: true });
+        hide('audio', -10, 14, { snap: true }); hide('notif', 10, 14, { snap: true }); hide('batt', 10, 14, { snap: true });
+        render(); resetWipe();                       // 先画出水滴再撤幕，不闪旧帧
+        base(); B.audio.at += 60; B.notif.at += 60; B.batt.at += 170;
+        settle1();
+      };
+  });
+}
+
+/* ---------- 形状层：SDF 平滑并集（= QML fragment shader，同一段数学） ---------- */
+const cv = $('#cv'), cx2 = cv.getContext('2d');
+const K = 12;                      // 平滑并集半径（逻辑 px）
+let RES = 1, img = null, COL = {};
+function bootCanvas() { readCol(); sizeCanvas(); window.__cvReady = true; }
+function readCol() {
+  const cs = getComputedStyle(root), hex = v => { const m = cs.getPropertyValue(v).trim().match(/[0-9a-f]{2}/gi); return m.map(h => parseInt(h, 16)); };
+  COL = { ink: hex('--ink'), fill: hex('--fill'), sea: hex('--isl'), sky: hex('--sky') };
+}
+function sizeCanvas() {
+  RES = Math.max(1, Math.min(2, (devicePixelRatio || 1) * scale));
+  cv.width = Math.round(1120 * RES); cv.height = Math.round(780 * RES);
+  cv.style.width = '1120px'; cv.style.height = '780px';
+}
+function draw() {
+  const sh = [];
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const b of Object.values(B)) {
+    let w = Math.max(0, b.w), h = Math.max(0, b.h);
+    if (w < .5 || h < .5) continue;
+    let sx = 1, sy = 1;      // 沿速度方向拉长
+    if (!STATIC && !RM) {
+      const sp = Math.min(.12, Math.hypot(b.vx, b.vy) / 3200);
+      if (Math.abs(b.vx) > Math.abs(b.vy)) { sx = 1 + sp; sy = 1 - sp * .6; } else { sy = 1 + sp; sx = 1 - sp * .6; }
+    }
+    const s = { cx: OX + b.x, cy: b.y + h / 2, hw: w * sx / 2, hh: h * sy / 2, rm: b.r, al: 1 };
+    sh.push(s);
+    x0 = Math.min(x0, s.cx - s.hw); x1 = Math.max(x1, s.cx + s.hw); y0 = Math.min(y0, s.cy - s.hh); y1 = Math.max(y1, s.cy + s.hh);
+  }
+  cx2.clearRect(0, 0, cv.width, cv.height);
+  if (!sh.length) return;
+  const px0 = Math.max(0, Math.floor((x0 - 4) * RES)), py0 = Math.max(0, Math.floor((y0 - 4) * RES));
+  const px1 = Math.min(cv.width, Math.ceil((x1 + 4) * RES)), py1 = Math.min(cv.height, Math.ceil((y1 + 4) * RES));
+  const bw = px1 - px0, bh = py1 - py0; if (bw <= 0 || bh <= 0) return;
+  if (!img || img.width !== bw || img.height !== bh) img = cx2.createImageData(bw, bh);
+  const dat = img.data, n = sh.length, { ink, fill: fil, sea, sky } = COL;
+  for (let j = 0; j < bh; j++) {
+    const py = (py0 + j + .5) / RES;
+    for (let i = 0; i < bw; i++) {
+      const px = (px0 + i + .5) / RES;
+      let d = 1e9, v = 0, al = .93;
+      let first = true;
+      for (let k = 0; k < n; k++) {
+        const s = sh[k];
+        if (!first && (Math.abs(px - s.cx) - s.hw > K + 2 || Math.abs(py - s.cy) - s.hh > K + 2)) continue;   // 超出 K 的气泡对并集没有贡献
+        const r = Math.min(s.hw, s.hh, s.rm);
+        const qx = Math.abs(px - s.cx) - s.hw + r, qy = Math.abs(py - s.cy) - s.hh + r;
+        const di = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+        const vi = (py - s.cy) / Math.min(s.hh, 22);   // 每个气泡自己的竖向坐标：-1 顶 … 1 底（大面板只看上下 22px 的边）
+        if (first) { first = false; d = di; v = vi; al = s.al; continue; }
+        const d0 = d, hh = Math.min(1, Math.max(0, .5 + .5 * (di - d) / K));   // h → 当前累积形状的权重
+        d = di + (d - di) * hh - K * hh * (1 - hh);
+        const hc = Math.min(1, Math.max(0, .5 + .5 * (di - d0) / 2.5));   // 颜色用更窄的混合带：颈子里只渗开 ~2px
+        v = vi + (v - vi) * hc; al = s.al + (al - s.al) * hc;
+      }
+      const o = (j * bw + i) * 4;
+      const a = Math.min(1, Math.max(0, .5 - d * RES));
+      if (a <= 0) { dat[o + 3] = 0; continue; }
+      // 平涂 --isl，和菜单同色
+      dat[o] = sea[0]; dat[o + 1] = sea[1]; dat[o + 2] = sea[2];
+      dat[o + 3] = a * al * 255;
+    }
+  }
+  cx2.putImageData(img, px0, py0);
+}
+
+/* ---------- 物理：弹簧全部静止就睡，to()/kick() 唤醒 ---------- */
+let last = performance.now(), awake = false;
+let frozen = false;
+function wake() { if (awake || STATIC || frozen) return; awake = true; last = performance.now(); requestAnimationFrame(step); }
+function render() {
+  for (const b of Object.values(B)) {
+    const w = Math.max(0, b.w), hh = Math.max(0, b.h);
+    b.u.style.cssText = `width:${w}px;height:${hh}px;transform:translate(${OX + b.x - w / 2}px,${b.y}px);opacity:${Math.min(1, Math.min(w, hh) / 16)}`;
+  }
+  draw();
+}
+function step(now) {
+  if (frozen) { awake = false; return; }
+  const dt = Math.min(.1, (now - last) / 1000); last = now;   // 掉帧时拆成多个子步，保持实时速度
+  const n = Math.max(1, Math.ceil(dt / .008)), h = dt / n;
+  let busy = false;
+  for (const b of Object.values(B)) {
+    if (now < b.at) { busy = true; continue; }
+    for (let i = 0; i < n; i++) for (const p of ['x', 'y', 'w', 'h']) {
+      const v = 'v' + p, a = -b.k * (b[p] - b.t[p]) - (p === 'w' || p === 'h' ? b.cs : b.c) * b[v];
+      b[v] += a * h; b[p] += b[v] * h;
+    }
+    for (const p of ['x', 'y', 'w', 'h']) if (Math.abs(b[p] - b.t[p]) > .05 || Math.abs(b['v' + p]) > .05) busy = true;
+  }
+  if (!busy) for (const b of Object.values(B)) Object.assign(b, b.t, { vx: 0, vy: 0, vw: 0, vh: 0 });
+  render();
+  if (busy) requestAnimationFrame(step); else awake = false;
+}
+window.__awake = () => awake;
+window.__busy = () => Object.values(B).filter(b => ['x','y','w','h'].some(p => Math.abs(b[p]-b.t[p]) > .05 || Math.abs(b['v'+p]) > .05)).map(b => b.name + ':' + b.w.toFixed(2) + '/' + b.t.w + ' v' + b.vw.toFixed(2));   // 调试：列出仍在运动的气泡
+
+/* 每个气泡自己的点击区（QML：用同一组形状做 input mask） */
+function placeHit(b) {
+  const t = b.t, on = b.name !== 'nc' && t.w > 4 && t.h > 4;
+  b.hi.style.display = on ? 'block' : 'none';
+  if (on) Object.assign(b.hi.style, { left: OX + t.x - t.w / 2 - 3 + 'px', top: t.y - 3 + 'px', width: t.w + 6 + 'px', height: t.h + 6 + 'px' });
+}
+
+/* ---------- 交互 ---------- */
+let hoverT, osdT, hovering = false, hoverExpanded = false;
+hit.addEventListener('mouseenter', () => {
+  hovering = true; clearTimeout(hoverT);
+});
+hit.addEventListener('mouseleave', () => {
+  hovering = false;
+  hoverT = setTimeout(() => {
+    if (demoOn) return;
+    if (state === '2') setState(baseState === '2' ? '1' : baseState, { keepBase: true });
+    else if (state === '3b' && hoverExpanded) { hoverExpanded = false; setState('3'); }
+    else if (state === 'pw') setState(baseState, { keepBase: true });
+  }, 140);
+});
+let pinFrom = '1';
+hit.addEventListener('click', e => {
+  const n = e.target.dataset.n; if (!n) return;
+  if (state === '3b' && (n === 'prev' || n === 'play' || n === 'next')) {
+    e.stopPropagation();
+    if (n === 'play') togglePlay(); else skip(n);
+    return;
+  }
+  stopDemo();
+  if (n === 'time') setState('7');
+  else if (n === 'notif' || n === 'card') state === 'n' ? closeNC() : setState('n', { keepBase: true });
+  else if (n === 'batt') setState(state !== 'pw' ? 'pw' : baseState === '1' ? '2' : baseState, { keepBase: true });
+  else if (n === 'audio' && hasPlayer) {
+    hoverExpanded = false;
+    if (state === '3b') setState(pinFrom === '1' ? '2' : pinFrom, { keepBase: true }); else { pinFrom = baseState === '3' ? '3' : '1'; setState('3b', { keepBase: true }); }
+  }
+});
+hit.addEventListener('wheel', e => {
+  e.preventDefault();
+  vol = Math.max(0, Math.min(100, vol + (e.deltaY < 0 ? 4 : -4)));
+  SYS.audio.setVolume(vol).catch(() => {});
+  if (state !== '5') setState('5', { keepBase: true, keepOsd: true });
+  setOsd('vol', vol);
+  if (Math.abs(B.audio.vw) < 260) kick('audio', 160); // 每一格让胶囊颤一下（叠加封顶，快速滚轮不会抖成果冻）
+  clearTimeout(osdT); osdT = setTimeout(() => { if (state === '5') setState(hovering ? '2' : baseState, { keepBase: true }); }, 1500);
+}, { passive: false });
+function press(n) { kick(n, -260, -260); ring(n, false, 1.2); }
+function togglePlay() {     // 图标 / 暂停态由 'media' → syncMedia 刷新
+  SYS.media.playPause().catch(() => {});
+  press('play');
+}
+function skip(n) {
+  SYS.media[n === 'next' ? 'next' : 'previous']().catch(() => {});
+  press(n);
+  const a = B.audio; a.vx += n === 'next' ? 240 : -240; wake();   // 卡片被往那一侧推一下
+  a.u.querySelectorAll('.prog b').forEach(e => e.style.width = '0%');
+}
+function togglePlayer() {     // 无播放器：音频气泡被时间胶囊吸回去，分子变短
+  // mock 只有“切到下一个播放器”，没有“没有播放器”这个状态：调 cyclePlayer，有无播放器的样子仍由本页切
+  SYS.media.cyclePlayer().catch(() => {});
+  hasPlayer = !hasPlayer;
+  if (state === '1' || state === '2') L[state]();
+  syncDock();
+}
+
+/* ---------- 演示 ---------- */
+const SEQ = [['1', 1800], ['2', 2200], ['3', 2200], ['3b', 2800], ['1', 1100], ['4', 6200], ['5', 2800], ['6a', 3000], ['6b', 3000], ['1', 1200], ['7', 3600]];
+let demoOn = false, demoI = 0, demoT;
+function demoStep() {
+  const [s, ms] = SEQ[demoI % SEQ.length]; demoI++;
+  setState(s);
+  if (s === '5') {
+    let v = vol; const up = [66, 70, 74, 78, 82], dn = [76, 70, 64];
+    up.concat(dn).forEach((n, i) => later(220 + i * 120, () => { vol = n; SYS.audio.setVolume(n).catch(() => {}); setOsd('vol', n); kick('audio', 160); }));
+    later(1600, () => { setOsd('bri', bri); kick('audio', 0, 120); });
+    [60, 68, 74].forEach((n, i) => later(1900 + i * 140, () => { bri = n; SYS.display.setBrightness(n).catch(() => {}); setOsd('bri', n); kick('audio', 160); }));
+  }
+  demoT = setTimeout(demoStep, ms);
+}
+function startDemo() { if (STATIC) return; demoOn = true; demoI = 0; demoStep(); syncDock(); }
+function stopDemo() { demoOn = false; clearTimeout(demoT); syncDock(); }
+
+/* ---------- 调试坞 ---------- */
+const DOCK = [['1', '1', 'Idle'], ['2', '2', 'Peek'], ['3', '3', 'Media'], ['3b', '3+', 'Ctrl'], ['4', '4', 'Notify'], ['5', '5', 'OSD'], ['6a', '6', 'Low'], ['6b', '6+', 'Charge'], ['7', '7', 'Menu'], ['n', 'N', 'Notifs']];
+const dock = $('#dock');
+dock.innerHTML = DOCK.map(([s, k, n]) => `<button class="l" data-s="${s}"><kbd>${k}</kbd>${n}</button>`).join('') +
+  `<span class="sep"></span><button class="l" data-a="player"><kbd>P</kbd>Player</button><button class="l" data-a="demo"><kbd>␣</kbd>Demo</button><button class="l" data-a="w"><kbd>W</kbd>${W}</button>`;
+dock.addEventListener('click', e => {
+  const bt = e.target.closest('button'); if (!bt) return;
+  if (bt.dataset.s) { stopDemo(); setState(bt.dataset.s); }
+  else if (bt.dataset.a === 'demo') demoOn ? stopDemo() : startDemo();
+  else if (bt.dataset.a === 'player') togglePlayer();
+  else if (bt.dataset.a === 'w') { Q.set('w', W === 2560 ? '1706' : '2560'); location.search = Q; }
+});
+function syncDock() {
+  dock.querySelectorAll('button[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === state));
+  dock.querySelector('[data-a="demo"]').classList.toggle('on', demoOn);
+  dock.querySelector('[data-a="player"]').classList.toggle('on', hasPlayer);
+}
+addEventListener('keydown', e => {
+  if (e.key >= '1' && e.key <= '7') {
+    stopDemo();
+    let s = e.key;
+    if (s === '3' && state === '3') s = '3b'; else if (s === '3' && state === '3b') s = '3';
+    if (s === '6') s = state === '6a' ? '6b' : '6a';
+    setState(s);
+  } else if (e.key === ' ') { e.preventDefault(); demoOn ? stopDemo() : startDemo(); }
+  else if (e.key === 'p' || e.key === 'P') togglePlayer();
+  else if (e.key === 'n' || e.key === 'N') { stopDemo(); state === 'n' ? closeNC() : setState('n', { keepBase: true }); }
+  else if (state === 'n') {
+    const l = cards();
+    if (e.key === 'ArrowDown') { e.preventDefault(); selSet(sel < 0 ? 0 : (sel + 1) % l.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selSet(sel <= 0 ? l.length - 1 : sel - 1); }
+    else if (e.key === 'Enter' && sel >= 0) activate(+l[sel].dataset.id);
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel >= 0) dismiss(+l[sel].dataset.id);
+    else if (e.key === 'Escape') sel >= 0 ? selSet(-1) : closeNC();
+  } else if (e.key === 'Escape' && ['pw', '3b', '2'].includes(state)) setState(baseState === '3b' ? '3' : baseState, { keepBase: true });
+});
+
+/* ---------- 水幕里的气泡 ---------- */
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+$('#wipe .bub').innerHTML = Array.from({ length: 22 }, () => {
+  const s = 8 + rnd() * 26;
+  return `<i style="left:${rnd() * 100}%;width:${s}px;height:${s}px;animation-delay:${-rnd() * 2.2}s;animation-duration:${1.8 + rnd() * 1.6}s"></i>`;
+}).join('');
+
+/* ---------- 启动 ---------- */
+const init = Q.get('state') || '1';
+const okS = ['1', '2', '3', '3b', '4', '5', '6', '6a', '6b', '7', 'n', 'pw'];
+const s0 = okS.includes(init) ? (init === '6' ? '6a' : init) : '1';
+bootCanvas();
+// 开场：分子从时间胶囊里依次长出来
+to('time', 0, 4, 0, 0, { snap: true });
+['audio', 'notif', 'batt', 'card', 'prev', 'play', 'next', 'nc'].forEach(n => hide(n, 0, 20, { snap: true }));
+setCount(list().length); setDnd(dnd, true);
+if (s0 === 'n' || s0 === 'pw') { setState('1'); setState(s0, { keepBase: true }); } else setState(s0);
+if (Q.get('player') === '0') { hasPlayer = false; if (s0 === '1' || s0 === '2') L[s0](); syncDock(); }
+if (STATIC) {
+  render();
+  // 字体和图标加载完高度才准：重新量一次面板
+  Promise.all([document.fonts.ready, ...[...document.images].map(i => i.complete ? 0 : new Promise(r => i.onload = i.onerror = r))])
+    .then(() => { if (state === 'n') placeNC(); render(); });
+}
+else if (Q.get('demo') === '1') startDemo();
+/* ?t=ms：跑到第 t 毫秒时冻结一切（截过渡帧用）：弹簧停、计时器清、CSS/WAAPI 动画暂停 */
+const FT = +Q.get('t');
+if (!STATIC && FT > 0) setTimeout(() => {
+  frozen = true; clearT(); stopDemo(); clearTimeout(restT); clearTimeout(osdT); clearTimeout(hoverT);
+  document.body.classList.add('frz'); document.getAnimations().forEach(a => a.pause());
+}, FT);
+})();
+
+</script>
+</body>
+</html>

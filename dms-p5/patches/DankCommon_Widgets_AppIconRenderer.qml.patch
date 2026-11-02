@@ -1,0 +1,16 @@
+diff --git a/DankCommon/Widgets/AppIconRenderer.qml b/DankCommon/Widgets/AppIconRenderer.qml
+--- a/DankCommon/Widgets/AppIconRenderer.qml
++++ b/DankCommon/Widgets/AppIconRenderer.qml
+@@ -100,7 +100,11 @@
+             source: root.iconPath
+             backer.sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+             mipmap: true
+-            asynchronous: true
++            // P5：图标走 image://icon 时，IconImageProvider::requestPixmap 会在
++            // QQuickPixmapReader 线程里调用非线程安全的 QIcon/QIconLoader，
++            // 与 GUI 线程竞争导致段错误（通知头像尤其容易触发）。改回同步加载，
++            // 强制在 GUI 线程取图标。
++            asynchronous: false
+             visible: status === Image.Ready
+         }
+     }

@@ -1,0 +1,7 @@
+// 壁纸切换覆盖层（~/.config/quickshell/wallpaper）
+spawn-at-startup "qs" "-c" "wallpaper" "-d"
+
+binds {
+    Mod+Y hotkey-overlay-title="壁纸切换 Wallpaper" { spawn "qs" "ipc" "-c" "wallpaper" "call" "wallpaper" "toggle"; }
+    Mod+Alt+W hotkey-overlay-title="壁纸切换 Wallpaper" { spawn "qs" "ipc" "-c" "wallpaper" "call" "wallpaper" "toggle"; }
+}

@@ -1,0 +1,150 @@
+--- a/Modules/DIsland/IslandController.qml
++++ b/Modules/DIsland/IslandController.qml
+@@ -7,6 +7,8 @@
+ import qs.Modules.ControlCenter
+ import qs.Modules.DBar
+ import qs.Modules.DDash
++import qs.Services
++import "../P3/Island/P3IslandLayout.js" as P3L
+ 
+ QtObject {
+     id: root
+@@ -500,10 +502,91 @@
+     readonly property bool transientActive: systemActivityActive || notificationActive
+     readonly property bool timeoutSuspended: pointerInside || (expanded && !notificationActive)
+     readonly property bool activityOwnsBlankClicks: blankClickOwners.indexOf(activeActivity) !== -1
+-    readonly property bool hoverExpandEnabled: root.interactionMode === "hybrid" && !root.systemActivityActive
++    readonly property bool hoverExpandEnabled: root.interactionMode === "hybrid" && !root.systemActivityActive && (!root.p3Layout || root.activeActivity === "home" || root.activeActivity === "media")
++
++    // dms-p3：横向顶栏的独立岛画成 P3 气泡串（overlay/Modules/P3/Island）。目标是 P3IslandLayout.js 里气泡的外框。
++    // 悬停：home 胀成 peek（p3Peek，不算展开），media 走 DMS 的 hoverExpanded 展开成 mediaOpen；离开 140ms 后收回。
++    // 其余 Activity（启动器、控制中心等）仍用下面 DMS 自己的目标。
++    readonly property bool p3Layout: !isVertical && !farEdge && !freeMode && !dotMode && !embedded && !notch
++    readonly property int p3HoverCloseDelay: 140
++    property bool p3BatteryInfo: false
++    property bool p3Peek: false
++    // 通知中心里刚删掉、行高还没收完的条数：面板高度按 count + 这个数算，晚一拍再收
++    property int p3CenterHold: 0
++    readonly property var p3Data: ({
++            "count": NotificationService.notifications.length,
++            "rows": NotificationService.notifications.length + root.p3CenterHold,
++            "dnd": SessionData.doNotDisturb,
++            "player": root.mediaAvailable,
++            "mediaRow": root.mediaAvailable && root.mediaPreferred,
++            "battery": BatteryService.batteryAvailable,
++            "low": BatteryService.isLowBattery && !BatteryService.isCharging,
++            "plugged": BatteryService.isPluggedIn,
++            "stateLength": root.systemStateContentLength
++        })
++    readonly property string p3Mode: root.p3Layout ? root.p3ModeFor(root.activeActivity, root.expanded) : ""
++    onActiveActivityChanged: {
++        root.p3BatteryInfo = false;
++        root.p3Peek = false;
++    }
++
++    function p3ModeFor(activityId, open) {
++        switch (activityId) {
++        case "home":
++            return open ? "" : root.p3BatteryInfo ? "pw" : root.p3Peek ? "peek" : "home";
++        case "media":
++            return open ? "mediaOpen" : root.p3BatteryInfo ? "pw" : "media";
++        case "notification":
++            return "notify";
++        case "notificationcenter":
++            return open ? "center" : "home";
++        case "charging":
++            return "charging";
++        }
++        if (root.systemLevelActivities.indexOf(activityId) !== -1)
++            return open ? "level" : "osd";
++        if (root.systemStateActivities.indexOf(activityId) !== -1)
++            return "state";
++        return "";
++    }
++
++    function p3LayoutFor(mode) {
++        return P3L.layout(mode, root.p3Data);
++    }
++
++    // 一行高的状态仍是 compactFaceThickness 的胶囊；下面挂了卡片 / 面板的状态是圆角封顶 22 的面。
++    // also：悬停展开时并上收起时的外框，输入区域不会在指针底下缩走（否则离开 → 收起 → 又进入，来回闪）
++    function p3Target(mode, also) {
++        const b = P3L.bounds(root.p3LayoutFor(mode));
++        if (also) {
++            const a = P3L.bounds(root.p3LayoutFor(also));
++            b.x0 = Math.min(b.x0, a.x0);
++            b.x1 = Math.max(b.x1, a.x1);
++            b.y0 = Math.min(b.y0, a.y0);
++            b.y1 = Math.max(b.y1, a.y1);
++        }
++        const rowBottom = root.outerGap + root.compactFaceThickness;
++        const tall = b.y1 > rowBottom;
++        const cross = tall ? Math.ceil(b.y1 + 4 - root.outerGap) : root.compactFaceThickness;
++        const radius = tall ? P3L.PANEL_RADIUS : cross / 2;
++        return {
++            "width": Math.ceil(b.x1 - b.x0 + 6),
++            "height": cross,
++            "offsetAlong": root.alongOffset + Math.round((b.x0 + b.x1) / 2),
++            "offsetCross": root.outerGap,
++            "topLeftRadius": radius,
++            "topRightRadius": radius,
++            "bottomLeftRadius": radius,
++            "bottomRightRadius": radius
++        };
++    }
++
+     function compactTargetFor(activityId) {
+         if (root.usesDotFace(activityId))
+             return dotCompactTarget;
++        const p3 = root.p3Layout ? root.p3ModeFor(activityId, false) : "";
++        if (p3)
++            return root.p3Target(p3);
+         switch (activityId) {
+         case "notification":
+             return notificationCompactTarget;
+@@ -521,6 +604,9 @@
+ 
+     readonly property var compactTarget: compactTargetFor(activeActivity)
+     function expandedTargetFor(activityId) {
++        const p3 = root.p3Layout ? root.p3ModeFor(activityId, true) : "";
++        if (p3)
++            return root.p3Target(p3, root.hoverExpanded ? root.p3ModeFor(activityId, false) : "");
+         switch (activityId) {
+         case "home":
+             return homeExpandedTarget;
+@@ -631,6 +717,10 @@
+     function requestHoverExpand() {
+         if (inputSuspended || hoverHeld || !hoverExpandEnabled || activeActivity === "powermenu")
+             return false;
++        if (p3Layout && activeActivity === "home") {
++            p3Peek = true;
++            return true;
++        }
+         if (notificationActive) {
+             hoverExpanded = true;
+             keyboardDismissRequested = false;
+@@ -1003,7 +1093,7 @@
+             hoverHeld = false;
+             slotHoverCount = 0;
+             hoverOpenTimer.stop();
+-            if (hoverExpanded && expanded)
++            if ((hoverExpanded && expanded) || p3Peek || p3BatteryInfo)
+                 hoverCloseTimer.restart();
+             return;
+         }
+@@ -1022,9 +1112,13 @@
+     }
+ 
+     property Timer hoverCloseTimer: Timer {
+-        interval: root.hoverCloseDelay
++        interval: root.p3Layout ? root.p3HoverCloseDelay : root.hoverCloseDelay
+         onTriggered: {
+-            if (!root.pointerInside && root.hoverExpanded)
++            if (root.pointerInside)
++                return;
++            root.p3Peek = false;
++            root.p3BatteryInfo = false;
++            if (root.hoverExpanded)
+                 root.requestHoverCollapse();
+         }
+     }

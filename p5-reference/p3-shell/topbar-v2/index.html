@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Top Bar Previews</title>
+<link rel="stylesheet" href="../shared/p3.css">
+<style>
+html, body { height: auto; min-height: 100%; overflow-x: hidden; overflow-y: auto; background: #000510; }
+body { user-select: auto; -webkit-user-select: auto; }
+.bgf { position: fixed; inset: 0; z-index: 0; }
+.bgf img { width: 100%; height: 100%; object-fit: cover; display: block; }
+[data-theme="lavender"] .bgf img { filter: hue-rotate(38deg) saturate(.55) brightness(.92); }
+main { position: relative; z-index: 1; max-width: 1754px; margin: 0 auto; padding: 40px 16px 80px; }
+header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 36px; }
+h1 { font-size: clamp(48px, 7vw, 96px); color: var(--fill); }
+.th { display: flex; gap: 6px; }
+.th button { border: 0; padding: 10px 14px; background: var(--panel); color: var(--tx); cursor: pointer; font-size: 14px; transition: background .2s var(--ease), color .2s; }
+.th button[aria-pressed="true"] { background: var(--fill); color: var(--ink); }
+section { margin-bottom: 44px; opacity: 0; transform: translateX(-24px); animation: in .6s var(--ease) forwards; }
+section:nth-of-type(2) { animation-delay: .08s; } section:nth-of-type(3) { animation-delay: .16s; } section:nth-of-type(4) { animation-delay: .24s; }
+@keyframes in { to { opacity: 1; transform: none; } }
+.hd { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; padding: 8px 12px 8px 16px; background: var(--panel); clip-path: var(--cut); }
+.n { font-size: 64px; color: var(--fill); min-width: 1.1em; }
+.nm { font-size: 40px; color: var(--tx); }
+.hd a { margin-left: auto; text-decoration: none; color: var(--ink); background: var(--fill); padding: 10px 16px; clip-path: var(--cut); font-size: 14px; transition: transform .25s var(--ease); }
+.hd a:hover { transform: translateX(4px); }
+.frame { position: relative; width: 100%; overflow: hidden; background: var(--panel); clip-path: var(--cut); }
+.frame iframe, .frame img { position: absolute; left: 0; top: 0; width: 1706px; border: 0; transform-origin: 0 0; display: block; }
+.frame iframe { height: 420px; }
+.frame img { height: 150px; }
+.before .n { color: var(--red); font-size: 40px; }
+</style>
+</head>
+<body>
+<div class="bgf"><img src="../../p3-miku/bg.png" alt=""></div>
+<main>
+  <header>
+    <h1 class="d">TOP BAR</h1>
+    <div class="th">
+      <button class="l" data-t="p3" aria-pressed="true">P3</button>
+      <button class="l" data-t="lavender" aria-pressed="false">Lavender</button>
+    </div>
+  </header>
+
+  <section class="before">
+    <div class="hd"><span class="d n">BEFORE</span></div>
+    <div class="frame" data-h="150"><img src="../assets/bar-current.png" alt="BEFORE"></div>
+  </section>
+
+  <section>
+    <div class="hd"><span class="d n">1</span><span class="d nm">Two Marks</span><a class="l" href="two-marks/index.html">Open</a></div>
+    <div class="frame" data-h="420"><iframe src="two-marks/index.html" title="Two Marks"></iframe></div>
+  </section>
+
+  <section>
+    <div class="hd"><span class="d n">2</span><span class="d nm">Twin Anchors</span><a class="l" href="twin-anchors/index.html">Open</a></div>
+    <div class="frame" data-h="420"><iframe src="twin-anchors/index.html" title="Twin Anchors"></iframe></div>
+  </section>
+
+  <section>
+    <div class="hd"><span class="d n">3</span><span class="d nm">Island Hub</span><a class="l" href="island-hub/index.html">Open</a></div>
+    <div class="frame" data-h="420"><iframe src="island-hub/index.html" title="Island Hub"></iframe></div>
+  </section>
+</main>
+<script>
+const frames = [...document.querySelectorAll(".frame")];
+function fit() {
+  for (const f of frames) {
+    const s = Math.min(1, f.clientWidth / 1706);
+    f.firstElementChild.style.transform = "scale(" + s + ")";
+    f.style.height = Math.round(+f.dataset.h * s) + "px";
+  }
+}
+addEventListener("resize", fit); fit();
+
+let theme = "p3";
+try { theme = localStorage.getItem("tbv2-theme") || "p3"; } catch (e) {}
+function setTheme(t) {
+  theme = t;
+  if (t === "lavender") document.documentElement.dataset.theme = "lavender";
+  else delete document.documentElement.dataset.theme;
+  document.querySelectorAll(".th button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
+  const q = t === "lavender" ? "?theme=lavender" : "";
+  document.querySelectorAll(".hd a").forEach(a => a.href = a.getAttribute("href").split("?")[0] + q);
+  document.querySelectorAll("iframe").forEach(i => {
+    const src = i.getAttribute("src").split("?")[0] + q;
+    if (i.getAttribute("src") !== src) i.setAttribute("src", src);
+  });
+  try { localStorage.setItem("tbv2-theme", t); } catch (e) {}
+}
+document.querySelectorAll(".th button").forEach(b => b.onclick = () => setTheme(b.dataset.t));
+setTheme(theme);
+</script>
+</body>
+</html>

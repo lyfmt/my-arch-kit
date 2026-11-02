@@ -1,0 +1,16 @@
+[Unit]
+Description=Pixiv 横版壁纸自动爬取
+Documentation=file:%h/Projects/pixiv-wallpaper/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# 安装位置默认 ~/Projects/pixiv-wallpaper；装到别处时改下面两处 %h/Projects/pixiv-wallpaper
+Type=oneshot
+WorkingDirectory=%h/Projects/pixiv-wallpaper
+ExecStart=/usr/bin/python3 %h/Projects/pixiv-wallpaper/pixiv_wallpaper.py --once
+# 后台低优先级，避免影响日常使用
+Nice=10
+IOSchedulingClass=idle
+# 单次运行最长 1 小时，防止卡死
+TimeoutStartSec=1h

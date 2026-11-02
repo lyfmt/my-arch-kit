@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!--
+  CLIPBOARD · direction A "TIDE 列表"
+  A centered panel in the menu language. Big CLIPBOARD title + count, a wedge tab rail (HISTORY / SAVED),
+  a search field + type chips, then a 72px row list on the left (P3 italic index numbers, tide dot cursor)
+  and a preview pane on the right that shows the focused entry in full. Calm; closest to the menu pages.
+
+  URL: ?static=1  ?tab=saved  ?sel=N  ?mode=preview|editor|confirm|empty|offline|menu  ?q=…  ?filter=all|text|long_text|image  ?hints=1
+
+  PORTING MAP (/tmp/dms-src/dux-shell/quickshell/Modals/Clipboard)
+    ClipboardHistoryModal.qml     → #stage/.pw   toggle()/hide() = open()/closePanel(); Esc chain in onKey()
+    ClipboardHeader.qml           → .hd          title + count (headerCount()) + tab rail (.tabs/.wedge)
+    ClipboardContent.qml          → .tb + .bd    search field (Tab ignored), filterValues [all,text,long_text,image] = .ch chips,
+                                                 entries = activeTab==="saved" ? pinned : unpinned (view())
+    ClipboardEntry.qml            → .row         type tag (entryType()), preview ≤100 chars, Text 1 line / Long 2 lines,
+                                                 pin mark (effectivePinned), thumbnail (ClipboardThumbnail.qml → .th)
+    ClipboardContextMenu.qml      → .cx          Copy / Copy Text (altMimeType) / Pin / Edit / Paste / Delete
+    ClipboardImagePreview.qml     → #ovPv        Ctrl+Space; ↑↓ still moves the selection inside preview
+    ClipboardEditor.qml           → #ovEd        "Edit Clipboard", Cancel + split Save (Save / Save and close / Save and paste)
+    ClipboardKeyboardController   → onKey()      handleKey / handlePreviewKey. first nav key only activates keyboard nav (sel 0)
+    ClipboardKeyboardHints.qml    → .ft .hk      F10 toggles (hidden by default, p3-lock "no key captions")
+    ClipboardConstants.qml        → LONG=200, PREVIEW=100
+    Clear confirm (modal)         → #ovCf        replaced by POWER-style hold-1s bar (holdTick()); pinned delete uses the same
+  QML notes: tide dot = Rectangle 9px + glow (MultiEffect only for the dot), y Behavior with SpringAnimation-ish easing (--soft);
+  copy feedback = clip-path sweep → use a Rectangle with width animation; everything else opacity/translate.
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Tide List</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="a-tide.css">
+</head>
+<body>
+<div id="stage">
+  <div class="desk"><img src="../shared/desk.jpg" alt="" onerror="this.remove()"></div>
+  <div class="tint"></div>
+
+  <div class="reo l" id="reo"><b>MOD+ALT+V</b>CLIPBOARD</div>
+  <div class="pw" id="pw">
+    <div class="pn">
+      <div class="hd">
+        <div class="d ttl">CLIPBOARD</div>
+        <div class="cnt" data-in style="--k:1"><b class="d" id="cnt">0</b><span class="l" id="cntL">HISTORY</span></div>
+        <div class="tabs" id="tabs" data-in style="--k:2">
+          <div class="wedge" id="wedge"></div>
+          <div class="tab l" data-tab="recents">HISTORY <small class="d" id="nR">0</small></div>
+          <div class="tab l" data-tab="saved">SAVED <small class="d" id="nS">0</small></div>
+        </div>
+      </div>
+      <div class="rl"></div>
+
+      <div class="tb" data-in style="--k:3">
+        <label class="sf" id="sf">
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+          <input id="q" type="text" placeholder="Search…" spellcheck="false" autocomplete="off">
+          <span class="l hit" id="hit"></span>
+        </label>
+        <div class="ch l" data-f="all">ALL</div>
+        <div class="ch l" data-f="text">TEXT</div>
+        <div class="ch l" data-f="long_text">LONG</div>
+        <div class="ch l" data-f="image">IMAGE</div>
+        <div class="clr l" id="clr" data-act="clear">CLEAR ALL <kbd>⇧DEL</kbd></div>
+      </div>
+
+      <div class="bd">
+        <div class="ls" id="ls"><div class="lsi" id="lsi"></div><div class="tide" id="tide"></div></div>
+        <div class="em" id="em"></div>
+        <div class="pv" id="pv" data-in style="--k:5"></div>
+      </div>
+
+      <div class="ft l" data-in style="--k:6">
+        <span class="f10"><b>F10</b>KEYS</span>
+        <span class="hk"><span><b>↑↓</b>MOVE</span><span><b>ENTER</b>COPY</span><span><b>⇧ENTER</b>PASTE</span><span><b>^S</b>PIN</span>
+          <span><b>^E</b>EDIT</span><span><b>^SPACE</b>PREVIEW</span><span><b>DEL</b>DELETE</span><span><b>⇧DEL</b>CLEAR</span><span><b>⇧F10</b>MENU</span><span><b>^TAB</b>TAB</span><span><b>ESC</b>CLOSE</span></span>
+        <span class="st" id="st">MOD+ALT+V</span>
+      </div>
+
+      <div class="ov" id="ovPv"></div>
+      <div class="ov" id="ovEd"></div>
+      <div class="ov ov-cf-wrap" id="ovCf"></div>
+      <div class="cx" id="cx"></div>
+      <div class="tst" id="tst"><span class="d" id="tstN">214</span><span class="l" id="tstL">COPIED</span></div>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div class="wipe"></div>
+  </div>
+</div>
+<script src="a-tide.js"></script>
+</body>
+</html>

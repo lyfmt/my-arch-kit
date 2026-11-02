@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 Lock Wedge</title>
+<link rel="stylesheet" href="lock.css">
+</head>
+<body>
+<!-- 方案 d-wedge：密码框就是 P3 的选中楔形。
+     参数：?static  ?theme=lavender  ?state=idle|error|verify|power|caps  ?caps
+     演示：输入 fail 回车 = 失败；其它 = 解锁；解锁后按 L 重新上锁 -->
+<div id="stage">
+  <div class="desk" id="desk">
+    <div class="l">DESKTOP</div>
+    <div class="zh">桌面占位层 · 按 L 重新上锁</div>
+  </div>
+
+  <div class="lock" id="lock">
+    <div class="bg" id="bg">
+      <img src="../../assets/bg.png" alt="">
+      <svg class="caustic" viewBox="0 0 1300 520" preserveAspectRatio="none" aria-hidden="true">
+        <filter id="cf" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".008 .02" numOctaves="2" seed="7"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -9 5.2"/>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#cf)"/>
+      </svg>
+      <div class="rays"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="bubbles" id="bubbles"></div>
+    </div>
+
+    <div class="clock" id="clock">
+      <div class="d hm"><span id="hh">00</span><span class="colon">:</span><span id="mm">00</span></div>
+      <div class="l day"><span id="dow">MON</span><span id="md">1/1</span><span class="tod" id="tod">EVENING</span></div>
+    </div>
+
+    <div class="who" id="who">
+      <span class="d name" id="user">LYFMT</span>
+      <span class="l host" id="host">@ ARCHLINUX</span>
+    </div>
+
+    <div class="hint l" id="hint">PRESS ANY KEY</div>
+
+    <div class="field" id="field">
+      <i class="echo"></i>
+      <div class="body">
+        <i class="water"></i>
+        <span class="l ph">PASSWORD</span>
+        <div class="glyphs" id="glyphs"></div>
+        <i class="caret" id="caret"></i>
+      </div>
+    </div>
+
+    <div class="power" id="power"></div>
+
+    <div class="status" id="status">
+      <span class="l msg" id="msg">PRESS ANY KEY</span>
+      <span class="zh sub" id="sub"></span>
+      <span class="l caps" id="caps">CAPS LOCK</span>
+    </div>
+
+    <div class="keys" id="keys"></div>
+  </div>
+
+  <div class="sweep" id="sweep"><i class="r"></i><i class="w"></i></div>
+</div>
+<script src="lock.js"></script>
+</body>
+</html>

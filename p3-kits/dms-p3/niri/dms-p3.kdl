@@ -1,0 +1,4 @@
+// dms-p3：P3 系统菜单（由 p3-kits/dms-p3/enable.sh 安装，disable.sh 移除 include）
+binds {
+    Mod+Z hotkey-overlay-title="P3 系统菜单" { spawn "dms" "ipc" "call" "p3menu" "toggle"; }
+}
