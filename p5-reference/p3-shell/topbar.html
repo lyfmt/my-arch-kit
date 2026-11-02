@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>顶栏精简对比</title>
+<link rel="stylesheet" href="topbar.css">
+</head>
+<body>
+<main>
+<header>
+  <a class="back" href="index.html">← P3 SHELL 索引</a>
+  <h1 class="an">TOP BAR<span>TRIM</span></h1>
+  <p>DMS 顶栏精简方案：上半部分是现状和要删的东西，下半部分是三种菜单入口的摆法。顶栏保持现有的 P5 配色和形状，P3 风格只用于菜单本身。所有栏位模型按 1:1 逻辑像素绘制（42px 预留带，岛 40px 高、从 y=4 开始，卫星胶囊 28px）。</p>
+</header>
+
+<section>
+  <h2 class="an">BEFORE <small>现状</small></h2>
+  <p class="lead">截图来自笔记本 eDP-1（2560×1600，缩放 1.5，约 1706 逻辑宽），图片 1706×150，所以 42px 的栏在图里约 63px 高。</p>
+  <div class="scroller"><img class="shot" src="assets/bar-current.png" alt="当前顶栏截图"></div>
+  <h3>标注版：红线 = 删除，白签 = 挪进 P3 菜单</h3>
+  <div class="scroller" id="before"></div>
+  <div class="cap"><b>1706</b> 逻辑宽 · 笔记本 eDP-1 · 1:1 · 虚线 = 42px 预留带下沿</div>
+</section>
+
+<section>
+  <h2 class="an">AFTER <small>精简后 · 三种入口</small></h2>
+  <p class="lead">左边只剩工作区，中间是 Dank Island，右边只剩电量。差别只在 P3 菜单从哪里打开。每个方案分别画在 2560 宽的外接屏（HDMI-A-1）和 1706 宽的笔记本上；2560 的条比窗口宽，可以横向滚动。</p>
+
+  <h3>方案 1 · 菜单牌放在最左，工作区之前 <span class="rec">推荐</span></h3>
+  <p class="lead">鼠标甩到左上角就能点到（屏幕角落是最好点的位置），和右侧电量左右对称。代价是需要写一个新的 bar widget（QML 补丁）。</p>
+  <div class="scroller" data-v="1" data-w="2560"></div>
+  <div class="cap"><b>2560</b> 外接屏 HDMI-A-1 · 1:1</div>
+  <div class="scroller" data-v="1" data-w="1706"></div>
+  <div class="cap"><b>1706</b> 笔记本 eDP-1 · 1:1</div>
+
+  <h3>方案 2 · 菜单牌放在最右，电量之后 <span class="alt">备选</span></h3>
+  <p class="lead">位置和原来的控制中心按钮一样，肌肉记忆不用改。但右上角在 niri 里常是窗口关闭键的方向，容易误点；右侧也显得比左侧重。</p>
+  <div class="scroller" data-v="2" data-w="2560"></div>
+  <div class="cap"><b>2560</b> 外接屏 · 1:1</div>
+  <div class="scroller" data-v="2" data-w="1706"></div>
+  <div class="cap"><b>1706</b> 笔记本 · 1:1</div>
+
+  <h3>方案 3 · 不加按钮：右键岛 / 拉绳 / Mod+BackSpace <span class="rec">推荐</span></h3>
+  <p class="lead">栏上不增加任何东西，最干净。菜单从岛上打开：右键岛，或者拉岛右下角挂着的拉绳（P5 改造里已有拉绳的概念，这里画的是拉绳打开菜单的样子，具体 QML 是否已有需要实现时确认），键盘用 Mod+BackSpace（在 ~/.config/niri 里查过，这个键目前没被占用）。缺点是新用户看不出入口。</p>
+  <div class="scroller" data-v="3" data-w="2560"></div>
+  <div class="cap"><b>2560</b> 外接屏 · 1:1</div>
+  <div class="scroller" data-v="3" data-w="1706"></div>
+  <div class="cap"><b>1706</b> 笔记本 · 1:1</div>
+
+  <h3>可选 · 托盘未读小红点</h3>
+  <p class="lead">托盘挪进菜单 APPS 页以后，飞书 / QQ 的未读提示会看不到。可以在菜单牌上加一个红点（只在托盘项处于 NeedsAttention 状态时出现）。方案 3 没有按钮，红点画在拉绳上。红色只用于这种提醒，符合调色板规则。</p>
+  <div class="scroller" data-v="dot" data-w="1706"></div>
+  <div class="cap">方案 1 + 红点 · 方案 3 + 红点 · <b>1706</b> · 1:1</div>
+</section>
+
+<section>
+  <h2 class="an">DECISIONS <small>逐项决定</small></h2>
+  <table>
+    <thead><tr><th>元素</th><th>决定</th><th>挪到哪里</th><th>失去什么</th><th>怎么应用</th></tr></thead>
+    <tbody>
+      <tr><td>workspaceSwitcher</td><td class="d-keep">保留</td><td>原位（左侧）</td><td>无</td><td>leftWidgets 保留</td></tr>
+      <tr><td>focusedWindow</td><td class="d-del">删除</td><td>无替代位置</td><td>栏上的窗口标题；P5WindowDossier 入口（复制 TITLE / APP ID / PID、ADD RULE、TAKE DOWN 强杀）。部分可用 Mod+Shift+W、Mod+P、Mod+Q 代替</td><td>从 leftWidgets 删掉，热重载</td></tr>
+      <tr><td>systemTray</td><td class="d-del">删除</td><td>P3 菜单 <b>APPS</b> 页专门的托盘区</td><td>它是唯一的 StatusNotifier host。clash-verge、fcitx5、QQ、飞书这类只在托盘里的程序必须在 APPS 页有新家，否则只能走 IPC。风险最高的一项</td><td>先做好 APPS 页托盘区，再从 rightWidgets 删掉</td></tr>
+      <tr><td>clipboard</td><td class="d-del">删除</td><td>Mod+Alt+V；启动器 <code>cb</code> 触发词</td><td>拖放存入、右键快捷菜单、<code>widget toggle clipboard</code> IPC 和 <code>look.sh clip</code></td><td>从 rightWidgets 删掉，热重载</td></tr>
+      <tr><td>cpuUsage</td><td class="d-del">删除</td><td>P5HomeDash 的仪表；Ctrl+Alt+Delete 打开上游进程窗口（非 P5 样式）</td><td>P5ProcessBoard 唯一的入口；<code>look.sh proc</code> 失效</td><td>从 rightWidgets 删掉，热重载</td></tr>
+      <tr><td>memUsage</td><td class="d-del">删除</td><td>同 cpuUsage</td><td>同 cpuUsage</td><td>从 rightWidgets 删掉，热重载</td></tr>
+      <tr><td>battery</td><td class="d-keep">保留</td><td>原位（右侧）</td><td>无。笔记本上它是唯一常驻的电量显示，BatteryPopout 和电源模式也在这里</td><td>rightWidgets 保留</td></tr>
+      <tr><td>controlCenterButton</td><td class="d-del">删除</td><td>P3 菜单 <b>SYSTEM</b> 页</td><td>用鼠标开关 Wi-Fi / 蓝牙 / 音频 / 夜间 / 深色模式的入口。IPC <code>control-center toggle</code> 仍在（会路由到岛），但没有快捷键</td><td>SYSTEM 页做好后从 rightWidgets 删掉</td></tr>
+      <tr><td>centerWidgets</td><td class="d-del">删除</td><td>无</td><td>无。岛模式下这组配置根本不生效，只是清理</td><td>删掉 music / clock / weather 三项</td></tr>
+      <tr><td>Dank Island</td><td class="d-keep">保留</td><td>原位（中间）</td><td>无。方案 3 里它同时是菜单入口</td><td>不改</td></tr>
+      <tr><td>P3 菜单入口</td><td class="d-new">新增</td><td>方案 1 最左 / 方案 2 最右 / 方案 3 岛上</td><td>—</td><td>方案 1、2 需要新 widget 的 QML 补丁；方案 3 需要岛的右键 / 拉绳处理和一条 niri 绑定</td></tr>
+    </tbody>
+  </table>
+
+  <h3>应用步骤</h3>
+  <p class="lead">改 <code>~/.config/DankMaterialShell/settings.json</code> 的 <code>barConfigs[0]</code>，DMS 通过 FileView 监听文件，保存后立即生效，不用重建：</p>
+<pre>"leftWidgets":   ["p3Menu", "workspaceSwitcher"],   // 方案 1；方案 2、3 为 ["workspaceSwitcher"]
+"centerWidgets": [],
+"rightWidgets":  ["battery"]                         // 方案 2 为 ["battery", "p3Menu"]</pre>
+  <p class="lead">新按钮（<code>p3Menu</code> 只是暂定 id）需要走 dms-p5 的流程：overlay 加 QML → 生成 patch → <code>build.sh</code> → <code>scripts/dev.sh go</code> 重启 DMS。方案 3 另外在 niri 加 <code>Mod+BackSpace</code> 绑定。</p>
+  <div class="warn">顺序很重要：先让 P3 菜单的 APPS 页能显示托盘、SYSTEM 页能代替控制中心，再删 systemTray 和 controlCenterButton。否则托盘程序（clash-verge、fcitx5、QQ、飞书）会暂时没有任何鼠标入口。其余几项可以现在就删。</div>
+</section>
+</main>
+<script>
+const I = {
+  app:'<svg viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="3" fill="#D0BCFF"/><rect x="4" y="4" width="8" height="8" fill="#3B2771"/></svg>',
+  clip:'<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="3" width="10" height="12"/><rect x="6" y="1" width="4" height="3" fill="#fff"/></svg>',
+  cpu:'<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="3" width="10" height="10"/><path d="M6 1v2M10 1v2M6 13v2M10 13v2M1 6h2M1 10h2M13 6h2M13 10h2"/></svg>',
+  ram:'<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><rect x="1" y="4" width="14" height="8"/><path d="M4 7v2M7 7v2M10 7v2M13 7v2"/></svg>',
+  bat:'<svg viewBox="0 0 18 16"><rect x="1" y="3" width="14" height="10" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="15" y="6" width="2" height="4" fill="#fff"/><rect x="3" y="5" width="10" height="6" fill="#D0BCFF"/></svg>',
+  wifi:'<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><path d="M1 6a10 10 0 0 1 14 0M3.5 9a6.5 6.5 0 0 1 9 0M6 12a3 3 0 0 1 4 0"/></svg>',
+  bt:'<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8"><path d="M4 4l8 8-4 3V1l4 3-8 8"/></svg>',
+  vol:'<svg viewBox="0 0 16 16"><path d="M1 6h3l4-4v12l-4-4H1z" fill="#fff"/><path d="M11 5a4 4 0 0 1 0 6" stroke="#fff" stroke-width="1.8" fill="none"/></svg>',
+  bell:'<svg viewBox="0 0 16 16" width="16" height="16"><path d="M3 12h10l-1.5-2V7a3.5 3.5 0 0 0-7 0v3z M6.5 13.5a1.5 1.5 0 0 0 3 0" fill="#D0BCFF"/></svg>',
+  menu:'<svg viewBox="0 0 16 14"><rect x="0" y="0" width="16" height="3" fill="#0E0A12"/><rect x="2" y="5.5" width="14" height="3" fill="#0E0A12"/><rect x="0" y="11" width="11" height="3" fill="#0E0A12"/></svg>',
+  dot:(c)=>`<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="${c}"/></svg>`
+};
+const bars = n => `<span class="bars">${Array.from({length:n},(_, i)=>`<i style="height:${3+((i*7)%9)}px"></i>`).join('')}</span>`;
+const plate = (inner, cls='') => `<div class="pl ${cls}"><div class="c">${inner}</div></div>`;
+const wrap = (html, tag) => `<div style="position:relative">${html}${tag||''}</div>`;
+const tag = (kind, text) => `<span class="tag ${kind}" style="left:50%;top:32px">${text}</span>`;
+
+const P = {
+  ws: () => plate('<span class="w on"></span><span class="w"></span>', 'ws'),
+  fw: () => plate(`${I.app}<span class="ttl">buffin-desktop · Buffin</span>`),
+  tray: () => plate(['#3370FF','#2a2a2a','#9aa0a6','#FF7139','#34C759'].map(I.dot).join('')),
+  clip: () => plate(I.clip),
+  cpu: () => plate(`${I.cpu}<span class="pct">4%</span>${bars(5)}`),
+  ram: () => plate(`${I.ram}<span class="pct">29%</span>${bars(5)}`),
+  bat: () => plate(`${I.bat}<span class="pct">100%</span>`),
+  cc: () => plate(I.wifi+I.bt+I.vol),
+  menu: (dot) => plate(`${I.menu}<span class="an">MENU</span>`+(dot?'<span class="dot"></span>':''), 'menu'),
+};
+const rm = h => h.replace('class="pl ', 'class="pl rm ');
+const island = (cord, dot) => `
+  <div class="island" style="left:50%"><div class="c">
+    <span class="viz">${'<i></i>'.repeat(9)}</span>
+    <span class="ransom"><b>1</b><b>6</b><em>:</em><b>2</b><b>9</b></span>
+    <span class="date">• 周五 10月 30</span>
+    <span class="bell">${I.bell}<span>9</span></span>
+  </div></div>` + (cord ? `<span class="cord" style="left:calc(50% + 200px)"></span><span class="knob" style="left:calc(50% + 201px)">MENU</span>`
+      + (dot ? `<span class="dot" style="left:calc(50% + 222px);top:52px;transform:none"></span>` : '') : '');
+
+function strip(w, h, left, right, isl, extra='') {
+  return `<div class="strip" style="width:${w}px;height:${h}px">
+    <div class="zone"><i>42 PX 预留带</i></div>
+    <div class="win" style="left:12px;width:${Math.round(w*.48)}px"></div>
+    <div class="win b" style="left:${Math.round(w*.5)}px;width:${Math.round(w*.5)-12}px"></div>
+    ${isl}
+    <div class="grp l">${left}</div><div class="grp r">${right}</div>${extra}</div>`;
+}
+
+document.getElementById('before').innerHTML = strip(1706, 100,
+  wrap(P.ws(), tag('keep','保留')) + wrap(rm(P.fw()), tag('del','删除')),
+  wrap(rm(P.tray()), tag('mv','<b>→</b> APPS')) + wrap(rm(P.clip()), tag('del','删 · MOD+ALT+V')) +
+  wrap(rm(P.cpu()), tag('del','删除')) + wrap(rm(P.ram()), tag('del','删除')) +
+  wrap(P.bat(), tag('keep','保留')) + wrap(rm(P.cc()), tag('mv','<b>→</b> SYSTEM')),
+  island(false));
+
+document.querySelectorAll('.scroller[data-v]').forEach(el => {
+  const w = +el.dataset.w, v = el.dataset.v;
+  if (v === '1') el.innerHTML = strip(w, 92, P.menu() + P.ws(), P.bat(), island(false));
+  if (v === '2') el.innerHTML = strip(w, 92, P.ws(), P.bat() + P.menu(), island(false));
+  if (v === '3') el.innerHTML = strip(w, 92, P.ws(), P.bat(), island(true));
+  if (v === 'dot') el.innerHTML = '<div style="display:flex;gap:24px;flex-wrap:nowrap">' +
+      strip(840, 92, P.menu(true) + P.ws(), P.bat(), island(false).replace('left:50%','left:58%')) +
+      strip(840, 92, P.ws(), P.bat(), island(true, true).replaceAll('50%','52%')) + '</div>';
+});
+</script>
+</body>
+</html>

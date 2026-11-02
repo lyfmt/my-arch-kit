@@ -1,0 +1,123 @@
+@font-face { font-family: "Anton"; src: url("../../dms-p5/overlay/DankCommon/assets/fonts/p5/Anton-Regular.ttf") format("truetype"); }
+@font-face { font-family: "BarlowC"; src: url("../../dms-p5/overlay/DankCommon/assets/fonts/p5/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; }
+@font-face { font-family: "Barlow"; src: url("../../dms-p5/overlay/DankCommon/assets/fonts/p5/Barlow-Medium.ttf") format("truetype"); font-weight: 500; }
+
+/* P5 palette, mirrors dms-p5/overlay/DankCommon/Common/P5.qml with primary #D0BCFF */
+:root {
+  --ink: #0E0A12; --inkRaised: #1D1624; --paper: #FFFFFF;
+  --violet: #D0BCFF;
+  --pink: #E3AFEF;          /* mix(#D0BCFF, #FF9ED8, .45) */
+  --plum: #3B2771;          /* hsl(258, 48%, 30%) */
+  --plumRaised: #4E3492;
+  --blood: #FF1F45;
+  --keep: #8CE0A8;
+  --txt: #EDE6F7; --dim: #A79BB8; --line: rgba(208,188,255,.18);
+}
+* { box-sizing: border-box; }
+html { background: var(--ink); }
+body { margin: 0; background: var(--ink); color: var(--txt); font: 15px/1.75 "Noto Sans CJK SC", "Noto Sans SC", sans-serif; overflow-x: hidden; }
+.an { font-family: "Anton", sans-serif; font-weight: 400; letter-spacing: .02em; }
+.bc { font-family: "BarlowC", sans-serif; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+code { font: 13px ui-monospace, "JetBrains Mono", monospace; background: var(--inkRaised); padding: 1px 6px; color: var(--violet); }
+pre { font: 13px/1.6 ui-monospace, "JetBrains Mono", monospace; background: var(--inkRaised); padding: 14px 18px; margin: 10px 0 0; color: var(--txt); border-left: 3px solid var(--violet); overflow-x: auto; }
+
+main { max-width: 1760px; margin: 0 auto; padding: 48px 16px 96px; }
+header h1 { margin: 0; font-size: clamp(54px, 7vw, 104px); line-height: .95; color: var(--paper); }
+header h1 span { display: inline-block; background: var(--violet); color: var(--ink); padding: 0 .18em; transform: skewX(-10deg); margin-left: .12em; }
+header p { max-width: 980px; color: var(--txt); margin: 18px 0 0; }
+.back { color: var(--dim); text-decoration: none; font-size: 13px; }
+.back:hover { color: var(--violet); }
+
+section { margin-top: 64px; }
+h2 { display: flex; align-items: baseline; gap: 16px; margin: 0 0 6px; font-size: 40px; line-height: 1; color: var(--paper); }
+h2 small { font-family: "BarlowC"; font-size: 15px; letter-spacing: .14em; color: var(--violet); }
+h3 { margin: 30px 0 4px; font-size: 22px; line-height: 1.2; color: var(--paper); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.lead { color: var(--dim); max-width: 1100px; margin: 0 0 12px; }
+.rec { font-family: "BarlowC"; font-size: 13px; letter-spacing: .12em; background: var(--violet); color: var(--ink); padding: 1px 10px; transform: skewX(-12deg); display: inline-block; }
+.alt { font-family: "BarlowC"; font-size: 13px; letter-spacing: .12em; border: 1.5px solid var(--dim); color: var(--dim); padding: 0 9px; transform: skewX(-12deg); display: inline-block; }
+
+/* scroll wrapper: the 2560 strip is wider than most viewports; the page itself never scrolls sideways */
+.scroller { overflow-x: auto; overflow-y: hidden; margin-top: 8px; padding-bottom: 6px; }
+.cap { font-family: "BarlowC"; font-size: 12px; letter-spacing: .14em; color: var(--dim); margin-top: 14px; }
+.cap b { color: var(--violet); font-weight: 700; }
+.shot { display: block; max-width: none; width: 1706px; height: 150px; }
+
+/* ---------- desktop strip mock (1:1 logical px) ---------- */
+.strip { position: relative; height: 92px; flex: none; overflow: hidden;
+  background:
+    repeating-linear-gradient(118deg, rgba(208,188,255,.035) 0 2px, transparent 2px 22px),
+    linear-gradient(180deg, #1a1226 0, #120c1a 100%); }
+.strip .zone { position: absolute; left: 0; right: 0; top: 42px; border-top: 1px dashed rgba(208,188,255,.32); }
+.strip .zone i { position: absolute; right: 8px; top: 2px; font: 700 10px "BarlowC"; letter-spacing: .14em; color: rgba(208,188,255,.45); font-style: normal; }
+.strip .win { position: absolute; top: 54px; height: 60px; background: #17121e; border: 2px solid var(--violet); border-radius: 8px; }
+.strip .win.b { border-color: #3a3046; }
+.grp { position: absolute; top: 7px; display: flex; gap: 8px; align-items: center; }
+.grp.l { left: 8px; } .grp.r { right: 8px; }
+
+/* P5 plate: skewed, 3px paper border, black inner line, violet offset slab */
+.pl { position: relative; height: 28px; display: flex; align-items: center; padding: 0 12px; transform: skewX(-14deg);
+  background: var(--plum); border: 3px solid var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--ink), -3px 4px 0 var(--violet); color: var(--paper); }
+.pl > .c { transform: skewX(14deg); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.pl svg { width: 16px; height: 16px; flex: none; }
+.pl .pct { font: 17px "Anton"; letter-spacing: .02em; }
+.pl .lt { font: 500 14px "Barlow"; color: var(--violet); }
+.pl .ttl { font: 500 14px "Barlow"; color: var(--txt); }
+.bars { display: flex; gap: 2px; align-items: flex-end; height: 12px; transform: skewX(-14deg); }
+.bars i { width: 2px; background: var(--dim); opacity: .8; }
+.ws { padding: 0 4px; gap: 4px; }
+.ws > .c { gap: 4px; }
+.ws .w { width: 30px; height: 16px; background: var(--violet); opacity: .75; transform: skewX(0); }
+.ws .w.on { width: 44px; background: var(--paper); opacity: 1; }
+
+/* island */
+.island { position: absolute; top: 4px; height: 40px; transform: translateX(-50%) skewX(-8deg);
+  background: var(--plum); border: 3px solid var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--ink), -4px 5px 0 var(--violet), 6px 7px 0 var(--pink); }
+.island > .c { height: 100%; transform: skewX(8deg); display: flex; align-items: center; gap: 18px; padding: 0 28px; white-space: nowrap; }
+.island .viz { display: flex; gap: 2px; } .island .viz i { width: 2px; height: 9px; background: var(--violet); }
+.ransom { display: flex; align-items: center; gap: 1px; }
+.ransom b { font: 20px/1 "Anton"; padding: 2px 3px 1px; background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); }
+.ransom b:nth-child(2n) { background: var(--ink); color: var(--paper); border-color: var(--paper); }
+.ransom b:nth-child(1) { transform: rotate(-5deg); } .ransom b:nth-child(2) { transform: rotate(4deg) translateY(1px); }
+.ransom b:nth-child(4) { transform: rotate(-3deg); } .ransom b:nth-child(5) { transform: rotate(6deg); }
+.ransom em { font: 18px "Anton"; color: var(--paper); font-style: normal; padding: 0 1px; }
+.island .date { font: 500 14px "Barlow"; color: var(--violet); }
+.island .bell { display: flex; align-items: center; gap: 8px; color: var(--violet); }
+.island .bell span { font: 15px "Anton"; background: var(--violet); color: var(--ink); padding: 0 9px; transform: skewX(-12deg); }
+
+/* removal marks (annotation, not part of the bar) */
+.rm { opacity: .5; }
+.rm::after { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 3px; background: var(--blood); transform: rotate(-6deg) skewX(14deg); }
+.tag { position: absolute; top: 48px; font: 700 12px/1 "BarlowC"; letter-spacing: .08em; padding: 4px 7px; white-space: nowrap; transform: translateX(-50%); }
+.tag.del { background: var(--blood); color: var(--paper); }
+.tag.mv { background: var(--paper); color: var(--ink); }
+.tag.mv b { color: var(--blood); }
+.tag.keep { background: transparent; color: var(--keep); border: 1.5px solid var(--keep); }
+
+/* new P3 menu button: violet "on" plate with ink text */
+.menu { background: var(--violet); color: var(--ink); padding: 0 12px 0 10px; }
+.menu .an { font-size: 16px; letter-spacing: .06em; }
+.menu svg { width: 16px; height: 14px; }
+.dot { position: absolute; top: -6px; right: -7px; width: 11px; height: 11px; border-radius: 50%; background: var(--blood); border: 2px solid var(--paper); transform: skewX(14deg); }
+.new { position: absolute; top: 52px; font: 700 12px/1 "BarlowC"; letter-spacing: .08em; color: var(--violet); white-space: nowrap; }
+.new::before { content: ""; position: absolute; left: 10px; top: -12px; width: 1.5px; height: 9px; background: var(--violet); }
+
+/* variant 3: pull cord hanging from the island */
+.cord { position: absolute; top: 44px; width: 2px; height: 12px; background: var(--paper); }
+.cord + .knob { position: absolute; top: 55px; height: 16px; padding: 0 7px; transform: translateX(-50%) skewX(-12deg); background: var(--violet); color: var(--ink); font: 12px/16px "Anton"; letter-spacing: .08em; border: 1.5px solid var(--ink); }
+
+/* table */
+table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 14px; }
+th { text-align: left; font: 700 13px "BarlowC"; letter-spacing: .12em; color: var(--violet); padding: 10px 12px; border-bottom: 2px solid var(--violet); }
+td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.65; }
+td:first-child { font: 700 15px "BarlowC"; letter-spacing: .06em; color: var(--paper); white-space: nowrap; }
+.d-del { color: var(--blood); font-weight: 700; } .d-keep { color: var(--keep); font-weight: 700; } .d-new { color: var(--violet); font-weight: 700; }
+.notes { margin: 8px 0 0; padding-left: 20px; } .notes li { margin: 4px 0; }
+.warn { border-left: 3px solid var(--blood); padding: 10px 16px; background: var(--inkRaised); margin-top: 16px; max-width: 1100px; }
+td:nth-child(2) { white-space: nowrap; }
+.strip .zone i { right: auto; left: 34%; }
+.cord { height: 16px; width: 2.5px; }
+.cord + .knob { top: 59px; height: 20px; font-size: 14px; line-height: 20px; padding: 0 9px; border: 2px solid var(--paper); box-shadow: -2px 3px 0 var(--pink); }
+.strip .zone i { display: none; }
+th { white-space: nowrap; }

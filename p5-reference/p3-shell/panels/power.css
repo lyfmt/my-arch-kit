@@ -1,0 +1,69 @@
+/* ============ POWER 面板：3×2 磁贴 + 长按灌水确认 ============
+   --p = 长按进度 0..1（JS 写在 #panel 上）
+   选中块用共用 .p3-hl（白楔 + 红碎片）在磁贴间滑动；磁贴底板画在 ::before 且 z-index:-1，
+   这样滑块从底板之上、文字之下穿过。
+   危险色只出现在水里：.ends（结束会话）的水是 --red，其余长按项是 --fill。图标、文字不带危险色 */
+#panel[data-id="power"] { display: flex; flex-direction: column; }
+
+/* ---------- 标题行：UP 标签 + uptime 数字对，靠右 ---------- */
+.pw-up { margin-left: auto; display: flex; align-items: baseline; gap: 14px; padding-bottom: 2px; }
+.pn-head .pw-up .s { align-self: center; margin-right: 4px; }
+.pw-u { display: flex; align-items: baseline; gap: 3px; }
+.pw-u .d { font-size: 44px; line-height: .9; color: var(--tx); font-variant-numeric: tabular-nums; }
+.pw-u .l { font-size: 18px; color: var(--tx); opacity: .7; }
+
+/* ---------- 磁贴网格 ---------- */
+.pw-grid { flex: 1; display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr);
+  grid-template-rows: repeat(var(--rows, 2), 1fr); gap: 16px; margin: 12px 0 18px; }
+/* 磁贴本身不建层叠上下文，底板和文字才能夹住滑块 */
+#panel[data-id="power"] .pw-grid > .pw-tile { position: relative; z-index: auto; cursor: pointer; }
+.pw-tile::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--panel);
+  border-top: 1px solid var(--line); clip-path: var(--cut); transition: opacity var(--d-fast) 120ms; }
+.pw-tile.sel::before { opacity: 0; }
+
+/* 内容层（常规一份 + 水里一份）
+   左上：DMS 快捷键字母（描边大字）；右上：图标；左下：名词，底对齐，两行的向上长 */
+.pw-c { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.pw-k { position: absolute; left: 20px; top: 12px; font-size: 92px; line-height: .9; color: transparent;
+  -webkit-text-stroke: 2px var(--fill); opacity: .45;
+  transition: opacity var(--d-fast) 120ms, color var(--d-fast) 120ms, -webkit-text-stroke-color var(--d-fast) 120ms,
+    translate var(--d-med) var(--e-snap); }
+.pw-ic { position: absolute; right: 24px; top: 26px; width: 54px; height: 54px; color: var(--fill);
+  transition: color var(--d-fast) 120ms, translate var(--d-med) var(--e-snap), rotate var(--d-med) var(--e-snap); }
+.pw-nm { position: absolute; left: 22px; right: 16px; bottom: 30px; font-size: 40px; line-height: .92; color: var(--tx);
+  transform-origin: 0 100%; transition: transform var(--d-med) var(--e-snap), color var(--d-fast) 120ms; }
+
+/* 颜色翻转延后 120ms，等白楔大致到位再换（同 apps.css） */
+.pw-tile.sel .pw-nm { color: var(--ink); transform: rotate(-5deg) scale(1.08) translate(-6px, -6px); }
+.pw-tile.sel .pw-ic { color: var(--ink); translate: 6px -6px; rotate: -8deg; }
+.pw-tile.sel .pw-k { color: var(--ink); -webkit-text-stroke-color: var(--ink); opacity: 1; translate: -8px -4px; }
+
+/* 空水槽：只有长按项有，底边一条细平涂，提示"这里要灌满" */
+.pw-sill { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; z-index: 1; pointer-events: none;
+  background: var(--line); transition: background var(--d-fast) 120ms; }
+.pw-tile.sel .pw-sill { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+
+/* 水：整块铺满，clip-path 斜水面随 --p 上涨；松手 JS 缓出回落 */
+.pw-fill { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: var(--fill);
+  --L: calc((1 - var(--p, 0)) * 114%);
+  clip-path: polygon(0 var(--L), 100% calc(var(--L) - 14%), 100% 100%, 0 100%); visibility: hidden; }
+.pw-tile.ends .pw-fill { background: var(--red); }
+.pw-hold .pw-tile.sel .pw-fill { visibility: visible; }
+/* 水里那份内容：--fill 水上用 ink，--red 水上用白；不做选中位移以外的动画 */
+.pw-tile.sel .pw-fill .pw-c > * { transition: none; }
+.pw-tile.sel .pw-fill .pw-k { opacity: 1; }
+.pw-tile.sel.ends .pw-fill .pw-c > * { color: #fff; -webkit-text-stroke-color: #fff; }
+.pw-tile.sel:not(.ends) .pw-fill .pw-k { color: transparent; -webkit-text-stroke-color: var(--ink); }
+
+/* 共用滑块改成磁贴形：斜四边形白楔 + 左上红碎片；碎片上沿留在标题线下方（网格上边距 12px 给它让位） */
+#panel[data-id="power"] .pw-grid > .p3-hl::after { left: -4%; right: -3%; top: -4%; bottom: -5%;
+  clip-path: polygon(4% 3%, 100% 0, 97% 100%, 0 96%); }
+#panel[data-id="power"] .pw-grid > .p3-hl::before { left: -8%; top: -5%; bottom: auto; width: 42%; height: 22%; z-index: 1;
+  clip-path: polygon(0 0, 100% 18%, 0 100%); }
+/* 长按中红碎片向左退开，让水成为主角；只横移，不越过标题线 */
+#panel[data-id="power"].pw-hold .pw-grid > .p3-hl::before { translate: -18px 0; }
+
+/* 7-9 个磁贴：三行，磁贴变矮，元素缩小 */
+.pw-r3 .pw-k { font-size: 64px; }
+.pw-r3 .pw-ic { width: 40px; height: 40px; top: 18px; }
+.pw-r3 .pw-nm { font-size: 30px; bottom: 20px; }

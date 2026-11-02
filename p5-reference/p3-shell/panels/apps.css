@@ -1,0 +1,118 @@
+/* APPS 面板：托盘应用（3×2 磁贴 + 托盘菜单子页面）
+   面板底在亮水上也要可读：磁贴 / 卡片 / 菜单框用近实心 ink 底；平涂，无渐变 */
+.ap { display: flex; flex-direction: column; height: 796px; }
+.ap .pn-head { flex: none; }
+.ap b, .ap i { font-weight: inherit; font-style: inherit; }
+.ap-body { flex: 1; min-height: 0; position: relative; }
+[data-i], [data-r], [data-back], [data-pg] { cursor: pointer; }
+.ap-t, .ap-card, .ap-menu { background: color-mix(in srgb, var(--ink) 86%, transparent); border-top: 3px solid var(--fill); }
+
+/* 翻页器（多于 6 项）：标题右侧实心块 */
+.ap-pg { margin-left: auto; margin-bottom: 8px; display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 6px 18px 5px 14px; font-size: 40px; background: var(--ink); color: var(--tx); clip-path: var(--cut); }
+.ap-pg b { color: var(--fill); }
+.ap-pg i { color: var(--dim); }
+
+/* 字母徽：实心 fill 块 + ink 字 */
+.ap-g { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 104px; height: 104px; font-size: 60px; padding-right: 6px;
+  background: var(--fill); color: var(--ink); clip-path: var(--cut); }
+.ap-g.zh { font-size: 52px; padding-right: 0; }
+
+/* ---------- 3×2 磁贴 ---------- */
+.ap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 26px 22px; height: 100%; padding: 10px 0 8px; }
+.ap-t { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 22px; }
+.ap-top { display: flex; align-items: flex-start; gap: 10px; }
+.ap-tag { margin-left: auto; font-size: 16px; padding: 5px 10px 4px; background: var(--fill); color: var(--ink); clip-path: var(--cut); }
+/* NeedsAttention：右上角红碎片，无数字 */
+.ap-at { position: absolute; right: -6px; top: -10px; width: 46px; height: 40px; background: var(--red);
+  clip-path: polygon(18% 0, 100% 8%, 86% 100%, 0 70%); }
+.ap-nm { margin-top: auto; font-size: 46px; line-height: 1; color: var(--tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-nm.zh { line-height: 1.15; }
+.ap-sl { margin-top: 10px; height: 22px; font-size: 18px; line-height: 22px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-sl.zh { font-size: 17px; }
+/* Hidden / Passive：变暗，位置不变 */
+.ap-t.dimd .ap-g, .ap-t.dimd > .ap-nm, .ap-t.dimd > .ap-sl { opacity: .5; }
+/* 标签与红碎片不变暗，满对比度 */
+
+/* 空状态 */
+.ap-none { height: 100%; display: flex; align-items: center; justify-content: center; }
+.ap-none .d { font-size: 96px; color: var(--dim); }
+
+/* 选中：共用滑块换成磁贴形楔子；被选磁贴底透明，露出白楔，文字转 ink */
+.ap-grid > .p3-hl::after { left: -5%; right: -4%; top: -4%; bottom: -5%;
+  clip-path: polygon(3% 6%, 100% 0, 96% 100%, 0 95%); }
+.ap-grid > .p3-hl::before { left: -9%; width: 46%; top: -9%; bottom: 52%; }
+/* 颜色翻转延后 90ms，跟着楔子滑到位再换 */
+.ap-t { transition: background var(--d-fast) 90ms, border-color var(--d-fast) 90ms; }
+.ap-nm, .ap-sl, .ap-g, .ap-tag { transition: color var(--d-fast) 90ms, background var(--d-fast) 90ms; }
+.ap-t.sel { background: transparent; border-top-color: transparent; }
+.ap-t.sel .ap-nm { color: var(--ink); }
+.ap-t.sel .ap-sl { color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.ap-t.sel .ap-g { background: var(--ink); color: var(--shard); }
+.ap-t.sel .ap-tag { background: var(--ink); color: var(--fill); }
+
+/* ---------- 托盘菜单子页面 ---------- */
+.ap-sub { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 22px; height: 100%; padding: 10px 0 8px; }
+.ap-card { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 26px 24px 24px; }
+.ap-card .ap-g { width: 140px; height: 140px; font-size: 80px; }
+.ap-card .ap-g.zh { font-size: 68px; }
+.ap-hn { font-size: 56px; line-height: 1.05; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-hn.wrap { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* 读数：只在行数超出窗口时出现 */
+.ap-ro { align-self: flex-start; display: inline-flex; align-items: baseline; gap: 6px; font-size: 40px;
+  padding: 4px 14px 3px 10px; background: var(--well); color: var(--tx); clip-path: var(--cut); }
+.ap-ro[hidden] { display: none; }
+.ap-ro b { color: var(--fill); }
+.ap-ro i { color: var(--dim); }
+.ap-back { margin-top: auto; align-self: stretch; display: flex; gap: 10px; align-items: baseline; min-width: 0;
+  font-size: 20px; padding: 10px 18px 9px; background: var(--fill); color: var(--ink); clip-path: var(--cut); }
+.ap-back > :last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-back .zh { font-size: 18px; }
+
+.ap-menu { min-width: 0; padding: 8px 18px 8px 22px; }
+/* 固定像素窗口（9 行 + 分隔线余量），内层列表 translateY 滑动，无滚动条 */
+.ap-win { height: 642px; overflow: hidden; }
+.ap-list { position: relative; padding: 14px 6px; transition: transform var(--d-med) var(--e-out); }
+.ap-mi { height: 60px; min-width: 0; }
+.ap-ml { flex: 1; min-width: 0; font-size: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tx); }
+.ap-ml.l { font-size: 22px; }
+.ap-hdr .ap-ml { color: var(--fill); }
+.ap-c { flex: none; width: 58px; display: flex; align-items: center; justify-content: flex-end; }
+.ap-sep { display: block; height: 16px; position: relative; }
+.ap-sep::after { content: ""; position: absolute; left: 16px; right: 16px; top: 7px; height: 2px; background: var(--line); }
+.ap-mi.off .ap-ml { color: var(--dim); opacity: .6; }
+.ap-go { font-family: sans-serif; font-size: 24px; color: var(--fill); }
+.ap-danger .ap-ml { color: var(--red); }
+.ap-mi.sel .ap-ml, .ap-mi.sel .ap-go { color: var(--ink); }
+.ap-mi.sel.ap-danger .ap-ml { color: var(--red); }
+.ap-mi.sel .tg { background: var(--ink); }
+.ap-mi.sel .tg::after { background: var(--fill); }
+
+/* 勾选（buttonType 1，成组）：斜切勾号，未勾 = 空 */
+.ap-ck { width: 30px; height: 24px; background: var(--fill);
+  clip-path: polygon(0 52%, 18% 34%, 38% 58%, 82% 0, 100% 16%, 38% 100%);
+  transform: scale(0); transition: transform var(--d-med) var(--e-snap); }
+.ap-ck.on { transform: scale(1); }
+.ap-mi.sel .ap-ck { background: var(--ink); }
+/* 单选（buttonType 2）：菱形，选中 = 内部实心菱形缩放进入 */
+.ap-rd { position: relative; width: 26px; height: 26px; rotate: 45deg; box-shadow: inset 0 0 0 3px var(--fill); }
+.ap-rd::after { content: ""; position: absolute; inset: 7px; background: var(--fill);
+  transform: scale(0); transition: transform var(--d-med) var(--e-snap); }
+.ap-rd.on::after { transform: scale(1); }
+.ap-mi.sel .ap-rd { box-shadow: inset 0 0 0 3px var(--ink); }
+.ap-mi.sel .ap-rd::after { background: var(--ink); }
+
+/* 菜单行的滑块：更平的楔子 */
+.ap-list > .p3-hl::after { left: -3%; right: -2%; top: -10%; bottom: -12%;
+  clip-path: polygon(0 18%, 100% 0, 99% 100%, 1.5% 90%); }
+.ap-list > .p3-hl::before { left: -5%; width: 20%; top: -22%; bottom: 40%; }
+
+/* 磁贴 / 子页面互切：旧视图先左滑淡出，再重建新视图 */
+.ap-body.out > * { opacity: 0; transform: translateX(-40px);
+  transition: opacity var(--d-fast) var(--e-io), transform var(--d-fast) var(--e-io); }
+/* LOADING / EMPTY 占位行：暗但可读，不可选 */
+.ap-mi.ap-ph .ap-ml { color: var(--dim); opacity: 1; font-size: 26px; }

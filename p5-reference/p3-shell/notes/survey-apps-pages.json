@@ -1,0 +1,269 @@
+{
+  "pages": [
+    {
+      "name": "P5HomeDash (island home)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5HomeDash.qml (wired by patches/Modules_DankIsland_Activities_HomeExpanded.qml.patch, size 964x476 from the IslandController patch)",
+      "shows": "Left column: a 'CODE NAME' profile card (avatar, username in Anton, @hostname, UP uptime), then a STATUS block with the CPU model and 5 pull bars: CPU, RAM, TEMP, DISK (/), SWAP, each with warn/crit thresholds (DgopService). Right column: a big date block (DD, weekday, MMM, year, 'M月d日 dddd') and a full month calendar (6x7 grid, weekends pink, today on a tilted violet plate). The calendar has prev/today/next buttons, mouse-wheel and h/l/t keys. It shows no events or tasks.",
+      "openedBy": "Click the island (the clock/date area calls controller.requestToggle, which expands 'home'). IPC: `dms ipc call dash open overview` or `dash toggle overview`. No niri keybind.",
+      "style": "P5: P5Plate tilted plates in ink/plum/violet, a 'PHANTOM' watermark, a diagonal knife line splitting the two columns.",
+      "overlapWithMenu": "Duplicates two of the four new menu functions: the numeric readouts (the same 5 DgopService values) and the month calendar. Recommendation: the menu absorbs both. The island home could then shrink to clock/date, or stay and the menu links to it. Either way, both should not redraw the same calendar."
+    },
+    {
+      "name": "P5ProcessBoard (performance intel board)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5ProcessBoard.qml (wired by patches/Modules_ProcessList_ProcessListPopout.qml.patch, 780x690)",
+      "shows": "Header 'SYSTEM INTEL': @host // distro, uptime, process count, load. Two big intel cards: CPU (Anton %, temperature, GHz, core count, zigzag history) and MEMORY (%, used/total, swap, history). Below: all/user/system filter, sortable headers (name/cpu/memory/pid), search, and a 'wanted ranking' process list with right-click actions.",
+      "openedBy": "Left-click the bar's cpuUsage or memUsage widget, which opens ProcessListPopout. `dms ipc call widget toggle cpuUsage` also works, but only while the widget is on a bar. Ctrl+Alt+Delete does NOT open this board: it runs `dms ipc call processlist focusOrToggle`, which opens the unpatched stock Modals/ProcessListModal.qml.",
+      "style": "P5 board: big Anton numbers, slanted CPU bars, lavender selected row.",
+      "overlapWithMenu": "Menu readouts would duplicate the two top cards' numbers. The menu should link here for drill-down rather than absorb the process list. Risk: if cpuUsage and memUsage are deleted from the bar, this board loses its only entry point. To prevent that, patch the `processlist` IPC to open the P5 popout (the way spotlight was patched), or keep one gauge on the bar."
+    },
+    {
+      "name": "P5StatGauge (bar CPU/RAM readouts)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5StatGauge.qml (used by patches/Modules_DankBar_Widgets_CpuMonitor.qml.patch and Modules_DankBar_Widgets_RamMonitor.qml.patch)",
+      "shows": "Icon, a large Anton percentage, and a row of slanted history bars. Levels: lavender, pink at warn, blood red at danger. Today's screenshot shows CPU 4% and RAM 29%.",
+      "openedBy": "Always visible in barConfigs[0].rightWidgets (cpuUsage, memUsage). Clicking opens P5ProcessBoard.",
+      "style": "P5 skewed plum card from the BasePill patch.",
+      "overlapWithMenu": "Directly duplicated by 显示数值. These are the prime bar items to delete once the menu shows the numbers. The click-to-P5ProcessBoard dependency above must be handled first. Battery (stock widget, 100% today) is the same kind of readout."
+    },
+    {
+      "name": "P5Revolver (older app menu)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5Revolver.qml (replaces the content of AppDrawerPopout via patches/Modules_AppDrawer_AppDrawerPopout.qml.patch, 640x720)",
+      "shows": "An elongated pentagon pointing right with a half-visible revolver cylinder on the left. Apps are bars along an arc: the selected bar is horizontal, largest and lavender, and bars get smaller and more tilted toward the sides. Also a 'TAKE YOUR PICK' watermark, a 'No.xx / N' counter with crosshair, and a search banner that appears when typing. Data comes from the DankLauncherV2 Controller (apps mode).",
+      "openedBy": "Unreachable today. AppDrawerPopout is opened only by the bar's launcherButton (click or hover spec) and by the PopoutControlExample plugin. launcherButton is not in any bar section in settings.json, and no plugins are installed. No IPC calls openAppDrawer/toggleAppDrawer: `launcher` goes to DankLauncherV2 and `spotlight` goes to P5Apps. `widget toggle launcherButton` would return WIDGET_NOT_FOUND. The page is still built into ~/.local/share/dms-p5/shell.",
+      "style": "P5 revolver/pentagon, lavender selection, ink background.",
+      "overlapWithMenu": "Its role (quick app picker) is taken over by the new menu's 应用入口, and the Mod+Z carousel covers the full list. Candidate to delete, or to reuse its arc/cylinder idea as the visual for the menu's app section."
+    },
+    {
+      "name": "P5AppCarousel / P5Apps / P5AppsWindow (Mod+Z app list)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5AppCarousel.qml (+ P5Apps.qml singleton, P5AppsWindow.qml host, P5Vim.js; wired by patches/DMSShellIPC.qml.patch)",
+      "shows": "Full-screen Overlay-layer window (namespace dms:p5-apps) on the focused screen. P5R save-screen strips hang from an axis off the right edge, and the selected strip pops out a perforated lavender film. The title is a ransom-note 'APPS' at top left. Lists all apps with icon, name and comment from the launcher Controller in apps mode. sortAppsAlphabetically is false, so apps are ranked by appusage.json. Single-line vim keys.",
+      "openedBy": "Mod+Z runs `dms ipc call spotlight toggle || fuzzel`. Also `dms ipc call spotlight open|close|openQuery|toggleQuery`. The `launcher` target and spotlight openWith/toggleWith still open the stock DankLauncherV2.",
+      "style": "P5R save carousel, lavender in place of the original red.",
+      "overlapWithMenu": "Link, don't duplicate. The menu's APPS item should close the menu and run `dms ipc call spotlight open`. The menu itself shows only a short quick list."
+    },
+    {
+      "name": "P5MediaPage (island music)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5MediaPage.qml (patches/Modules_DankIsland_Activities_MediaExpanded.qml.patch, 782x324)",
+      "shows": "Tilted cover art with a white frame and two offset slabs, a rotating lavender starburst behind it, title and artist plates, a zigzag progress bar, slanted controls, and a star-shaped play button. Source is MPRIS.",
+      "openedBy": "Click the island music group (when no media is available it opens the launcher instead), or `dms ipc call dash open media`. This is separate from the qs music card (Mod+M).",
+      "style": "P5",
+      "overlapWithMenu": "None required. The menu's MUSIC item targets the music card (qs -c music). Optionally link here."
+    },
+    {
+      "name": "P5WeatherPage (island weather)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5WeatherPage.qml (patches/Modules_DankIsland_Activities_WeatherExpanded.qml.patch, 904x444)",
+      "shows": "A big starburst holding the weather icon and a giant Anton temperature, tilted info plates (humidity/wind/pressure/precipitation/sunrise-sunset), and forecast cards with a DAILY/HOURLY switch.",
+      "openedBy": "Click the island weather group, or `dms ipc call dash open weather`. Today the weather group is missing from the island (not in the screenshot): HomeCompact shows it only when WeatherService.weather.available is true. No location is set (default 'New York, NY'); the cause was not verified.",
+      "style": "P5",
+      "overlapWithMenu": "Not one of the requested functions. A temperature readout in the menu could link here."
+    },
+    {
+      "name": "P5WantedBoard (clipboard)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5WantedBoard.qml (patches/Modals_Clipboard_ClipboardHistoryContent.qml.patch + ClipboardHistoryPopout patch)",
+      "shows": "Clipboard history as wanted posters pinned to a wall, each slightly tilted. A flying knife marks the focused poster.",
+      "openedBy": "The bar clipboard widget (popout), or Mod+Alt+V (`dms ipc call clipboard toggle`, a modal). Both use the same content.",
+      "style": "P5",
+      "overlapWithMenu": "None. If the bar clipboard widget is deleted, Mod+Alt+V still reaches it."
+    },
+    {
+      "name": "P5WindowDossier (focused window)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5WindowDossier.qml (patches/Modules_DankBar_Widgets_FocusedWindowContextMenu.qml.patch + FocusedApp patch)",
+      "shows": "Diagonal blocks: target (icon + app name), title, App ID, status (PID, workspace, layout, size), and actions (add window rule, kill process). Clicking a block copies its value.",
+      "openedBy": "Left-click the bar's focusedWindow widget, or `dms ipc call widget toggle focusedWindow` (needs the widget on a bar).",
+      "style": "P5",
+      "overlapWithMenu": "None. If focusedWindow is deleted from the bar, this page becomes unreachable."
+    },
+    {
+      "name": "P5PhoneChat + P5SmsBubble + P5NotifyPaper (notifications)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/overlay/Modules/P5/P5PhoneChat.qml, P5SmsBubble.qml, P5NotifyPaper.qml (NotificationCenterExpanded / NotificationExpanded / DankIslandSurface patches)",
+      "shows": "The notification center as a P5 phone group chat (title + NEW/LOG switch, each notification is an SMS bubble, newest at the bottom). New notifications drop as an SMS from the island's lower edge, swing, then retract.",
+      "openedBy": "The bell on the island, always shown, with a badge (9 today). `dms ipc call notifications open`. New-notification drops appear automatically.",
+      "style": "P5 phone/SMS",
+      "overlapWithMenu": "None. The menu could show the unread count at most."
+    },
+    {
+      "name": "Control center (patched DMS, not under Modules/P5)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/patches/Modules_ControlCenter_Components_HeaderPane.qml.patch (+ CompoundPill, ToggleButton, SmallToggleButton patches)",
+      "shows": "Header: 'PHANTOM CONTROL' tag, avatar on a burst, Anton name, UP uptime, and four slanted action blocks: LOCK / POWER / SETTINGS / EDIT. Below are the default widgets (settings.json has no override): volume slider, brightness slider, Wi-Fi, Bluetooth, audio output, audio input, night mode, dark mode. There is no power row. POWER opens the stock PowerMenuModal positioned over the control center.",
+      "openedBy": "The bar's controlCenterButton (network/bluetooth/volume icons), or `dms ipc call control-center toggle`, which tries the island first and then the bar button.",
+      "style": "P5 header and toggles.",
+      "overlapWithMenu": "The LOCK/POWER blocks duplicate the menu's power section. Keep the toggles in the control center. Its POWER block could later open the menu's power page instead of the stock modal."
+    },
+    {
+      "name": "DMS power menu shown today (stock)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/dms-p5/work/shell/Modals/PowerMenuModal.qml + Modules/PowerMenu/PowerMenuContent.qml (unpatched upstream v1.6.3)",
+      "shows": "A centered vertical list (powerMenuGridLayout false) with Reboot, Log Out, Power Off, Lock, Suspend, Restart DMS. Log Out is highlighted by default. Hold-to-confirm takes 0.5 s for everything except Lock and Restart DMS. Lock runs customPowerActionLock (~/.config/quickshell/p5lock/p5lock.sh). Log Out sends niri Quit{skip_confirmation:true}. Reboot, poweroff and suspend run systemctl. Suspend does not lock first (lockBeforeSuspend is false by default).",
+      "openedBy": "Super+X (`dms ipc call powermenu toggle`), or the control center's POWER block.",
+      "style": "Stock DMS layout (Rectangle/StyledText/DankIcon). It gets only the global P5 tweaks: radius 0, Barlow font, and the ElevationShadow plate frame.",
+      "overlapWithMenu": "Fully duplicated by the menu's 关机 section. Recommendation: the menu absorbs it, and Super+X can later point at the menu's power page."
+    },
+    {
+      "name": "p5lock power menu (lock screen only)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5lock/shell/PowerMenu.qml",
+      "shows": "An arrow block at bottom right pulls out a 予告信 envelope. Three cards: SHUT DOWN and REBOOT (both need a second 'SURE?' click) and SUSPEND. Runs systemctl poweroff|reboot|suspend.",
+      "openedBy": "Only inside the P5 lock screen.",
+      "style": "P5 calling card",
+      "overlapWithMenu": "None (different context). Useful as a visual reference for the confirm step."
+    },
+    {
+      "name": "P3 Miku menu (base of the new menu)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/p3-miku/index.html (+ bg.png from grade.py)",
+      "shows": "1920x1080 stage, cover-scaled, over the upside-down Miku water background (caustics, rays, bubbles). Top right: date M/D + weekday, time-of-day tag, HH:MM. Nine staggered items: APPS / FILES / TERMINAL / BROWSER / MUSIC / KANBAN / CALENDAR / SETTINGS / POWER. The selected item gets a white wedge, red echo and red shard. A bottom description bar shows tag + Chinese description. Keys ↑↓/w/s/Tab, Enter, wheel. Confirm only flashes the tag; nothing is wired.",
+      "openedBy": "Static HTML in a browser (p5-reference/index.html card 13, uncommitted).",
+      "style": "P3R fluid: one gradient (the water), flat fills, Nunito Sans 900 italic for items and dates, Barlow Condensed labels.",
+      "overlapWithMenu": "This is the menu. It has no calendar grid, readouts or power sub-page yet; only the date readout exists."
+    },
+    {
+      "name": "Phone v2 prototype (closest prior design of the same functions)",
+      "file": "/home/lyfmt/Projects/my-arch-kit/p5-reference/phone/v2/index.html, app.js, style.css (untracked)",
+      "shows": "STATUS: CPU/MEMORY/GPU water tanks, 60 s CPU spark line, NETWORK/DISK/NVME/FANS/UPTIME rows. APPS: MUSIC, MESSAGES, WI-FI, BLUETOOTH, KANBAN, TERMINAL 'FOOT', FILES '~/', BROWSER 'FIREFOX', SCREENSHOT. CONTROL: toggles, volume/brightness, output/input, SESSION LOCK/SLEEP/LOG OUT/REBOOT/OFF with a hold-to-confirm sheet. CALENDAR: month grid with moon phase, plus a 'TODAY · REQUESTS' agenda (DOING/TODO/DAILY/DONE).",
+      "openedBy": "Static HTML.",
+      "style": "P3 fluid (the direction the user picked on 2026-10-18).",
+      "overlapWithMenu": "Covers the same four functions; reuse its section designs. Its launch hints are wrong for this machine: foot is not installed, the browser is chromium, files is thunar/nautilus. Its agenda fields ('DUE 10/20', 'CLEARED 10/14') do not exist in board.json."
+    }
+  ],
+  "trayApps": [
+    {
+      "name": "Feishu / 飞书 (icon 1, leftmost)",
+      "evidence": "SNI org.kde.StatusNotifierItem-37631-1 belongs to pid 37631 (/usr/bin/bytedance-feishu-stable --ozone-platform=x11), Id lark_status_icon_1. The blue-white bird on a white square matches /usr/share/icons/hicolor/*/apps/bytedance-feishu.png. Also #2 in app usage (67).",
+      "activation": "Launch: `/usr/bin/feishu %U` (~/.local/share/applications/feishu.desktop). Tray left-click is SNI Activate (shows the window)."
+    },
+    {
+      "name": "magpie (icon 2)",
+      "evidence": ":1.53 belongs to pid 1293 (`/home/lyfmt/.local/bin/magpie tray`), Id 'magpie', pixmap icon. The black-white magpie bird matches ~/.local/share/icons/hicolor/256x256/apps/magpie.png. #1 in app usage (69).",
+      "activation": "Launch: `/home/lyfmt/.local/bin/magpie %u` (magpie.desktop). Tray: SNI Activate or its tray menu."
+    },
+    {
+      "name": "Fcitx5 input method, Rime (icon 3)",
+      "evidence": ":1.82 belongs to pid 1296 (/usr/bin/fcitx5), Id Fcitx, Title 'Input Method', IconName fcitx-rime. The dark boxed glyph is the breeze fcitx-rime icon drawn in #31363b, which is almost invisible on the plum card (a small existing bar bug).",
+      "activation": "Not an app to launch. Mod+F1 runs `pkill fcitx5 || fcitx5`; the config tool is `/usr/bin/fcitx5-configtool` (usage #7). The tray menu switches input method."
+    },
+    {
+      "name": "Sunshine (icon 4)",
+      "evidence": ":1.100 belongs to pid 3125 (/usr/bin/sunshine), Id/Title Sunshine. The orange swirl matches /usr/share/sunshine/web/images/logo-sunshine-45.png. Not in app usage (runs as a background streaming host).",
+      "activation": "Tray: SNI Activate or its menu. The desktop entry dev.lizardbyte.app.Sunshine.desktop runs `systemctl start --u app-dev.lizardbyte.app.Sunshine`."
+    },
+    {
+      "name": "Clash Verge Rev (icon 5, rightmost)",
+      "evidence": ":1.63 at /org/ayatana/NotificationItem/tray_icon_tray_app_clash_verge_rev_tray belongs to pid 2340 (/usr/bin/clash-verge). IconName /run/user/1000/tray-icon/tray-icon-clash-verge-rev-tray-1.png is the green circle with a white cat, matching icon 5. #4 in app usage (63).",
+      "activation": "Launch: `clash-verge %u` (/usr/share/applications/Clash Verge.desktop). Tray: SNI Activate or menu (proxy mode switching)."
+    },
+    {
+      "name": "QQ (6th item, registered after the screenshot)",
+      "evidence": "busctl lists 6 items; the 6th is :1.484, pid 89646 (/opt/QQ/qq --ozone-platform=wayland ...), Id chrome_status_icon_1. It started at 16:40:05, after bar-right.png was taken (16:36:46), so the bar now shows 6 icons. #5 in app usage (37).",
+      "activation": "Launch: `linuxqq %U` (qq.desktop) or `linuxqq-wayland-fix %U`. Tray: SNI Activate."
+    }
+  ],
+  "menuItemMapping": [
+    {
+      "item": "APPS",
+      "command": "dms ipc call spotlight open",
+      "notes": "Opens the P5 save carousel (full app list ranked by usage). Mod+Z uses `dms ipc call spotlight toggle || fuzzel`. The menu should close itself first, because the carousel is a full-screen Overlay layer with exclusive keyboard focus."
+    },
+    {
+      "item": "FILES",
+      "command": "thunar",
+      "notes": "Mod+E runs `thunar || env GSK_RENDERER=gl nautilus --new-window` (Mod+Alt+E forces nautilus). Both are installed (thunar 4.20.10, nautilus 51.1). The xdg default for inode/directory is org.gnome.Nautilus.desktop. Phone v2's 'NAUTILUS' hint matches xdg but not Mod+E."
+    },
+    {
+      "item": "TERMINAL",
+      "command": "kitty --single-instance",
+      "notes": "Mod+T. Mod+Return runs `kitty` (separate process); Mod+/ runs `kitty --single-instance --class quickterminal` (floating). foot is not installed, so phone v2's 'FOOT' hint is wrong."
+    },
+    {
+      "item": "BROWSER",
+      "command": "chromium",
+      "notes": "Mod+B. The xdg https handler is chromium.desktop. Firefox 159 is also installed, but phone v2's 'FIREFOX' hint is wrong for the default."
+    },
+    {
+      "item": "MUSIC",
+      "command": "qs ipc -c music call music open",
+      "notes": "Mod+M uses `qs ipc -c music call music toggle`, which hides the card when it is focused, so `open` suits a menu. Also available: playPause|next|prev|search. The island's P5MediaPage (`dms ipc call dash open media`) is a separate MPRIS view."
+    },
+    {
+      "item": "KANBAN",
+      "command": "qs ipc -c kanban call kanban open",
+      "notes": "Mod+; uses `toggle`. Kanban IPC has only toggle/open/close: it cannot open straight to the daily page (that is Tab inside the board) and has no query or mutation calls."
+    },
+    {
+      "item": "CALENDAR",
+      "command": "(none exists) menu-internal page; fallback link: dms ipc call dash open overview",
+      "notes": "No calendar app or backend: khal, dcal and the com.danklinux.dankcalendar flatpak are all missing, so DMS CalendarService is 'none'. The only month calendar today is P5HomeDash on the island. 'Today's tasks' must come from ~/.local/share/kanban/board.json."
+    },
+    {
+      "item": "SETTINGS",
+      "command": "dms ipc call settings focusOrToggle",
+      "notes": "Mod+F2. The control center's SETTINGS block calls the same PopoutService.focusOrToggleSettings."
+    },
+    {
+      "item": "POWER",
+      "command": "dms ipc call powermenu toggle (link to the stock menu) — or per action: lock `dms ipc call lock lock`; suspend `~/.config/quickshell/p5lock/p5lock.sh --wait && systemctl suspend`; logout `niri msg action quit --skip-confirmation`; reboot `systemctl reboot`; poweroff `systemctl poweroff`",
+      "notes": "Super+X opens the stock list (Reboot, Log Out, Power Off, Lock, Suspend, Restart DMS; 0.5 s hold to confirm). `lock lock` runs customPowerActionLock = p5lock.sh. The suspend line is Mod+Alt+P (locks first; DMS's own suspend does not, since lockBeforeSuspend is false). DMS logout sends niri Quit with skip_confirmation; Mod+Shift+E is plain niri `quit` with its confirm dialog. The `--skip-confirmation` flag name was not executed or verified here. 'Restart DMS' is DMS-internal with no shell command."
+    }
+  ],
+  "topApps": [
+    {
+      "name": "magpie",
+      "count": "69",
+      "desktopId": "magpie"
+    },
+    {
+      "name": "飞书 (Feishu)",
+      "count": "67",
+      "desktopId": "feishu"
+    },
+    {
+      "name": "Buffin",
+      "count": "64",
+      "desktopId": "buffin"
+    },
+    {
+      "name": "Clash Verge",
+      "count": "63",
+      "desktopId": "Clash Verge"
+    },
+    {
+      "name": "QQ",
+      "count": "37",
+      "desktopId": "qq"
+    },
+    {
+      "name": "Termius",
+      "count": "14",
+      "desktopId": "termius"
+    },
+    {
+      "name": "Fcitx 5 配置",
+      "count": "9",
+      "desktopId": "fcitx5-configtool"
+    },
+    {
+      "name": "QQ（Wayland修复版）",
+      "count": "5",
+      "desktopId": "linuxqq-wayland-fix"
+    },
+    {
+      "name": "Lutris",
+      "count": "4",
+      "desktopId": "net.lutris.Lutris"
+    },
+    {
+      "name": "网易云音乐",
+      "count": "4",
+      "desktopId": "netease-cloud-music-gtk"
+    },
+    {
+      "name": "Configure lsfg-vk",
+      "count": "2",
+      "desktopId": "gay.pancake.lsfg-vk-ui"
+    },
+    {
+      "name": "Btrfs 助手",
+      "count": "2",
+      "desktopId": "btrfs-assistant"
+    }
+  ],
+  "dockPins": "There is no dock or pinned-app list. settings.json (sparse, 18 keys) has no showDock (default false, so the dock is off) and no dockLauncherEnabled. session.json has no pinnedApps (default []) and no trayItemOrder, so the launcher's 'Pinned' section is empty too. No DMS plugins are installed. Related signal: session.json launcherQueryHistory starts with qq, bu, fei, ma, lu, ter, which matches the usage ranking (QQ, Buffin, Feishu, magpie, Lutris, Termius/terminal). appusage.json has 20 entries. Ranks 11-14 are a 4-way tie at count 2 (lsfg-vk-ui, btrfs-assistant, org.gnome.baobab, typora), broken here by lastUsed. Every listed id resolves to a .desktop file in /usr/share/applications or ~/.local/share/applications.",
+  "kanbanData": "Storage: ~/.local/share/kanban/board.json (1618 B, last written 16:00 today), shape {version:1, tasks:[{id,title,desc,status:'todo'|'doing'|'done',daily?:templateId}], dailies:[{id,title,desc,times:['HH:MM'],last:ms}]}. Today it holds 11 tasks (6 todo, 1 doing, 4 done) and 1 daily template (times ['08:00']) with one instance on the board. Writer: /home/lyfmt/Projects/my-arch-kit/kanban/shell/Store.qml rewrites the whole file through a FileView with atomicWrites (temp + rename) on every change. A 30 s Timer re-adds daily instances to the top of TODO when a time slot passes. Can another quickshell config read it? Yes: it is a plain JSON file at a fixed path, so a menu can use its own FileView on that path with watchChanges: true and onFileChanged: reload(). Whether watching survives kanban's rename-on-write was not verified. Writing from the menu is unsafe: kanban's FileView has no watchChanges, so it never reloads outside edits and its next save() overwrites them. Its IPC is only toggle/open/close. A menu that marks tasks done would need kanban changes first (watchChanges + reload, or a mutation IPC). Calendar limits: tasks have no due, created or completed dates. The id is Date.now() in base36 plus 4 random chars, so creation time can be decoded, but that is a hack. Dailies only store refresh times and the last refresh. So a calendar page can show 'today' (current TODO/DOING plus daily instances with their HH:MM) but cannot place tasks on other days without a schema change. DMS CalendarService has no backend here, so no other event source exists.",
+  "quickbarInterpretation": "Most likely reading: the app icons in the top bar's tray cluster. Second: the fixed quick-entry list from the user's own prototypes. A dock is ruled out. The two leading readings overlap enough that one short question to the user settles it. (1) Tray apps on the current top bar. Today these are Feishu, magpie, Fcitx5/Rime, Sunshine and Clash Verge, plus QQ since 16:40. For: the sentence lists menu functions that each match something on the bar (power ↔ control-center POWER/Super+X, 显示数值 ↔ CPU/RAM/battery gauges, 日历 ↔ island date), then says the top-bar items can be deleted. 应用入口 lines up with the only cluster of app icons on the bar. The tray is also where the user actually opens their most-used apps: magpie #1, Feishu #2, Clash Verge #4 and QQ #5 are all in the tray. Against: tray items are running background apps, not launch shortcuts. Fcitx5 and Sunshine are not apps you 'enter'. 快捷栏 is not the usual word for 托盘. Absorbing the tray means the menu must host live SNI items (activate and context menu), and removing systemTray from the bar loses at-a-glance status such as Clash's proxy-state icon. (2) The quick-entry list from the user's prototypes. That means the p3-miku items (APPS/FILES/TERMINAL/BROWSER/MUSIC/KANBAN/CALENDAR/SETTINGS/POWER) or phone v2's APPS page. For: the user's own vocabulary ties 快捷 to these prototypes (p5-reference/index.html calls the phone '快捷手机 · 快捷入口手机的视觉原型'). The user also uses 当前已有的 for a p5-reference prototype in the same message, so 当前 need not mean 'live on the desktop'. The items match real keybinds (Mod+Z/E/T/B/M/;/F2, Super+X). Against: p3-miku already contains these items, so the parenthetical would add nothing. Phone v2's commands are wrong for this machine. (3) The most-used apps from appusage.json (magpie 69, 飞书 67, Buffin 64, Clash Verge 63, QQ 37, Termius 14, ...). For: it is real data, it overlaps (1) heavily, and the launcher already ranks by it. Against: nothing on screen today is a 快捷栏 showing this list, and the Mod+Z carousel already presents apps in this order. (4) A DMS dock or pinned apps. Ruled out: the dock is off and pinnedApps is empty. (5) niri app keybinds (快捷键): kitty, chromium, thunar, music, kanban. The word 'shortcut' fits, but 栏 means a bar, and this set is the same as (2). Suggested question for the user: 应用入口是指顶栏右边托盘里的那几个图标（飞书/喜鹊/Clash/QQ…），还是一组固定的快捷启动项（终端/浏览器/文件/音乐/看板…+常用应用）？ A hybrid answers both: live tray apps plus fixed launch items seeded from the usage top list.",
+  "notes": "Other findings that affect the plan:\n(1) Version mismatch: the installed DMS package is now dux-shell 2.0.0-1 (provides dms-shell=2.0.0, `dms v2.0.0`, installed 2026-10-28). dms-p5 patches target v1.6.3 and build from the cached ~/.local/share/dms-p5/upstream/v1.6.3. The running UI is that 1.6.3-based build (qs -p ~/.local/share/dms-p5/shell, pid 1348). Decide the base before any new dms-p5 patch work.\n(2) Deleting bar widgets has these consequences. cpuUsage/memUsage: P5ProcessBoard loses its only entry (Ctrl+Alt+Del opens the stock modal). focusedWindow: P5WindowDossier becomes unreachable. clipboard: P5WantedBoard is still reachable via Mod+Alt+V. controlCenterButton: the control center is still reachable via `control-center` IPC (island first). battery: the stock battery popout is lost. systemTray: the SNI watcher is owned by the DMS qs process (pid 1348). A tray section inside a dms-p5 menu gets the items for free. A separate qs config would have to register as a second host; that was not verified, and neither was whether the watcher stays up once no bar widget uses SystemTray.\n(3) dms-p5/AGENTS.md mentions a pull cord (拉绳) on the island, but no code for it exists in any commit. The memory note says the user wanted pull cords.\n(4) The island weather group is not shown today (weather unavailable, no location set).\n(5) p3-miku cover-scales a 1920x1080 stage. On eDP-1 (1706x1066 logical) that crops about 95 px per side. The right-anchored date (right: 86px) ends about 10 px off-screen, so the per-part HTML should be checked at 1706x1066 as well as 2560x1440.\n(6) The p3-miku and phone dirs are untracked or uncommitted, and p5-reference/index.html has an uncommitted diff adding cards 12-13. The new dedicated folder should not disturb them.\nNo files were created or changed. No dms ipc calls were made, no qs processes were touched, and no look/grab/dev/preview scripts were run."
+}

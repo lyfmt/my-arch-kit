@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P-Phone — prototype</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <!-- 假桌面：说明手机是叠在聚焦显示器上的浮层 -->
+  <div id="desk">
+    <div class="bar"></div>
+    <div class="win w1"><i></i></div>
+    <div class="win w2"><i></i></div>
+  </div>
+  <div id="scrim"></div>
+
+  <!-- 手机背后的爆炸星芒 + 黑色锯齿底板 -->
+  <svg id="burst" width="1500" height="1500" viewBox="-750 -750 1500 1500">
+    <polygon id="burstB"/>
+    <polygon id="burstA"/>
+  </svg>
+  <svg id="plate" width="560" height="980" viewBox="0 0 560 980"><polygon id="plateP"/></svg>
+
+  <!-- 从手机里弹出的消息气泡（sms 风格） -->
+  <div id="notif">
+    <div class="nt-avatar"><span>R</span></div>
+    <svg class="nt-bubble" width="330" height="120" viewBox="0 0 330 120">
+      <polygon class="nb-out" points="40,8 322,0 308,104 52,116 54,78 6,92 44,58"/>
+      <polygon class="nb-in"  points="50,16 312,9 300,96 60,106 62,72 26,80 52,56"/>
+    </svg>
+    <div class="nt-text"><b>RYUJI</b>Build passed. Hideout tonight?</div>
+  </div>
+
+  <div id="phone">
+    <div class="ph-case"></div>
+    <div class="ph-body">
+      <i class="ph-btn b1"></i><i class="ph-btn b2"></i><i class="ph-btn b3"></i>
+      <div class="ph-screen">
+        <div class="scr-bg"><i class="band"></i><i class="band b2"></i><i class="dots"></i></div>
+        <div class="notch"></div>
+
+        <!-- 状态栏 -->
+        <div class="sbar">
+          <span class="clock">20:46</span>
+          <span class="sicons">
+            <svg width="20" height="14" viewBox="0 0 20 14"><rect x="0" y="10" width="3" height="4"/><rect x="5" y="7" width="3" height="7"/><rect x="10" y="4" width="3" height="10"/><rect x="15" y="0" width="3" height="14"/></svg>
+            <svg width="28" height="14" viewBox="0 0 28 14"><polygon points="1,1 24,0 24,14 0,13" fill="none" stroke="#fff" stroke-width="2"/><polygon points="4,4 17,3.5 17,10.5 3.5,10" fill="var(--lav)"/><rect x="25" y="4" width="3" height="6"/></svg>
+          </span>
+        </div>
+
+        <!-- P5 日期/天气/时段 HUD -->
+        <div class="hud">
+          <div class="hud-date"><span>10</span><em>/</em><span>18</span></div>
+          <div class="hud-dow">SUN</div>
+          <div class="hud-wx">
+            <svg width="54" height="54" viewBox="0 0 24 24">
+              <g stroke="#000" stroke-width="2.2" stroke-linecap="square" fill="none">
+                <path d="M9 2.5v2M3.6 4.6l1.4 1.4M1.5 10h2M14.4 4.6 13 6"/>
+              </g>
+              <circle cx="9" cy="10" r="3.6" fill="#000"/>
+              <path d="M7 20.5h12.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.4-1.2A4 4 0 0 0 7 20.5z" fill="#fff" stroke="#000" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="hud-tod"><span>EVENING</span></div>
+        </div>
+
+        <div class="pages">
+          <!-- ========== 第 1 页：HIDEOUT ========== -->
+          <section class="page" data-name="HIDEOUT">
+            <div class="np">
+              <div class="np-vinyl"><i></i></div>
+              <div class="np-tag">NOW PLAYING</div>
+              <div class="np-title">Life Will Change</div>
+              <div class="np-artist">Lyn · PERSONA 5 OST</div>
+              <div class="np-prog"><i style="width:58%"></i></div>
+              <div class="np-ctl">
+                <svg width="20" height="18" viewBox="0 0 20 18"><polygon points="10,0 10,18 0,9"/><polygon points="20,0 20,18 10,9"/></svg>
+                <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="1" width="6" height="18"/><rect x="12" y="1" width="6" height="18"/></svg>
+                <svg width="20" height="18" viewBox="0 0 20 18"><polygon points="0,0 0,18 10,9"/><polygon points="10,0 10,18 20,9"/></svg>
+              </div>
+            </div>
+
+            <div class="stk" data-glyph="wifi"  data-label="WIFI"    data-key="W" style="left:16px;top:136px;--r:-7deg"></div>
+            <div class="stk" data-glyph="chat"  data-label="CHAT"    data-key="C" data-badge="1" style="left:196px;top:126px;--r:5deg"></div>
+            <div class="stk" data-glyph="kanban" data-label="REQUEST" data-key="R" style="left:30px;top:252px;--r:4deg"></div>
+            <div class="stk" data-glyph="tray"  data-label="TRAY"    data-key="T" style="left:206px;top:260px;--r:-5deg"></div>
+            <div class="stk" data-glyph="shot"  data-label="SHOT"    data-key="S" style="left:14px;top:370px;--r:-3deg"></div>
+            <div class="stk" data-glyph="power" data-label="POWER"   data-key="P" style="left:200px;top:376px;--r:6deg"></div>
+          </section>
+
+          <!-- ========== 第 2 页：INFILTRATE ========== -->
+          <section class="page" data-name="INFILTRATE">
+            <div class="tile on"  style="left:12px;top:8px;--r:-4deg"><span data-g="wifi"></span><b>WI-FI</b><small>HOME-5G</small></div>
+            <div class="tile on"  style="left:132px;top:0px;--r:3deg"><span data-g="bt"></span><b>BLUETOOTH</b><small>2 CONFIDANTS</small></div>
+            <div class="tile"     style="left:246px;top:12px;--r:-2deg"><span data-g="moon"></span><b>DND</b><small>OFF</small></div>
+
+            <div class="slider" style="top:150px;--r:-3deg"><span class="sl-tag"><span data-g="vol"></span>VOLUME</span><div class="sl-bar" data-v="0.7"></div><span class="sl-val">70</span></div>
+            <div class="slider" style="top:222px;--r:2deg"><span class="sl-tag"><span data-g="sun"></span>BRIGHT</span><div class="sl-bar" data-v="0.45"></div><span class="sl-val">45</span></div>
+
+            <div class="ransom pw-title" data-text="RETURN TO REALITY" data-size="21"></div>
+            <div class="stk mini" data-glyph="lock"   data-label="LOCK"   data-key="L" style="left:2px;top:372px;--r:-6deg"></div>
+            <div class="stk mini" data-glyph="moon"   data-label="SLEEP"  data-key="Z" style="left:74px;top:384px;--r:4deg"></div>
+            <div class="stk mini" data-glyph="exit"   data-label="EXIT"   data-key="X" style="left:146px;top:370px;--r:-3deg"></div>
+            <div class="stk mini" data-glyph="reboot" data-label="REBOOT" data-key="B" style="left:218px;top:384px;--r:5deg"></div>
+            <div class="stk mini danger" data-glyph="power" data-label="OFF" data-key="O" style="left:290px;top:366px;--r:-8deg"></div>
+          </section>
+
+          <!-- ========== 第 3 页：REQUESTS ========== -->
+          <section class="page" data-name="REQUESTS">
+            <div class="cal">
+              <div class="day past"><b>FR</b><span>16</span></div>
+              <div class="day past"><b>SA</b><span>17</span></div>
+              <div class="day today"><b>SU</b><span>18</span><em>TODAY</em></div>
+              <div class="day"><b>MO</b><span>19</span></div>
+              <div class="day"><b>TU</b><span>20</span></div>
+            </div>
+            <div class="slip doing" style="top:132px;--r:-3deg"><span class="stamp">DOING</span><b>Port phone prototype to QML</b><small>KANBAN · TARGET 10/20</small></div>
+            <div class="slip"       style="top:220px;--r:2deg"><span class="stamp">TODO</span><b>Wire nmcli into ROUTES app</b><small>KANBAN</small></div>
+            <div class="slip daily" style="top:302px;--r:-1.5deg"><span class="stamp">DAILY</span><b>Water the plants</b><small>RESETS 04:00</small></div>
+            <div class="slip done"  style="top:384px;--r:3deg"><span class="stamp">DONE</span><b>Collect P-series references</b><small>CLEARED 10/14</small><i class="cleared">CLEARED</i></div>
+          </section>
+        </div>
+
+        <!-- ========== 应用视图：Wi-Fi「ROUTES」 ========== -->
+        <section class="app" id="app-wifi">
+          <div class="app-head">
+            <span class="back">‹</span>
+            <div class="ransom" data-text="ROUTES" data-size="40"></div>
+            <div class="tgl on"><i></i><span>ON</span></div>
+          </div>
+          <div class="app-sub">INFILTRATION ROUTES · 6 FOUND</div>
+          <div class="routes">
+            <div class="route cur"><b>HOME-5G</b><span class="stars" data-n="4"></span><em>CONNECTED</em></div>
+            <div class="route"><b>HOME-2.4G</b><span class="stars" data-n="3"></span><span data-g="lock"></span></div>
+            <div class="route"><b>LEBLANC_CAFE</b><span class="stars" data-n="3"></span></div>
+            <div class="route"><b>SHUJIN-GUEST</b><span class="stars" data-n="2"></span><span data-g="lock"></span></div>
+            <div class="route"><b>MEMENTOS</b><span class="stars" data-n="1"></span><span data-g="lock"></span></div>
+            <div class="route"><b>TP-LINK_3F2A</b><span class="stars" data-n="1"></span><span data-g="lock"></span></div>
+          </div>
+        </section>
+
+        <!-- 底部：页面星标 + 按键提示 -->
+        <div class="dock">
+          <div class="dock-name"></div>
+          <div class="dock-stars"></div>
+          <div class="dock-keys"><kbd>‹ ›</kbd>PAGE <kbd>W</kbd>OPEN <kbd>ESC</kbd>CLOSE</div>
+        </div>
+
+        <!-- ========== 电源确认：预告信 ========== -->
+        <div class="callcard" id="app-power">
+          <div class="cc-card">
+            <div class="cc-to">TO: THIS SESSION</div>
+            <div class="ransom cc-big" data-text="WE WILL TAKE YOUR SESSION" data-size="30"></div>
+            <div class="cc-opts">
+              <span class="opt">LOCK</span><span class="opt">SLEEP</span><span class="opt">REBOOT</span><span class="opt danger sel">POWER OFF</span>
+            </div>
+            <div class="cc-hold"><i></i><span>HOLD ENTER TO CONFIRM</span></div>
+            <div class="cc-sign">— THE PHANTOM THIEVES</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="help">← → page · hover / letter to select · Enter / click to open · Esc back · ?page=1 · ?app=wifi · ?app=power</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

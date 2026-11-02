@@ -1,0 +1,464 @@
+@font-face { font-family: "Anton"; src: url("../save-carousel/fonts/Anton-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Luckiest"; src: url("../save-carousel/fonts/LuckiestGuy-Regular.ttf") format("truetype"); }
+@font-face { font-family: "BarlowC"; src: url("../save-carousel/fonts/BarlowCondensed-ExtraBoldItalic.ttf") format("truetype"); font-weight: 800; font-style: italic; }
+@font-face { font-family: "BarlowC"; src: url("../save-carousel/fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "NotoK"; src: url("../save-carousel/fonts/NotoSans-Black.ttf") format("truetype"); }
+
+/* 主色：DMS 原本的淡粉紫，粉紫底上一律用深色字；红只用于危险/通知 */
+:root {
+  --lav: #d0bcff;
+  --lav-hi: #efe6ff;
+  --lav-mid: #c2a9ff;
+  --lav-lo: #6c52b4;
+  --lav-dark: #241a3d;
+  --pink: #ffb3e0;
+  --on-lav: #1b0f33;
+  --ink: #0c0814;
+  --red: #ff3347;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+body { user-select: none; -webkit-user-select: none; cursor: default; color: #fff; }
+
+#stage {
+  position: absolute; left: 0; top: 0;
+  width: 1920px; height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+
+/* ---------- 假桌面 ---------- */
+#desk {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 900px 600px at 20% 80%, #3b2a5c 0%, transparent 70%),
+    radial-gradient(ellipse 700px 500px at 85% 15%, #4a2f4f 0%, transparent 70%),
+    linear-gradient(160deg, #2a2440, #141020 60%, #0d0a16);
+}
+#desk .bar { position: absolute; left: 0; right: 0; top: 0; height: 38px; background: rgba(0,0,0,.45); }
+#desk .win { position: absolute; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+#desk .win i { position: absolute; left: 0; right: 0; top: 0; height: 34px; border-bottom: 1px solid rgba(255,255,255,.06); }
+#desk .w1 { left: 60px; top: 70px; width: 820px; height: 960px; }
+#desk .w2 { left: 900px; top: 70px; width: 960px; height: 960px; }
+
+#scrim {
+  position: absolute; inset: 0;
+  background-color: rgba(8,5,16,.66);
+  background-image: radial-gradient(rgba(208,188,255,.10) 1.3px, transparent 1.8px);
+  background-size: 14px 14px;
+}
+
+/* ---------- 星芒 / 底板 ---------- */
+#burst { position: absolute; left: 380px; top: -210px; }
+#burstA { fill: var(--lav); opacity: .92; }
+#burstB { fill: var(--lav-lo); opacity: .55; }
+#plate { position: absolute; left: 860px; top: 60px; transform: rotate(9deg); }
+#plateP { fill: #000; }
+
+/* ---------- 通知气泡 ---------- */
+#notif { position: absolute; left: 470px; top: 250px; width: 420px; height: 130px; transform: rotate(-4deg); }
+.nt-avatar {
+  position: absolute; left: 0; top: 4px; width: 78px; height: 84px;
+  background: #fff; transform: rotate(-8deg);
+  clip-path: polygon(6% 0, 100% 6%, 92% 100%, 0 92%);
+  display: grid; place-items: center;
+}
+.nt-avatar span {
+  width: 64px; height: 70px; display: grid; place-items: center;
+  background: #000; color: var(--lav);
+  font: 54px "Luckiest"; padding-top: 10px;
+  clip-path: polygon(8% 2%, 98% 8%, 90% 98%, 2% 90%);
+}
+.nt-bubble { position: absolute; left: 66px; top: 0; }
+.nb-out { fill: #fff; }
+.nb-in { fill: #000; }
+.nt-text {
+  position: absolute; left: 132px; top: 22px; width: 220px;
+  font: 700 23px/1.12 "BarlowC"; color: #fff;
+}
+.nt-text b {
+  display: inline-block; margin-right: 8px; padding: 0 6px;
+  font: 800 italic 17px "BarlowC"; letter-spacing: .06em;
+  background: var(--lav); color: var(--on-lav); transform: skewX(-10deg);
+}
+
+/* ---------- 手机本体 ---------- */
+#phone {
+  position: absolute; left: 930px; top: 135px; width: 400px; height: 810px;
+  transform: rotate(-6deg);
+}
+.ph-case {
+  position: absolute; inset: 0; border-radius: 54px;
+  background: var(--lav);
+  transform: translate(24px, 18px) rotate(2.5deg);
+  box-shadow: 0 0 0 5px #000;
+}
+.ph-body {
+  position: absolute; inset: 0; border-radius: 54px;
+  background: linear-gradient(135deg, #2a2236 0%, #07050b 45%, #120d1b 100%);
+  box-shadow: 0 0 0 6px #fff, 0 0 0 12px #000, 40px 50px 80px rgba(0,0,0,.55);
+}
+.ph-btn { position: absolute; width: 7px; background: #fff; border: 2px solid #000; border-radius: 3px; }
+.ph-btn.b1 { right: -16px; top: 190px; height: 90px; }
+.ph-btn.b2 { left: -16px; top: 160px; height: 52px; }
+.ph-btn.b3 { left: -16px; top: 226px; height: 52px; }
+.ph-screen {
+  position: absolute; inset: 12px; border-radius: 42px; overflow: hidden;
+  background: #120c1e;
+}
+.scr-bg { position: absolute; inset: 0; }
+.scr-bg .band {
+  position: absolute; left: -120px; top: 520px; width: 700px; height: 150px;
+  background: var(--lav-dark); transform: rotate(-28deg);
+}
+.scr-bg .band.b2 { top: 420px; height: 26px; background: var(--lav-lo); opacity: .5; }
+.scr-bg .dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.07) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  -webkit-mask-image: linear-gradient(200deg, #000 0%, transparent 55%);
+          mask-image: linear-gradient(200deg, #000 0%, transparent 55%);
+}
+.notch {
+  position: absolute; top: 10px; left: 50%; width: 92px; height: 26px; margin-left: -46px;
+  background: #000; border-radius: 14px; z-index: 10;
+}
+.sbar {
+  position: absolute; left: 28px; right: 26px; top: 12px; height: 24px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.sbar .clock { font: 700 18px "BarlowC"; letter-spacing: .04em; }
+.sbar .sicons { display: flex; gap: 8px; align-items: center; }
+.sbar svg { fill: #fff; }
+
+/* ---------- HUD ---------- */
+.hud { position: absolute; left: 0; right: 0; top: 40px; height: 150px; }
+.hud-date {
+  position: absolute; left: 20px; top: 0;
+  font: 88px/1 "Anton"; letter-spacing: -.01em;
+  transform: rotate(-4deg) skewX(-8deg);
+  text-shadow: 5px 5px 0 var(--lav-lo), -2px -2px 0 #000;
+}
+.hud-date em { font-style: normal; color: var(--lav); margin: 0 -.02em; }
+.hud-dow {
+  position: absolute; left: 222px; top: 10px; padding: 4px 12px 0;
+  background: #fff; color: #000; font: 34px "Luckiest";
+  transform: rotate(7deg);
+  box-shadow: 4px 4px 0 #000;
+}
+.hud-wx {
+  position: absolute; left: 290px; top: 46px; width: 66px; height: 66px;
+  display: grid; place-items: center;
+  background: var(--lav); border: 3px solid #000; border-radius: 50%;
+  box-shadow: 0 0 0 3px #fff;
+  transform: rotate(-8deg);
+}
+.hud-tod {
+  position: absolute; left: -12px; right: 70px; top: 104px; height: 40px;
+  background: var(--lav); transform: rotate(-3deg);
+  clip-path: polygon(0 10%, 100% 0, 94% 100%, 0 100%);
+  display: flex; align-items: center; padding-left: 30px;
+}
+.hud-tod span { font: 31px "Luckiest"; color: var(--on-lav); letter-spacing: .08em; padding-top: 6px; }
+
+/* ---------- 分页 ---------- */
+.pages { position: absolute; left: 0; right: 0; top: 196px; height: 500px; }
+.page { position: absolute; inset: 0; visibility: hidden; }
+.page.cur { visibility: visible; }
+.page.enter { visibility: visible; animation: slashIn .34s cubic-bezier(.2,.8,.2,1) both; z-index: 2; }
+.page.leave { visibility: visible; animation: slashOut .34s ease-in both; }
+@keyframes slashIn {
+  from { clip-path: polygon(110% 0, 140% 0, 120% 100%, 90% 100%); transform: translateX(30px); }
+  to   { clip-path: polygon(-40% 0, 140% 0, 120% 100%, -60% 100%); transform: none; }
+}
+@keyframes slashOut {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(-40px) skewX(6deg); }
+}
+.ui-hidden .pages, .ui-hidden .dock { visibility: hidden; }
+.ui-hidden .page { visibility: hidden !important; }
+
+/* ---------- 正在播放 ---------- */
+.np {
+  position: absolute; left: 10px; top: 0; width: 356px; height: 116px;
+  transform: rotate(-2deg);
+}
+.np::before {
+  content: ""; position: absolute; inset: 0;
+  background: #000; border: 3px solid #fff;
+  clip-path: polygon(0 6%, 100% 0, 97% 100%, 2% 94%);
+}
+.np-vinyl {
+  position: absolute; left: 12px; top: 10px; width: 96px; height: 96px; border-radius: 50%;
+  background: repeating-radial-gradient(circle, #111 0 2px, #2a2433 2px 3px);
+  box-shadow: 0 0 0 3px #fff;
+  animation: spin 6s linear infinite;
+}
+.np-vinyl::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px;
+  border-radius: 50%; background: var(--lav);
+  box-shadow: inset 0 0 0 4px var(--lav-lo);
+}
+.np-vinyl i {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px;
+  border-radius: 50%; background: #000; z-index: 2;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.np-tag {
+  position: absolute; left: 130px; top: 10px; padding: 1px 8px;
+  font: 800 italic 14px "BarlowC"; letter-spacing: .12em;
+  background: var(--lav); color: var(--on-lav); transform: skewX(-12deg);
+}
+.np-title { position: absolute; left: 130px; top: 32px; font: 800 italic 29px "BarlowC"; white-space: nowrap; }
+.np-artist { position: absolute; left: 132px; top: 66px; font: 700 15px "BarlowC"; color: #bdb2d6; letter-spacing: .04em; }
+.np-prog {
+  position: absolute; left: 132px; top: 94px; width: 120px; height: 8px;
+  background: #3a3150; transform: skewX(-30deg);
+}
+.np-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--lav); }
+.np-ctl { position: absolute; left: 266px; top: 87px; display: flex; gap: 10px; }
+.np-ctl svg { fill: #fff; }
+
+/* ---------- 贴纸图标 ---------- */
+.stk {
+  position: absolute; width: 150px; height: 112px;
+  transform: rotate(var(--r));
+  transition: transform .14s cubic-bezier(.3,1.6,.5,1);
+}
+.stk .cursor { position: absolute; left: -16px; top: -14px; width: 182px; height: 120px; overflow: visible; z-index: 0; }
+.stk .cursor .ca { fill: var(--lav); }
+.stk .cursor .cb { fill: var(--pink); mix-blend-mode: screen; }
+.stk .icon { position: absolute; left: 20px; top: 0; z-index: 1; overflow: visible; }
+.stk .icon .shape { fill: #000; stroke: #fff; stroke-width: 5; stroke-linejoin: miter; }
+.stk .icon .chip { fill: var(--lav); }
+.stk .icon .gl { color: #fff; }
+.stk .label { position: absolute; left: 0; right: 0; top: 74px; text-align: center; z-index: 2; }
+.stk .badge {
+  position: absolute; right: 12px; top: -12px; z-index: 3;
+  width: 34px; height: 34px; display: grid; place-items: center;
+  background: var(--red); color: #fff; font: 22px "Luckiest"; padding-top: 4px;
+  clip-path: polygon(50% 0, 62% 30%, 98% 22%, 74% 52%, 96% 84%, 58% 72%, 44% 100%, 36% 70%, 2% 80%, 24% 50%, 4% 18%, 38% 28%);
+  animation: buzz 1.4s infinite;
+}
+@keyframes buzz {
+  0%, 70%, 100% { transform: rotate(0); }
+  74% { transform: rotate(-14deg) scale(1.1); }
+  80% { transform: rotate(12deg) scale(1.1); }
+  86% { transform: rotate(-8deg); }
+}
+.stk.sel { transform: rotate(calc(var(--r) * -0.6)) scale(1.13); z-index: 5; }
+.stk.sel .icon .shape { fill: var(--lav); stroke: #000; }
+.stk.sel .icon .chip { fill: #fff; }
+.stk.sel .icon .gl { color: var(--on-lav); }
+
+.stk.mini { width: 76px; height: 90px; }
+.stk.mini .icon { left: 6px; }
+.stk.mini .label { top: 46px; }
+.stk.mini .cursor { left: -10px; top: -10px; width: 92px; height: 76px; }
+.stk.danger .icon .chip { fill: var(--red); }
+.stk.danger .icon .gl { color: var(--red); }
+.stk.danger.sel .icon .shape { fill: var(--red); }
+.stk.danger.sel .icon .gl { color: #fff; }
+
+/* ---------- 拼贴字（勒索信） ---------- */
+.ransom { white-space: normal; line-height: 1.05; }
+.ransom .w { display: inline-block; white-space: nowrap; margin-right: .22em; }
+.ransom .c {
+  display: inline-block; padding: .08em .1em 0; margin: 0 -.02em;
+  line-height: 1; vertical-align: middle;
+}
+.ransom .c.key { box-shadow: 3px 3px 0 #000; outline: 2px solid #fff; position: relative; z-index: 1; }
+
+/* ---------- 第 2 页：快捷开关 / 滑条 / 电源 ---------- */
+.tile {
+  position: absolute; width: 114px; height: 116px; padding: 14px 10px 0 14px;
+  background: #000; border: 3px solid #fff;
+  transform: rotate(var(--r));
+  clip-path: polygon(0 4%, 100% 0, 96% 100%, 4% 96%);
+}
+.tile span[data-g] { display: block; color: #fff; }
+.tile b { display: block; margin-top: 8px; font: 800 italic 19px "BarlowC"; letter-spacing: .03em; }
+.tile small { display: block; font: 700 13px "BarlowC"; color: #a99dc4; letter-spacing: .05em; }
+.tile.on { background: var(--lav); border-color: #000; color: var(--on-lav); box-shadow: inset 0 0 0 3px #fff; }
+.tile.on span[data-g] { color: var(--on-lav); }
+.tile.on small { color: var(--lav-lo); }
+
+.slider {
+  position: absolute; left: 14px; right: 14px; height: 56px;
+  transform: rotate(var(--r));
+}
+.sl-tag {
+  position: absolute; left: 0; top: 0; padding: 2px 10px 0 6px; display: flex; align-items: center; gap: 4px;
+  background: #fff; color: #000; font: 800 italic 16px "BarlowC"; letter-spacing: .08em;
+  transform: skewX(-12deg);
+}
+.sl-tag span[data-g] { color: #000; }
+.sl-bar { position: absolute; left: 0; right: 78px; top: 30px; height: 22px; display: flex; gap: 4px; }
+.sl-bar i { flex: 1; background: #2f2742; transform: skewX(-24deg); }
+.sl-bar i.f { background: var(--lav); }
+.sl-bar i.f:last-of-type, .sl-bar i.tip { background: #fff; }
+.sl-val {
+  position: absolute; right: 0; top: 4px; width: 70px; text-align: right;
+  font: 50px/1 "Anton"; transform: skewX(-8deg);
+  text-shadow: 3px 3px 0 var(--lav-lo);
+}
+.pw-title { position: absolute; left: 16px; top: 306px; transform: rotate(-3deg); }
+
+/* ---------- 第 3 页：日历 / 委托 ---------- */
+.cal { position: absolute; left: 12px; right: 12px; top: 6px; height: 112px; display: flex; gap: 6px; align-items: center; }
+.day {
+  flex: 1; height: 88px; padding: 6px 0 0 8px; position: relative; overflow: hidden;
+  background: #0b0812; border: 2px solid #fff;
+}
+.day::after { content: ""; position: absolute; left: -10px; right: -10px; top: 58px; height: 12px; background: var(--lav-lo); transform: rotate(-12deg); opacity: .7; }
+.day b { display: block; font: 700 13px "BarlowC"; letter-spacing: .1em; }
+.day span { display: block; font: 800 italic 38px/1 "BarlowC"; }
+.day.past { opacity: .55; }
+.day.today {
+  flex: 1.25; height: 106px; background: var(--lav); color: var(--on-lav); border-color: #000;
+  transform: rotate(3deg) translateY(-4px); box-shadow: 6px 6px 0 #fff;
+}
+.day.today::after { background: #000; opacity: .85; }
+.day.today em { position: absolute; left: 8px; bottom: 6px; z-index: 1; font: 800 italic 12px "BarlowC"; letter-spacing: .12em; color: #fff; font-style: italic; }
+.day.today span { font-size: 48px; }
+
+.slip {
+  position: absolute; left: 18px; right: 16px; height: 70px; padding: 10px 14px 0 92px;
+  background: #f4efff; color: #000;
+  transform: rotate(var(--r));
+  clip-path: polygon(0 0, 100% 6%, 99% 94%, 1% 100%);
+}
+.slip b { display: block; font: 800 italic 20px/1.05 "BarlowC"; }
+.slip small { display: block; margin-top: 4px; font: 700 12px "BarlowC"; color: #6a6280; letter-spacing: .08em; }
+.slip .stamp {
+  position: absolute; left: 10px; top: 16px; width: 70px; padding: 4px 0 1px; text-align: center;
+  font: 18px "Luckiest"; background: #000; color: #fff; transform: rotate(-8deg);
+}
+.slip.doing { background: var(--lav); }
+.slip.doing .stamp { background: var(--on-lav); color: var(--lav); }
+.slip.doing small { color: var(--lav-lo); }
+.slip.daily .stamp { background: #fff; color: #000; outline: 2px solid #000; }
+.slip.done { opacity: .78; }
+.slip.done b { text-decoration: line-through 3px; }
+.slip .cleared {
+  position: absolute; right: 8px; top: 26px; padding: 4px 8px 0;
+  font: 26px "Luckiest"; font-style: normal; color: var(--red);
+  border: 3px solid var(--red); transform: rotate(-12deg);
+}
+
+/* ---------- 应用：ROUTES ---------- */
+.app { position: absolute; left: 0; right: 0; top: 196px; bottom: 0; display: none; }
+.app.open { display: block; animation: slashIn .34s cubic-bezier(.2,.8,.2,1) both; }
+.app-head { position: absolute; left: 14px; right: 14px; top: 0; height: 60px; }
+.app-head .back {
+  position: absolute; left: 0; top: 4px; width: 40px; height: 44px; display: grid; place-items: center;
+  background: #fff; color: #000; font: 40px/1 "Anton"; transform: rotate(-6deg);
+}
+.app-head .ransom { position: absolute; left: 50px; top: 0; transform: rotate(-3deg); }
+.tgl {
+  position: absolute; right: 0; top: 8px; width: 92px; height: 40px;
+  background: #fff; border: 3px solid #000; border-radius: 22px;
+  box-shadow: 0 0 0 3px #fff;
+}
+.tgl.on { background: var(--pink); }
+.tgl i {
+  position: absolute; top: 2px; right: 3px; width: 32px; height: 30px;
+  background: #000; clip-path: polygon(50% 0, 64% 32%, 100% 36%, 72% 60%, 82% 100%, 50% 78%, 18% 100%, 28% 60%, 0 36%, 36% 32%);
+}
+.tgl span { position: absolute; left: 12px; top: 6px; font: 24px "Luckiest"; color: #000; }
+.app-sub {
+  position: absolute; left: 16px; top: 64px; padding: 1px 8px;
+  font: 800 italic 14px "BarlowC"; letter-spacing: .12em;
+  background: var(--lav); color: var(--on-lav); transform: skewX(-12deg) rotate(-2deg);
+}
+.routes { position: absolute; left: 0; right: 0; top: 104px; }
+.route {
+  position: relative; height: 54px; margin: 0 0 10px; padding: 12px 16px 0 22px;
+  background: #000; border: 3px solid #fff;
+  display: flex; align-items: center; gap: 10px;
+  clip-path: polygon(0 0, 100% 8%, 100% 92%, 0 100%);
+}
+.route:nth-child(1) { margin-left: -6px;  margin-right: 8px;  transform: rotate(-3deg); }
+.route:nth-child(2) { margin-left: 18px;  margin-right: 4px;  transform: rotate(-1.5deg); }
+.route:nth-child(3) { margin-left: 24px;  margin-right: 10px; transform: rotate(0deg); }
+.route:nth-child(4) { margin-left: 30px;  margin-right: 14px; transform: rotate(1deg); opacity: .9; }
+.route:nth-child(5) { margin-left: 38px;  margin-right: 18px; transform: rotate(2deg); opacity: .75; }
+.route:nth-child(6) { margin-left: 46px;  margin-right: 22px; transform: rotate(3deg); opacity: .6; }
+.route b { flex: 1; font: 800 italic 22px/1 "BarlowC"; letter-spacing: .02em; padding-bottom: 8px; }
+.route .stars { display: flex; gap: 1px; padding-bottom: 8px; }
+.route .stars svg { fill: #fff; }
+.route .stars svg.off { fill: none; stroke: #6a5f86; stroke-width: 1.6; }
+.route span[data-g] { color: #a99dc4; padding-bottom: 8px; }
+.route.cur {
+  height: 82px; background: var(--lav); border-color: #000; color: var(--on-lav);
+  box-shadow: inset 0 0 0 3px #fff; padding-top: 0; flex-wrap: wrap; align-content: center; row-gap: 0;
+}
+.route.cur b { font-size: 30px; padding-bottom: 0; }
+.route.cur .stars { position: absolute; right: 18px; top: 10px; padding-bottom: 0; }
+.route.cur .stars svg { fill: var(--on-lav); }
+.route.cur em {
+  position: absolute; right: 18px; bottom: 6px; padding: 2px 8px 0;
+  font: 16px "Luckiest"; font-style: normal; background: #000; color: #fff; transform: rotate(-4deg);
+}
+
+/* ---------- 底部 dock ---------- */
+.dock { position: absolute; left: 0; right: 0; bottom: 0; height: 90px; }
+.dock-name {
+  position: absolute; left: 18px; top: 4px; transform: rotate(-4deg);
+}
+.dock-stars { position: absolute; right: 22px; top: 8px; display: flex; gap: 4px; }
+.dock-stars svg { cursor: pointer; }
+.dock-stars .on { fill: var(--lav); stroke: #000; stroke-width: 2.5; }
+.dock-stars .off { fill: #000; stroke: #fff; stroke-width: 2.5; }
+.dock-keys {
+  position: absolute; left: 0; right: 0; bottom: 18px; text-align: center;
+  font: 700 14px "BarlowC"; letter-spacing: .1em; color: #bdb2d6;
+}
+.dock-keys kbd {
+  display: inline-block; margin: 0 5px 0 12px; padding: 1px 6px;
+  font: 800 italic 14px "BarlowC"; color: #000; background: #fff;
+  transform: skewX(-10deg);
+}
+
+/* ---------- 电源：预告信 ---------- */
+.callcard {
+  position: absolute; inset: 0; z-index: 20; display: none;
+  background: rgba(12,8,20,.72);
+}
+.callcard.open { display: block; }
+.cc-card {
+  position: absolute; left: 22px; right: 18px; top: 210px; height: 360px;
+  padding: 26px 24px 0;
+  background: #f4efff; color: #000;
+  transform: rotate(4deg);
+  clip-path: polygon(2% 0, 100% 3%, 97% 100%, 0 97%);
+  animation: cardIn .4s cubic-bezier(.2,1.4,.4,1) both;
+}
+@keyframes cardIn { from { transform: rotate(-30deg) scale(.4); opacity: 0; } to { transform: rotate(4deg) scale(1); opacity: 1; } }
+.cc-card::before {
+  content: ""; position: absolute; left: -40px; right: -40px; top: 112px; height: 60px;
+  background: var(--lav); transform: rotate(-9deg); z-index: 0;
+}
+.cc-card > * { position: relative; z-index: 1; }
+.cc-to { font: 800 italic 15px "BarlowC"; letter-spacing: .14em; }
+.cc-big { margin-top: 12px; }
+.cc-opts { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.opt {
+  padding: 4px 10px 0; font: 21px "Luckiest"; letter-spacing: .03em;
+  background: #000; color: #fff; transform: skewX(-10deg);
+}
+.opt.danger { background: var(--red); }
+.opt.sel { outline: 3px solid #000; box-shadow: 5px 5px 0 #000; transform: skewX(-10deg) scale(1.08) rotate(-3deg); }
+.cc-hold { margin-top: 28px; height: 34px; background: #000; position: relative; transform: skewX(-14deg); }
+.cc-hold i { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; background: var(--red); }
+.cc-hold span { position: absolute; left: 12px; top: 7px; font: 800 italic 16px "BarlowC"; letter-spacing: .12em; color: #fff; }
+.cc-sign { margin-top: 24px; text-align: right; font: 800 italic 17px "BarlowC"; letter-spacing: .08em; }
+
+#help {
+  position: absolute; left: 0; right: 0; bottom: 16px; text-align: center;
+  font: 700 16px "BarlowC"; letter-spacing: .06em; color: rgba(255,255,255,.45);
+}
+
+/* ?static：截图用，关掉所有动画 */
+.static *, .static *::before, .static *::after { animation: none !important; }
