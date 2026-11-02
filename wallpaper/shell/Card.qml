@@ -130,13 +130,14 @@ Item {
             smooth: true
             mipmap: true
         }
-        // 远处卡片的“模糊”：同一张图的极小解码版本放大显示，开销几乎为零
+        // 远处卡片的“模糊”：同一张图的极小解码版本放大显示，开销几乎为零。
+        // 主图就绪后才申请，不和各卡的主图抢图片读取线程
         Image {
             width: card.imgW
             height: card.imgH
             x: img.x
             y: img.y
-            source: card.blurOp > 0.002 ? card.src : ""
+            source: card.blurOp > 0.002 && img.status === Image.Ready ? card.src : ""
             sourceSize.width: 64
             fillMode: Image.PreserveAspectCrop
             asynchronous: true

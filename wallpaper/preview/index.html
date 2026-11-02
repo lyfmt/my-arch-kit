@@ -35,16 +35,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--tx)
   will-change:transform,opacity;visibility:hidden;cursor:pointer}
 .card>div{position:absolute}
 /* ===== EDGE TREATMENT ===== the only place that decides how a card's edge looks. Variants edit this block only.
-   Applies to every card (.card) and to the apply clone (#apply .im), so both always match.
    --isx/--isy are set per frame by JS (= 1/scaleX, 1/scaleY of the element), so lengths multiplied by them stay
-   constant in SCREEN px even though cards are non-uniformly scaled; --ek (1 -> 0) is set on the apply clone only
-   and fades the edge treatment out as the clone grows to full screen.
+   constant in SCREEN px even though cards are non-uniformly scaled.
    Shape = --edge-r (rounded rect) and/or --edge-clip (polygon). Layers, back to front:
      .gl  contact shadow (radial gradient, not shape-matched)    .sh  floor shadow (blurred bar under the card)
      .ds  drop shadow: blurred copy of the card shape (.ds i), --edge-sh*, deepens on the selected card
      .fc  the face: image + tint/dim/blur/delete overlays, clipped to the shape
      .ln  optional edge line drawn inside the shape (--edge-line, transparent = off) */
-.card,#apply .im{
+.card{
   --edge-r:14px;                       /* corner radius, screen px (0 = square) */
   --edge-clip:none;                    /* e.g. polygon(0 0,calc(100% - 16px*var(--isx,1)) 0,100% calc(16px*var(--isy,1)),100% 100%,0 100%) */
   --edge-line:transparent;             /* inner hairline colour */
@@ -53,14 +51,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--tx)
   --edge-sh-blur:26px;                 /* drop shadow blur (card-local px) */
   --edge-sh-y:16px;                    /* drop shadow offset, grows by --edge-sh-lift on the selected card */
   --edge-sh-lift:12px;
-  --edge-sh-spread:-2%;                /* inset/outset of the shadow shape vs the card */
-  --ek:1}
-.card .ds i,.card .fc,.card .ln,#apply .im{
-  border-radius:calc(var(--edge-r)*var(--ek)*var(--isx,1)) / calc(var(--edge-r)*var(--ek)*var(--isy,1));clip-path:var(--edge-clip)}
+  --edge-sh-spread:-2%}                /* inset/outset of the shadow shape vs the card */
+.card .ds i,.card .fc,.card .ln{
+  border-radius:calc(var(--edge-r)*var(--isx,1)) / calc(var(--edge-r)*var(--isy,1));clip-path:var(--edge-clip)}
 .card .ds{inset:0;opacity:0;filter:blur(var(--edge-sh-blur));transform:translateY(calc(var(--edge-sh-y) + var(--edge-sh-lift)*var(--sel,0)))}
 .card .ds i{position:absolute;inset:calc(var(--edge-sh-spread)*-1);background:var(--edge-sh)}
 .card .ln{inset:0;pointer-events:none;box-shadow:inset 0 0 0 calc(var(--edge-line-w)*var(--isx,1)) var(--edge-line)}
-#apply .im{box-shadow:0 calc((var(--edge-sh-y) + var(--edge-sh-lift))*var(--ek)*var(--isy,1)) calc(var(--edge-sh-blur)*2*var(--ek)*var(--isx,1)) var(--edge-sh)}  /* matches .ds on the hero; fades with --ek */
 /* ===== /EDGE TREATMENT ===== */
 .card .gl{inset:-14% -10% -22%;background:radial-gradient(closest-side,rgba(0,8,40,.75),transparent);opacity:0}   /* contact shadow */
 .card .sh{left:5%;right:5%;bottom:-5%;height:22%;background:#000;filter:blur(34px);opacity:0}                       /* soft floor shadow */
@@ -91,28 +87,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--tx)
 #ttl .m i{font-style:normal;color:var(--tx);background:var(--panel);padding:calc(var(--u)*4) calc(var(--u)*9) calc(var(--u)*3);clip-path:var(--cut);text-shadow:none}
 #ttl .m i.on{background:var(--fill);color:var(--ink);font-family:var(--fz);letter-spacing:.06em}
 
-/* key hints: one small panel pill, P3 kbd */
-#hints{position:absolute;right:calc(var(--u)*40);bottom:calc(var(--u)*28);z-index:1300;display:flex;gap:calc(var(--u)*18);align-items:center;padding:calc(var(--u)*8) calc(var(--u)*18);
-  background:rgba(2,10,60,.78);box-shadow:inset 0 0 0 1px var(--line);clip-path:var(--cut);font:700 calc(var(--u)*15)/1 var(--fz);color:rgba(236,252,255,.82);white-space:nowrap;opacity:0;pointer-events:none;will-change:transform,opacity}
-#hints span{display:flex;align-items:center;gap:calc(var(--u)*6)}
-#hints kbd{font:700 calc(var(--u)*14)/1 var(--fb);letter-spacing:.08em;display:inline-block;min-width:calc(var(--u)*24);text-align:center;padding:calc(var(--u)*4) calc(var(--u)*7) calc(var(--u)*3);
-  background:var(--well);color:var(--tx);clip-path:var(--cut)}
-#hints kbd.l{background:var(--fill);color:var(--ink)}
-#hints kbd.r{box-shadow:inset calc(var(--u)*3) 0 0 var(--red)}
 #empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1200;background:var(--panel);clip-path:var(--cut);padding:calc(var(--u)*22) calc(var(--u)*40);display:none;white-space:nowrap;text-align:center}
 #empty .l{display:block;font:700 calc(var(--u)*20)/1 var(--fb);letter-spacing:.16em;color:var(--dim)}
 #empty .z{display:block;margin-top:calc(var(--u)*12);font-size:calc(var(--u)*24);color:var(--tx)}
 
-/* apply: clone of the hero grows to the screen rect */
-#apply{position:absolute;inset:0;z-index:1500;pointer-events:none;visibility:hidden}
-#apply .im{position:absolute;background:var(--ink);transform-origin:50% 50%;will-change:transform,opacity;overflow:hidden}
-#apply .ii{position:absolute;inset:0;overflow:hidden;background:var(--ink)}
-#apply .ii img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-
 #toast{position:fixed;left:50%;top:0;z-index:30;pointer-events:none;opacity:0;filter:drop-shadow(0 calc(var(--u)*4) calc(var(--u)*12) rgba(0,6,40,.45))}
 #toast .b{display:flex;align-items:center;gap:calc(var(--u)*8);transform:translateX(-50%);padding:calc(var(--u)*12) calc(var(--u)*28) calc(var(--u)*12) calc(var(--u)*24);white-space:nowrap;
   background:var(--fill);color:var(--ink);clip-path:var(--cut);font-size:calc(var(--u)*19)}
-#toast .b em{font:700 1.12em/1 var(--fb);letter-spacing:.1em;font-style:normal}
 #toast.bad .b{box-shadow:inset calc(var(--u)*8) 0 0 var(--red);padding-left:calc(var(--u)*34)}
 #toast.show{animation:tshow .38s var(--e-out) forwards}
 #toast.hide{animation:thide .3s ease forwards}
@@ -129,15 +110,7 @@ body.reo #reo{opacity:1}
   <div id="stage"></div>
   <div id="idx"><span class="n"><span class="dg"><i></i></span><span class="dg"><i></i></span></span><span class="o">/ 18</span></div>
   <div id="ttl"><span class="tw"><span class="tx"></span></span><div class="m"></div></div>
-  <div id="empty"><span class="l">EMPTY</span><span class="z">没有壁纸了 · U 撤销</span></div>
-  <div id="hints">
-    <span><kbd>←</kbd><kbd>→</kbd><kbd>H</kbd><kbd>L</kbd>切换</span>
-    <span><kbd class="l">ENTER</kbd>应用</span>
-    <span><kbd class="r">D</kbd>删除</span>
-    <span><kbd>U</kbd>撤销</span>
-    <span><kbd>ESC</kbd>关闭</span>
-  </div>
-  <div id="apply"><div class="im"><div class="ii"><img alt=""></div></div></div>
+  <div id="empty"><span class="l">EMPTY</span><span class="z">没有壁纸了</span></div>
 </div>
 <div id="toast"><div class="b"></div></div>
 <div id="reo">原型 · 按任意键或点击重新打开</div>
@@ -148,9 +121,8 @@ body.reo #reo{opacity:1}
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const root=document.documentElement,body=document.body,ov=$('#ov'),stage=$('#stage');
 const deskImgs=$$('#desk .dk'),idxEl=$('#idx'),idxO=$('#idx .o'),ttlEl=$('#ttl'),ttTx=$('#ttl .tx'),ttTw=$('#ttl .tw'),mtEl=$('#ttl .m');
-const rollers=$$('#idx .dg i'),hintsEl=$('#hints'),emptyEl=$('#empty');
+const rollers=$$('#idx .dg i'),emptyEl=$('#empty');
 const toastEl=$('#toast'),toastB=$('#toast .b');
-const apEl=$('#apply'),apIm=$('#apply .im'),apIi=$('#apply .ii'),apImg=$('#apply .ii img');
 const MON='HDMI-A-1';
 const mq=matchMedia('(prefers-reduced-motion: reduce)');
 let RM=mq.matches;mq.addEventListener&&mq.addEventListener('change',e=>{RM=e.matches});
@@ -196,7 +168,6 @@ function geom(){
   G.nTop=by-XS[1]*TAN+DROP[1]*H-SY[1]*H;
   G.ix=cx-W/2-14*G.u;G.iy=G.nTop-8*G.u;
   G.tx=cx-W/2+4*u;G.ty=by+10*u+W*.78*Math.sin(-TILT);  // title capped at .78W; its rising right end clears the hero
-  Object.assign(apIm.style,{width:W+'px',height:H+'px',left:(cx-W/2)+'px',top:(by-H)+'px'});
 }
 
 // ---------- items ----------
@@ -224,8 +195,8 @@ deskImgs[0].src='walls/'+applied;
 let pos=0,vel=0,target=0;             // shared position spring
 const acc={r:0,v:0,id:null};          // selection settle: 0 = resting, 1 = selected card lifted (scale + shadow); springs a beat after landing
 const rol=[{r:0,v:0,t:0},{r:1,v:0,t:1}]; // digit rollers (tens, ones)
-let open=false,ap=null,reoT=0;
-const chrome={acc:Tw(0),lab:Tw(0),hint:Tw(0)};
+let open=false,reoT=0,deskT=0;
+const chrome={acc:Tw(0),lab:Tw(0)};
 const ghosts=[],undo=[];
 let raf=0,last=0;
 const K=280,C=27,K2=300,C2=30,MAXLEAD=3,KA=260,CA=17,KR=300,CR=30; // KA/CA zeta~.53: the selected card lifts with a visible ~14% overshoot
@@ -267,7 +238,7 @@ function tick(t){
   if(!RM&&t-lastMoveT<RIP*5000+20)busy=true;
   for(const it of items){
     if(it.shift||it.sv){if(Math.abs(it.shift)<4e-4&&Math.abs(it.sv)<2e-3&&t>=it.hold){it.shift=0;it.sv=0}else busy=true}
-    const ht=it.hov&&open&&!ap?1:0;it.hv+=(ht-it.hv)*(1-Math.exp(-dt*(RM?30:14)));
+    const ht=it.hov&&open?1:0;it.hv+=(ht-it.hv)*(1-Math.exp(-dt*(RM?30:14)));
     if(Math.abs(ht-it.hv)<.003)it.hv=ht;else busy=true;
     if(it.app<1){it.app=clamp((t-it.appT0)/D(560));busy=true}
     if(stepTw(it.o,t))busy=true;
@@ -275,7 +246,6 @@ function tick(t){
   }
   for(const k in chrome)if(stepTw(chrome[k],t))busy=true;
   for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];g.k=clamp((t-g.t0)/(RM?150:560));if(g.k>=1){g.it.el.remove();ghosts.splice(i,1)}else busy=true}
-  if(ap){stepApply(t);busy=true}
   if(stepLabel(t))busy=true;
   if(!open&&!busy&&!ov.classList.contains('closed'))ov.classList.add('closed');
   render(t);
@@ -307,7 +277,6 @@ function cardTf(it,dv,gk){
   else if(gk!=null){ // falls with weight: tiny lift, then gravity
     const lift=gk<.16?Math.sin(gk/.16*Math.PI)*G.vh*.012:0;
     y+=gk*gk*G.vh*.46-lift;rot=gk*gk*(s>=0?6:-6)+gk*gk*4;sc*=1-.1*gk;op*=1-clamp((gk-.28)/.6)}
-  if(it.apHide)op=0;
   const X=G.cx+x,Y=G.by+y,SXv=sx*sc*st,SYv=sy*sc/Math.sqrt(st);
   return {tf:`translate3d(${X.toFixed(2)}px,${Y.toFixed(2)}px,0) rotate(${rot.toFixed(2)}deg) skewX(${sk.toFixed(2)}deg) scale(${SXv.toFixed(4)},${SYv.toFixed(4)})`,
     op,a,sx:SXv,sy:SYv,X,Y};
@@ -363,8 +332,6 @@ function render(t){
   ttlEl.style.transform=`translate3d(${(G.tx+lean2).toFixed(2)}px,${(G.ty+ty*.8).toFixed(2)}px,0) rotate(${TILT}rad)`;
   idxEl.style.opacity=lo.toFixed(3);ttlEl.style.opacity=lo.toFixed(3);
   for(const r of rol)r.el.style.transform=`translateY(${(-mod(r.r,10)).toFixed(4)}em)`;
-  const hv=chrome.hint.v;
-  hintsEl.style.opacity=hv.toFixed(3);hintsEl.style.transform=`translateY(${((1-hv)*G.u*16).toFixed(2)}px)`;
 }
 
 const pad=v=>String(v).padStart(2,'0');
@@ -412,7 +379,6 @@ function setOpen(v){
       else{it.o.v=1;it.o.act=false}}
     tw(chrome.acc,1,D(420),D(360),eoc);
     tw(chrome.lab,1,D(430),D(480),eob);
-    tw(chrome.hint,1,D(560),D(320),eoc);
   }else{
     for(const k in chrome)tw(chrome[k],0,0,D(130),ein);   // chrome leaves first
     for(let i=0;i<N;i++){const it=items[i],a=Math.abs(wrapD(i-pos,N));it.om='close';
@@ -424,49 +390,24 @@ function setOpen(v){
   kick();
 }
 
-// ---------- apply: grow to screen, swap desktop, dissolve ----------
+// ---------- apply: set the wallpaper, close with the normal close motion ----------
 function applyCur(){
-  if(!open||ap)return;
+  if(!open)return;
   if(!n()){toast('没有可应用的壁纸',1);return}
   target=Math.round(target);capLead();
-  const ci=mod(Math.round(target),n()),it=items[ci];
+  const it=items[mod(Math.round(target),n())];
   if(it.w.f===applied){it.pulse=now();toast('已是当前壁纸');kick();return} // nothing would change: just a pulse
-  apImg.src='walls/'+it.w.f;
-  ap={it,t0:now(),swapped:false,closed:false,A:D(60),E:D(480),F:D(420),dk:0,sk:it.selK||0};  // sk: hero's selection lift, so the clone starts exactly on it
-  it.apHide=false;apEl.style.visibility='visible';apIm.style.opacity=1;
-  for(const k in chrome)tw(chrome[k],0,0,D(120),ein);
-  // other cards bow out while the clone grows
-  const N=n();for(let i=0;i<N;i++){const o=items[i];if(o===it)continue;const a=Math.abs(wrapD(i-pos,N));o.om='close';
-    tw(o.o,0,Math.min(a,5)*D(22),D(260),ein)}
-  kick();
+  applied=it.w.f;setDesk(applied);
+  setOpen(false);
+  // real app: overlay stays closed here. Prototype: reopen ~1s after the close.
+  body.classList.add('reo');clearTimeout(reoT);reoT=setTimeout(()=>{if(!open)setOpen(true)},1500);
 }
-function stepApply(t){
-  const k=t-ap.t0,A=ap.A,E=ap.E,F=ap.F,vw=G.vw,vh=G.vh;
-  const sx=vw/G.W*1.03,sy=vh/G.H*1.03;
-  if(k>0)ap.it.apHide=true;
-  // short anticipation (dip to .97), then an ease-in-out surge to full screen: no snap-then-stall
-  const pre=.03*Math.sin(clamp(k/A)*Math.PI/2),p=k<A?0:eio(clamp((k-A)/(E-A)));
-  const b0=(1+.022*ap.sk)*(1-pre);   // start scale = hero's selected scale
-  const s1=b0+(sx-b0)*p,s2=b0+(sy-b0)*p;
-  // centre drifts from the hero to the screen centre so the clone really covers the screen (hero sits above centre)
-  const c0x=G.cx,c0y=G.by-G.H/2-G.H*.011*ap.sk-G.H*.018*ap.sk,dx=(vw/2-c0x)*p,dy=(vh/2-c0y)*p,hx=s1*G.W/2,hy=s2*G.H/2;
-  const covers=c0x+dx-hx<=0&&c0x+dx+hx>=vw&&c0y+dy-hy<=0&&c0y+dy+hy>=vh;
-  apIm.style.transform=`translate(${dx.toFixed(2)}px,${dy.toFixed(2)}px) scale(${s1.toFixed(4)},${s2.toFixed(4)})`;
-  const m=Math.max(s1,s2);apImg.style.transform=`scale(${(m/s1).toFixed(4)},${(m/s2).toFixed(4)})`;
-  // EDGE TREATMENT on the clone: same shape/shadow as the hero, fading out (--ek 1->0) as it reaches the screen
-  apIm.style.setProperty('--ek',(1-p).toFixed(4));apIm.style.setProperty('--isx',(1/s1).toFixed(5));apIm.style.setProperty('--isy',(1/s2).toFixed(5));
-  if(!ap.swapped&&(covers||k>=E)){ap.swapped=true;applied=ap.it.w.f;ap.dk=Math.max(k,E-D(80)); // dissolve starts ~80ms before the grow ends
-    // desktop swaps underneath the full-screen clone, so nothing visible changes yet
-    deskImgs[0].src='walls/'+applied;
-    {const c=mod(Math.round(pos),n());fillTitle(c);shownCid=items[c].id}   // label is hidden now; refresh it for the reopen
-    }
-  if(ap.swapped){apIm.style.opacity=(1-eio(clamp((k-ap.dk)/F))).toFixed(3)}
-  if(!ap.closed&&ap.swapped){ap.closed=true;open=false;
-    for(const it of items){it.om='close';it.o.v=0;it.o.act=false}}
-  if(ap.swapped&&k>=ap.dk+F){apEl.style.visibility='hidden';apIm.style.transform='';apIm.style.opacity=1;ap.it.apHide=false;ap=null;
-    ov.classList.add('closed');body.classList.add('reo');
-    // real app: overlay stays closed here. Prototype: reopen after ~1s.
-    clearTimeout(reoT);reoT=setTimeout(()=>{if(!open&&!ap)setOpen(true)},1000)}
+// fake desktop: crossfade like DMS's own 1s wallpaper transition
+function setDesk(f){
+  const [a,b]=deskImgs;
+  b.src='walls/'+f;b.style.transition='none';b.style.opacity=0;void b.offsetWidth;
+  b.style.transition=`opacity ${D(1000)}ms ease`;b.style.opacity=1;
+  clearTimeout(deskT);deskT=setTimeout(()=>{a.src=b.src;b.style.transition='none';b.style.opacity=0},D(1000)+50);
 }
 
 // ---------- delete / restore ----------
@@ -480,7 +421,7 @@ function reindex(mut){
 }
 function stagger(base,per){const t=now(),N=n();items.forEach((it,i)=>{if(it.shift){const a=Math.abs(wrapD(i-pos,N));it.hold=t+base+Math.min(a,5)*per}})}
 function del(){
-  if(!n()||!open||ap)return;
+  if(!n()||!open)return;
   const N0=n(),ci=mod(Math.round(target),N0);
   shiftAll(target-ci);
   const it=items[ci],dv=wrapD(ci-pos,N0)+it.shift;
@@ -489,10 +430,10 @@ function del(){
   undo.push({it,idx:ci});
   if(!n()){target=0;pos=0}
   stagger(D(90),D(45));   // neighbours wait for the fall, then close in from nearest outward
-  toast(n()?'已移入回收站 · <em>U</em> 撤销':'已移入回收站',1);kick();
+  toast('已移入回收站',1);kick();
 }
 function restore(){
-  if(!undo.length||!open||ap)return;
+  if(!undo.length||!open)return;
   const {it:old,idx}=undo.pop();
   const it=mkItem(old.w);it.app=0;it.appT0=now()+D(140);it.o.v=1;it.om='open';
   const N0=n();
@@ -506,10 +447,10 @@ function restore(){
 }
 
 // ---------- actions / input ----------
-function go(d){if(!n()||!open||ap)return;target+=d;capLead();kick()}
-function goIdx(i){if(!n()||!open||ap)return;target+=wrapD(i-mod(target,n()),n());kick()}
+function go(d){if(!n()||!open)return;target+=d;capLead();kick()}
+function goIdx(i){if(!n()||!open)return;target+=wrapD(i-mod(target,n()),n());kick()}
 function onCard(it){
-  if(!open){if(!ap)setOpen(true);return}
+  if(!open){setOpen(true);return}
   const i=items.indexOf(it);if(i<0)return;
   if(Math.abs(wrapD(i-pos,n()))<.5)applyCur();else goIdx(i);
 }
@@ -520,7 +461,6 @@ function toast(html,bad){
   clearTimeout(toastT);toastT=setTimeout(()=>{toastEl.classList.remove('show');toastEl.classList.add('hide')},2300);
 }
 addEventListener('keydown',e=>{
-  if(ap){e.preventDefault();return}
   if(!open){e.preventDefault();clearTimeout(reoT);setOpen(true);return}
   const k=e.key;
   if(k==='ArrowRight'||k==='l'||k==='L')go(1);
@@ -536,12 +476,12 @@ addEventListener('keydown',e=>{
 });
 let wAcc=0,wT=0;
 addEventListener('wheel',e=>{
-  e.preventDefault();if(!open||ap)return;
+  e.preventDefault();if(!open)return;
   let d=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;if(e.deltaMode===1)d*=40;
   const t=now();if(t-wT>220||Math.sign(d)!==Math.sign(wAcc))wAcc=0;wT=t;
   wAcc+=d;if(Math.abs(wAcc)>=100){go(Math.sign(wAcc));wAcc=0}
 },{passive:false});
-addEventListener('click',()=>{if(!open&&!ap){clearTimeout(reoT);setOpen(true)}});
+addEventListener('click',()=>{if(!open){clearTimeout(reoT);setOpen(true)}});
 addEventListener('resize',()=>{geom();render();kick()});
 
 // ---------- init ----------

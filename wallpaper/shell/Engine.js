@@ -1,5 +1,5 @@
 // 运动引擎：从 preview/index.html 移植，常量与时序保持一致。
-// 不是 .pragma library：可以直接访问 shell.qml 里的 id（root / cardRep / titleBox / clone …）。
+// 不是 .pragma library：可以直接访问 shell.qml 里的 id（root / titleBox / titleText …）。
 
 // 每级外观，下标 = 与中心的距离（0 主卡 … 4 细条，5 屏外）
 var SX = [1, .36, .2, .1, .03, .02], SY = [1, .72, .56, .44, .36, .32];
@@ -13,7 +13,6 @@ var SH = [1, .5, .3, .15, 0, 0];           // 地面阴影
 var TILT = -6.5 * Math.PI / 180, TAN = Math.tan(TILT);  // 轴线向右上升
 var K = 280, C = 27, K2 = 300, C2 = 30, MAXLEAD = 3, KA = 260, CA = 17;
 var RIP = .022;
-var HOLD = 1000;     // 设置壁纸后，全屏副本至少停留这么久（盖住 DMS 自己的 1s 过渡）
 var POOL_RANGE = 6;  // 目标附近 ±6 张提前分配卡片、加载图片
 
 function lerpT(T, a) { var i = Math.min(T.length - 2, Math.floor(a)), f = Math.min(1, a - i); return T[i] + (T[i + 1] - T[i]) * f; }
@@ -56,11 +55,9 @@ function geom() {
 }
 
 // ---------- 卡片池 ----------
+// 卡片由 Repeater 创建时登记一次；之后只在 grab / release 之间流转，每张卡同一时刻只属于一个条目。
 var cards = [], free = [];
-function initPool() {
-    cards = []; free = [];
-    for (var i = 0; i < cardRep.count; i++) { var c = cardRep.itemAt(i); cards.push(c); free.push(c); }
-}
+function addCard(c) { cards.push(c); free.push(c); }
 function grab(it) {
     if (it.card) return it.card;
     var c = free.pop();
@@ -71,14 +68,13 @@ function grab(it) {
 function release(it) {
     var c = it.card;
     if (!c) return;
-    c.visible = false; c.item = null; it.card = null; it.shown = false;
+    c.visible = false; c.item = null; c.src = ""; it.card = null; it.shown = false;  // 清空图源：还没解码的请求随之取消
     free.push(c);
 }
 function releaseAll() {
     for (var i = 0; i < items.length; i++) release(items[i]);
     for (var j = 0; j < ghosts.length; j++) release(ghosts[j].it);
     ghosts = [];
-    for (var k = 0; k < cards.length; k++) cards[k].src = "";
 }
 
 // ---------- 条目 ----------
@@ -86,7 +82,7 @@ var uid = 0;
 function fileUrl(p) { return "file://" + p.split("/").map(encodeURIComponent).join("/"); }
 function mkItem(w) {
     return { id: ++uid, w: w, url: fileUrl(w.path), card: null, r: null, dvR: 9, pulse: -1, shift: 0, sv: 0, hold: 0, hv: 0, hov: false,
-        app: 1, appT0: 0, shown: false, o: Tw(0), om: "open", selK: 0, apHide: false };
+        app: 1, appT0: 0, shown: false, o: Tw(0), om: "open", selK: 0 };
 }
 var items = [];
 var applied = null;
@@ -94,8 +90,8 @@ var applied = null;
 // ---------- 状态 ----------
 var pos = 0, vel = 0, target = 0;
 var acc = { r: 0, v: 0, id: null };   // 选中弹簧：0 = 静止，1 = 选中卡抬起（放大 + 投影加深）
-var open = false, ap = null;
-var chrome = { acc: Tw(0), lab: Tw(0), hint: Tw(0) };
+var open = false;
+var chrome = { acc: Tw(0), lab: Tw(0) };
 var ghosts = [], undo = [];
 var last = 0;
 var shownCid = null, pendCid = null, accTgt = 1;
@@ -140,7 +136,7 @@ function tick() {
     for (i = 0; i < items.length; i++) {
         it = items[i];
         if (it.shift || it.sv) { if (Math.abs(it.shift) < 4e-4 && Math.abs(it.sv) < 2e-3 && t >= it.hold) { it.shift = 0; it.sv = 0; } else busy = true; }
-        var ht = it.hov && open && !ap ? 1 : 0;
+        var ht = it.hov && open ? 1 : 0;
         it.hv += (ht - it.hv) * (1 - Math.exp(-dt * 14));
         if (Math.abs(ht - it.hv) < .003) it.hv = ht; else busy = true;
         if (it.app < 1) { it.app = clamp((t - it.appT0) / 560); busy = true; }
@@ -153,7 +149,6 @@ function tick() {
         g.k = clamp((t - g.t0) / 560);
         if (g.k >= 1) { release(g.it); ghosts.splice(i, 1); } else busy = true;
     }
-    if (ap) { stepApply(t); busy = true; }
     if (stepLabel(t)) busy = true;
     render(t);
     if (!busy) {
@@ -186,7 +181,6 @@ function cardTf(it, dv, gk) {
         var lift = gk < .16 ? Math.sin(gk / .16 * Math.PI) * G.vh * .012 : 0;
         y += gk * gk * G.vh * .46 - lift; rot = gk * gk * (s >= 0 ? 6 : -6) + gk * gk * 4; sc *= 1 - .1 * gk; op *= 1 - clamp((gk - .28) / .6);
     }
-    if (it.apHide) op = 0;
     return { X: G.cx + x, Y: G.by + y, sx: sx * sc * st, sy: sy * sc / Math.sqrt(st), sk: sk, rot: rot, op: op, a: a };
 }
 
@@ -225,15 +219,20 @@ function render(t) {
     for (i = 0; i < N; i++) { it = items[i]; if (it.shown && it.r && (!S || Math.abs(it.dvR) < Math.abs(S.dvR))) S = it; }
     if (S && S.id !== acc.id) { acc.id = S.id; acc.r = 0; acc.v = 0; }
     if (S) { var spd = Math.abs(vel) + Math.abs(S.sv); accTgt = clamp(1 - (spd - .4) / 2.2); }
+    // 目标附近 ±POOL_RANGE 张提前分配卡片、开始解码。由远到近申请：Qt 的图片读取线程后进先出，离中心越近越先解码
+    var tc = Math.round(target);
+    for (var d = POOL_RANGE + 1; d >= 0 && N; d--)
+        for (var sg = -1; sg <= 1; sg += 2) {
+            var j = mod(tc + sg * d, N);
+            if (Math.abs(wrapD(j - target, N)) <= POOL_RANGE) grab(items[j]);
+        }
     for (i = 0; i < N; i++) {
         it = items[i];
         var a0 = Math.abs(wrapD(i - pos, N));
         var a5 = Math.min(a0, 5);  // 涟漪：远处卡片取稍早的位置；延迟有上限，快速甩动时整排仍然连贯
         var p = posAt(t - Math.min(RIP * a5 * 1000, 250 * a5 / Math.max(Math.abs(vel), 1)));
         var dv = wrapD(i - p, N) + it.shift;
-        var near = Math.abs(wrapD(i - target, N)) <= POOL_RANGE || Math.abs(dv) <= 5.2;
-        if (!near) { release(it); continue; }
-        if (Math.abs(wrapD(i - target, N)) <= POOL_RANGE) grab(it);  // 提前加载
+        if (Math.abs(wrapD(i - target, N)) > POOL_RANGE && Math.abs(dv) > 5.2) { release(it); continue; }
         paint(it, dv, 1000 - Math.round(Math.abs(dv) * 100), null);
     }
     for (i = 0; i < ghosts.length; i++) { var g = ghosts[i]; paint(g.it, g.dv, 1000 - Math.round(100 * clamp((g.k - .22) / .1)) - 1, g.k); }
@@ -243,8 +242,6 @@ function render(t) {
     var lean2 = clamp(-vel * G.u * 6, -G.u * 30, G.u * 30);
     var ty = (1 - lv) * G.H * .28, lo = clamp(lv * 1.4) * (N ? 1 : 0) * (1 - .45 * clamp((av - 6) / 4));
     titleBox.x = G.tx + lean2; titleBox.y = G.ty + ty * .8; titleBox.opacity = lo;
-    var hv = chrome.hint.v;
-    hintsBox.opacity = hv; hintsBox.ty = (1 - hv) * G.u * 16;
 }
 
 // 标题：中心在变化时隐藏，停稳后再淡入（不会在快速切换时闪出色块）
@@ -280,7 +277,7 @@ function load(list, current) {
     pos = target = ci; vel = 0; hist = []; lastMoveT = 0;
     acc.r = 0; acc.v = 0; acc.id = null;
     shownCid = null; pendCid = null; tWant = 0; tTw = Tw(0); lastN = -1;
-    undo = []; ap = null; S = null;
+    undo = []; S = null;
     for (var k in chrome) chrome[k] = Tw(0);
     geom();
 }
@@ -299,7 +296,6 @@ function setOpen(v) {
         }
         tw(chrome.acc, 1, 420, 360, eoc);
         tw(chrome.lab, 1, 430, 480, eob);
-        tw(chrome.hint, 1, 560, 320, eoc);
     } else {
         for (var k in chrome) tw(chrome[k], 0, 0, 130, ein);
         for (i = 0; i < N; i++) {
@@ -313,57 +309,18 @@ function setOpen(v) {
 }
 function isOpen() { return open; }
 
-// ---------- 应用：主卡放大到全屏，底下换壁纸，再溶解 ----------
+// ---------- 应用：设为当前显示器的壁纸，覆盖层照常收起 ----------
 function applyCur() {
-    if (!open || ap) return;
+    if (!open) return;
     if (!n()) { root.toast("没有可应用的壁纸", true); return; }
     target = Math.round(target); capLead();
-    var ci = mod(Math.round(target), n()), it = items[ci];
+    var it = items[mod(Math.round(target), n())];
     if (it.w.path === applied) { it.pulse = now(); root.toast("已是当前壁纸", false); kick(); return; }  // 不会有变化：只做一下脉冲
-    clone.src = it.url; clone.srcW = G.srcW; clone.hiW = Math.ceil(G.vw * root.dpr);
-    ap = { it: it, t0: now(), swapped: false, closed: false, A: 60, E: 480, F: 420, dk: 0, sk: it.selK || 0, setT: 0, failed: false };
-    var job = ap;
     root.setWallpaper(it.w.path, function (d) {
-        if (d.ok) { job.setT = now(); applied = it.w.path; }
-        else { job.failed = true; root.toast("设置失败：" + (d.error || "未知错误"), true); }
-        kick();
+        if (d.ok) applied = it.w.path;
+        else root.toast("设置失败：" + (d.error || "未知错误"), true);
     });
-    it.apHide = false; clone.visible = true; clone.opacity = 1;
-    for (var k in chrome) tw(chrome[k], 0, 0, 120, ein);
-    var N = n();
-    for (var i = 0; i < N; i++) {  // 其他卡片先退场
-        var o = items[i]; if (o === it) continue;
-        var a = Math.abs(wrapD(i - pos, N)); o.om = "close";
-        tw(o.o, 0, Math.min(a, 5) * 22, 260, ein);
-    }
-    kick();
-}
-function stepApply(t) {
-    var k = t - ap.t0, A = ap.A, E = ap.E, F = ap.F, vw = G.vw, vh = G.vh, W = G.W, H = G.H;
-    var sx = vw / W * 1.03, sy = vh / H * 1.03;
-    if (k > 0) ap.it.apHide = true;
-    // 先轻微回缩（到 .97），再一口气放大到全屏
-    var pre = .03 * Math.sin(clamp(k / A) * Math.PI / 2), p = k < A ? 0 : eio(clamp((k - A) / (E - A)));
-    var b0 = (1 + .022 * ap.sk) * (1 - pre);
-    var s1 = b0 + (sx - b0) * p, s2 = b0 + (sy - b0) * p;
-    var c0x = G.cx, c0y = G.by - H * (1 + .022 * ap.sk) / 2 - H * .018 * ap.sk;
-    var ccx = c0x + (vw / 2 - c0x) * p, ccy = c0y + (vh / 2 - c0y) * p;
-    var w = W * s1, h = H * s2, m = Math.max(s1, s2);
-    clone.x = ccx - w / 2; clone.y = ccy - h / 2; clone.width = w; clone.height = h;
-    clone.imgW = W * m; clone.imgH = H * m; clone.ek = 1 - p;
-    var covers = ccx - w / 2 <= 0 && ccx + w / 2 >= vw && ccy - h / 2 <= 0 && ccy + h / 2 >= vh;
-    var ready = ap.failed || (ap.setT && t - ap.setT >= HOLD);
-    if (!ap.swapped && (covers || k >= E) && ready) { ap.swapped = true; ap.dk = Math.max(k, E - 80); }
-    if (ap.swapped) clone.opacity = 1 - eio(clamp((k - ap.dk) / F));
-    if (!ap.closed && (covers || k >= E)) {  // 全屏后其它卡片已经不可见，直接视为关闭
-        ap.closed = true; open = false; root.open = false;
-        for (var i = 0; i < items.length; i++) { var it = items[i]; it.om = "close"; it.o.v = 0; it.o.act = false; }
-    }
-    if (ap.swapped && k >= ap.dk + F) {
-        clone.visible = false; ap.it.apHide = false;
-        var c = mod(Math.round(pos), n()); fillTitle(c); shownCid = items[c].id;
-        ap = null;
-    }
+    setOpen(false);
 }
 
 // ---------- 删除 / 撤销 ----------
@@ -384,7 +341,7 @@ function stagger(base, per) {
     items.forEach(function (it, i) { if (it.shift) { var a = Math.abs(wrapD(i - pos, N)); it.hold = t + base + Math.min(a, 5) * per; } });
 }
 function del() {
-    if (!n() || !open || ap) return;
+    if (!n() || !open) return;
     var N0 = n(), ci = mod(Math.round(target), N0);
     shiftAll(target - ci);
     var it = items[ci], dv = wrapD(ci - pos, N0) + it.shift;
@@ -394,13 +351,13 @@ function del() {
     undo.push(entry);
     if (!n()) { target = 0; pos = 0; }
     stagger(90, 45);  // 邻居等它落下，再由近及远合拢
-    root.toast(n() ? "已移入回收站 · U 撤销" : "已移入回收站", true);
+    root.toast("已移入回收站", true);
     root.trash(it.w.path, function (d) {
         entry.pending = false;
         if (d.ok) { entry.key = d.key; return; }
         undo.splice(undo.indexOf(entry), 1);
         root.toast("删除失败：" + (d.error || "未知错误"), true);
-        if (open && !ap) reinsert(entry);
+        if (open) reinsert(entry);
     });
     kick();
 }
@@ -416,7 +373,7 @@ function reinsert(entry) {
     kick();
 }
 function restore() {
-    if (!undo.length || !open || ap) return;
+    if (!undo.length || !open) return;
     var entry = undo[undo.length - 1];
     if (entry.pending) return;  // 回收站还没返回结果，等一下再按
     undo.pop();
@@ -427,11 +384,10 @@ function restore() {
 }
 
 // ---------- 输入 ----------
-function go(d) { if (!n() || !open || ap) return; target += d; capLead(); kick(); }
-function goIdx(i) { if (!n() || !open || ap) return; target += wrapD(i - mod(target, n()), n()); kick(); }
+function go(d) { if (!n() || !open) return; target += d; capLead(); kick(); }
+function goIdx(i) { if (!n() || !open) return; target += wrapD(i - mod(target, n()), n()); kick(); }
 function first() { goIdx(0); }
 function lastIdx() { goIdx(n() - 1); }
-function busyApplying() { return !!ap; }
 function hover(card, on) { if (card.item) { card.item.hov = on; kick(); } }
 function clickCard(card) {
     var it = card.item;
@@ -440,4 +396,8 @@ function clickCard(card) {
     if (i < 0) return;
     if (Math.abs(wrapD(i - pos, n())) < .5) applyCur(); else goIdx(i);
 }
-function resize() { if (!items) return; geom(); for (var i = 0; i < cards.length; i++) cards[i].srcW = G.srcW; render(); kick(); }
+function resize() {
+    geom();
+    for (var i = 0; i < cards.length; i++) cards[i].srcW = G.srcW;
+    if (root.shown) { render(); kick(); }
+}

@@ -3,7 +3,6 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Widgets
 import "Engine.js" as E
 
 // 壁纸切换覆盖层：常驻后台，Mod+Y 在当前聚焦的显示器上弹出一排卡片。
@@ -19,12 +18,13 @@ ShellRoot {
     property bool empty: false
     property string output: ""
     property var targetScreen: Quickshell.screens[0]
-    property real vw: win.width
-    property real vh: win.height
+    // 覆盖层铺满整块屏幕，布局直接取屏幕的逻辑尺寸：窗口映射前就已确定，
+    // 不经过映射时 0×0 的过渡尺寸，卡片第一帧就按最终尺寸布局、解码
+    property real vw: targetScreen ? targetScreen.width : win.width
+    property real vh: targetScreen ? targetScreen.height : win.height
     property real dpr: targetScreen ? targetScreen.devicePixelRatio : 1
     property real u: 1
     property real cardW: 800
-    // 放在 vw/vh 上而不是 win 的 onWidthChanged：后者触发时这两个绑定还是旧值
     onVwChanged: E.resize()
     onVhChanged: E.resize()
 
@@ -35,13 +35,12 @@ ShellRoot {
     readonly property string backend: Quickshell.shellPath("scripts/wallpaper-backend")
 
     function show() {
-        if (root.loading || E.busyApplying()) return;
+        if (root.loading) return;
         if (root.shown) { E.setOpen(true); return; }  // 正在收起时再按：直接重新展开
         root.loading = true;
         outputProc.running = true;
     }
     function hide() {
-        if (E.busyApplying()) return;
         E.setOpen(false);
     }
     function toggle() {
@@ -99,7 +98,7 @@ ShellRoot {
                 if (!d.ok) { console.warn("wallpaper:", d.error); return; }
                 E.load(d.items, d.current);
                 root.shown = true;
-                Qt.callLater(() => { E.initPool(); E.setOpen(true); });
+                Qt.callLater(() => E.setOpen(true));
             }
         }
     }
@@ -143,7 +142,8 @@ ShellRoot {
         id: win
 
         screen: root.targetScreen
-        visible: root.shown
+        // 收起后若还有提示（例如设置失败）在显示，窗口留到提示结束；此时没有输入区域、不占键盘
+        visible: root.shown || toastAnim.running
         color: "transparent"
         anchors {
             top: true
@@ -196,9 +196,10 @@ ShellRoot {
             Item {
                 id: stage
                 anchors.fill: parent
+                // 卡片池：目标 ±6 张预取 + 移动途中屏上的 ±5 张 + 正在落下的删除卡片，长距离跳转时最多同时占用 24 张左右
                 Repeater {
-                    id: cardRep
-                    model: 24
+                    model: 32
+                    onItemAdded: (index, item) => E.addCard(item)
                     Card {
                         id: cardD
                         onHoverChanged2: on => E.hover(cardD, on)
@@ -265,143 +266,12 @@ ShellRoot {
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: "没有壁纸了 · U 撤销"
+                        text: "没有壁纸了"
                         color: root.tx
                         font.family: Fonts.body
                         font.weight: Font.Bold
                         font.pixelSize: 24 * root.u
                     }
-                }
-            }
-
-            // 按键提示
-            CutRect {
-                id: hintsBox
-                property real ty: 0
-                z: 1300
-                opacity: 0
-                visible: opacity > 0.002
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.rightMargin: 40 * root.u
-                anchors.bottomMargin: 28 * root.u - ty
-                width: hintsRow.implicitWidth + 36 * root.u
-                height: hintsRow.implicitHeight + 16 * root.u
-                color: Qt.rgba(2 / 255, 10 / 255, 60 / 255, 0.78)
-                strokeColor: Qt.rgba(163 / 255, 240 / 255, 1, 0.22)
-                strokeWidth: 1
-                cut: 12
-                Row {
-                    id: hintsRow
-                    anchors.centerIn: parent
-                    spacing: 18 * root.u
-                    Repeater {
-                        model: [
-                            { keys: ["←", "→", "H", "L"], label: "切换", kind: "" },
-                            { keys: ["ENTER"], label: "应用", kind: "l" },
-                            { keys: ["D"], label: "删除", kind: "r" },
-                            { keys: ["U"], label: "撤销", kind: "" },
-                            { keys: ["ESC"], label: "关闭", kind: "" }
-                        ]
-                        Row {
-                            id: hintGroup
-                            required property var modelData
-                            spacing: 6 * root.u
-                            Repeater {
-                                model: hintGroup.modelData.keys
-                                CutRect {
-                                    id: kbd
-                                    required property string modelData
-                                    width: Math.max(24 * root.u, kt.implicitWidth + 14 * root.u)
-                                    height: kt.implicitHeight + 7 * root.u
-                                    cut: 12
-                                    color: hintGroup.modelData.kind === "l" ? root.fill : Qt.rgba(163 / 255, 240 / 255, 1, 0.10)
-                                    Rectangle {
-                                        visible: hintGroup.modelData.kind === "r"
-                                        width: 3 * root.u
-                                        height: parent.height
-                                        color: root.red
-                                    }
-                                    Text {
-                                        id: kt
-                                        anchors.centerIn: parent
-                                        anchors.verticalCenterOffset: 0.5 * root.u
-                                        text: kbd.modelData
-                                        color: hintGroup.modelData.kind === "l" ? root.ink : root.tx
-                                        font.family: Fonts.barlow
-                                        font.weight: Font.Bold
-                                        font.pixelSize: 14 * root.u
-                                        font.letterSpacing: 14 * root.u * 0.08
-                                    }
-                                }
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: hintGroup.modelData.label
-                                color: Qt.rgba(236 / 255, 252 / 255, 1, 0.82)
-                                font.family: Fonts.body
-                                font.weight: Font.Bold
-                                font.pixelSize: 15 * root.u
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 应用：主卡的副本放大到全屏，盖住 DMS 换壁纸的过程，然后溶解
-        Item {
-            id: clone
-
-            property url src: ""
-            property int srcW: 1024
-            property int hiW: 2560
-            property real imgW: 1
-            property real imgH: 1
-            property real ek: 1
-
-            z: 1500
-            visible: false
-            onVisibleChanged: if (!visible) src = ""
-
-            RectangularShadow {
-                anchors.fill: parent
-                anchors.margins: parent.width * 0.02 * clone.ek
-                anchors.topMargin: anchors.margins + 28 * clone.ek
-                anchors.bottomMargin: anchors.margins - 28 * clone.ek
-                radius: 14 * clone.ek
-                blur: 52 * clone.ek
-                color: Qt.rgba(0, 4 / 255, 28 / 255, 0.62)
-                opacity: clone.ek
-                visible: clone.ek > 0.01
-            }
-            ClippingRectangle {
-                anchors.fill: parent
-                radius: 14 * clone.ek
-                color: root.ink
-                Image {
-                    id: cloneLo
-                    width: clone.imgW
-                    height: clone.imgH
-                    anchors.centerIn: parent
-                    source: clone.src
-                    sourceSize.width: clone.srcW
-                    fillMode: Image.PreserveAspectCrop
-                    smooth: true
-                    mipmap: true
-                }
-                // 放大后换成全分辨率，避免最后一帧糊
-                Image {
-                    width: clone.imgW
-                    height: clone.imgH
-                    anchors.centerIn: parent
-                    source: clone.src
-                    sourceSize.width: clone.hiW
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    smooth: true
-                    opacity: status === Image.Ready ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 160 } }
                 }
             }
         }
@@ -411,7 +281,7 @@ ShellRoot {
             id: toastBox
             z: 1600
             anchors.horizontalCenter: parent.horizontalCenter
-            y: win.width * 42 / 1706 + 34 * root.u + toastY
+            y: root.vw * 42 / 1706 + 34 * root.u + toastY
             property real toastY: -14 * root.u
             opacity: 0
             visible: opacity > 0.002
